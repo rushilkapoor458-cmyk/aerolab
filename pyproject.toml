@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aerolab"
+dynamic = ["version"]
+description = "A 2D/3D subsonic aerodynamics toolkit: panel methods, integral boundary layers, vortex lattice, and wind-tunnel corrections."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Rushil Kapoor" }]
+keywords = ["aerodynamics", "panel-method", "boundary-layer", "airfoil", "wind-tunnel"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.14",
+    "matplotlib>=3.9",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+aerolab = "aerolab.cli:app"
+
+[tool.hatch.version]
+path = "aerolab/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["aerolab"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+# -ra          : report reasons for all non-passing outcomes at the end
+# --strict-markers : an unregistered @pytest.mark typo becomes an error, not a silent no-op
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: test takes more than a few seconds (deselect with '-m \"not slow\"')",
+    "validation: checks a physical result against published or analytical data",
+]
