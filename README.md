@@ -12,7 +12,7 @@ are known, stated, and validated against published data.
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Environment, package skeleton, test harness | **complete** |
-| 1 | Geometry: NACA generators, `.dat` import, repaneling | not started |
+| 1 | Geometry: NACA generators, `.dat` import, repaneling | **complete** |
 | 2 | Inviscid 2D: Hess–Smith panel method | not started |
 | 3 | Viscous: integral boundary layer, transition, profile drag | not started |
 | 4 | Viscous–inviscid coupling via transpiration | not started |
@@ -34,6 +34,20 @@ pip install -e ".[dev]"
 
 ```bash
 aerolab version
+```
+
+```python
+from aerolab.geometry import naca, repanel, read_dat, Panels
+
+af = naca("2412")                     # 4- and 5-digit, analytic camber lines
+af.max_thickness                      # Extremum(value=0.1200, x=0.2982)
+af.le_radius, af.area, af.te_gap
+
+coarse = repanel(af, 161)             # cosine-clustered, independent LE/TE control
+panels = Panels(coarse)               # control points, tangents, outward normals
+
+imported = read_dat("s1223.dat")      # Selig/Lednicer detected, not guessed
+imported.detected_format              # 'lednicer'
 ```
 
 ## Test
