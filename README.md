@@ -14,7 +14,7 @@ are known, stated, and validated against published data.
 | 0 | Environment, package skeleton, test harness | **complete** |
 | 1 | Geometry: NACA generators, `.dat` import, repaneling | **complete** |
 | 2 | Inviscid 2D: Hess–Smith panel method | **complete** |
-| 3 | Viscous: integral boundary layer, transition, profile drag | not started |
+| 3 | Viscous: integral boundary layer, transition, profile drag | **complete** |
 | 4 | Viscous–inviscid coupling via transpiration | not started |
 | 5 | Polars, CLI, PDF reporting, compressibility corrections | not started |
 | 6 | Finite wings: vortex lattice | not started |
@@ -70,6 +70,20 @@ sols = system.solve_sweep(np.deg2rad(np.arange(-6, 16, 0.5)))
 
 `solve()` **refuses** to return a result whose two lift calculations disagree by
 more than 0.5%; pass `validate=False` to override deliberately.
+
+```python
+from aerolab.viscous import solve_boundary_layer
+
+bl = solve_boundary_layer(sol, reynolds=3e6, n_crit=9.0)   # or method="michel"
+bl.cd_profile                                  # Squire-Young profile drag
+bl.upper.transition_x, bl.upper.theta          # per-surface development
+bl.upper.laminar_separation_x                  # lambda <= -0.0842
+bl.upper.turbulent_separation_x                # H > 2.6
+```
+
+`n_crit` is the knob to calibrate against a real tunnel: 9 is free flight,
+4–7 a small open-circuit tunnel. It moves the drag by **32%** across that range,
+which is far more than any other modelling choice — see `NOTES.md`, L3.3.
 
 ## Test
 

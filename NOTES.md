@@ -407,6 +407,166 @@ value (6.9141 by pressure, 6.9142 by Kutta-Joukowski), and the Joukowski
 validation shows the method converging to an exact answer elsewhere, so this is
 reported as the method's converged value rather than adjusted toward the target.
 
+---
+
+## Phase 3 — Viscous boundary layer
+
+*Recorded 2026-08-09.*
+
+### Conventions fixed in this phase
+
+- **C3.1 — `s` runs downstream from the stagnation point on both surfaces**,
+  non-dimensionalised by chord. The stagnation point is found from the sign
+  change of the tangential velocity: in Selig order the upper surface is
+  traversed *against* the flow, so `v_tangential < 0` there and `> 0` on the
+  lower surface.
+- **C3.2 — `cf` uses the local *edge* dynamic pressure**, not the freestream.
+  This is the usual convention for integral methods and it matters wherever the
+  edge velocity is far from freestream.
+
+### Assumptions
+
+- **A3.1 — The calculation is one-way.** The boundary layer reads the inviscid
+  edge velocity and does not feed back into it. This is the defining limitation
+  of the phase; Phase 4 closes the loop.
+- **A3.2 — Laminar separation at λ ≤ −0.0842, not at the correlation's own
+  zero.** The Thwaites shear correlation vanishes at λ = −0.0898, but −0.0842
+  is the better predictor. On Howarth's linearly retarded flow, whose exact
+  separation is at x/L = 0.1198:
+
+  | threshold | predicted x/L | error |
+  |---|---|---|
+  | −0.0898 | 0.1230 | +2.7% |
+  | −0.0842 | 0.1179 | −1.6% |
+
+  The slightly conservative threshold is also the more accurate one. Both are
+  asserted in the tests.
+- **A3.3 — Shape factor is set to 1.4 at the start of the turbulent run.**
+  Momentum thickness is continuous through transition; the shape factor is not,
+  and an integral method cannot resolve the transition region. This is *not* a
+  negligible choice — see L3.4.
+- **A3.4 — Laminar separation before transition forces transition there.** A
+  laminar layer that separates first forms a bubble, transitions inside it and
+  reattaches turbulent. An integral method cannot resolve the bubble, so the
+  short-bubble assumption is used: transition is placed at separation and the
+  bubble's own drag is neglected. This fires on NACA 0012 below about
+  Re = 1e6 and on the NACA 2412 upper surface at α = 4°.
+- **A3.5 — Thwaites' integral is evaluated by Gauss-Legendre quadrature on a
+  spline of `Ue`, not on a spline of `Ue⁵` and not by the trapezoid rule.**
+  Near the stagnation point `Ue ~ k s`, so the integrand behaves like `s⁵`. The
+  trapezoid rule overestimates the first interval threefold (`h⁶/2` against the
+  exact `h⁶/6`); splining `Ue⁵` is worse, because a cubic through a quintic with
+  a fifth-order zero oscillates at the boundary — it produced λ = 1.06 at the
+  second station against the correct 0.075. Since θ² is the *ratio* of that
+  integral to `Ue⁶`, both errors land directly on λ exactly where transition
+  prediction reads the shape factor.
+- **A3.6 — Stations are cosine-clustered at both ends.** The stagnation end
+  needs it because the Thwaites integrand changes fastest there; the
+  trailing-edge end needs it because of L3.1. Clustering only at the stagnation
+  end left the drag wandering 2.3% and non-monotonically with station count;
+  both ends converges it to 0.2% from 500 stations upward.
+
+### Limitations
+
+- **L3.1 — Every uncoupled solution separates in the last one or two percent of
+  chord, and this is an artefact.** The inviscid solution approaches a
+  stagnation point at a finite-angle trailing edge, so `Cp → 1` and `Ue → 0`
+  there. Measured on NACA 0012 at α = 0 with 400 panels, the last three stations
+  give:
+
+  | x/c | Ue | dUe/ds |
+  |---|---|---|
+  | 0.9919 | 0.856 | −3.0 |
+  | 0.9959 | 0.828 | −17.8 |
+  | 1.0000 | 0.655 | −73.3 |
+
+  No boundary layer survives `dUe/ds = −73`. In real flow the displacement
+  thickness prevents that stagnation from ever being felt. Because it fires on
+  essentially every case, treating it as a failure would make every result an
+  error; `solve_boundary_layer` therefore raises only for separation forward of
+  `x/c = 0.95` (a parameter), and reports the rest. Phase 4 is what removes it.
+- **L3.2 — The e^N result for NACA 0012 falls 2% below the stated acceptance
+  band, and this has not been tuned away.** With N = 9 the prediction is
+  Cd = 0.005687 against the band 0.0058–0.0065 and a measured 0.0060 — 5.2%
+  low. Michel's criterion gives 0.006369, inside the band and 6.1% high.
+
+  The reason for the low bias is known and is A3.1: the uncoupled layer sees the
+  undisplaced inviscid edge velocity, which is too high, so it comes out too
+  thin. Coupling should raise it. **This is a testable prediction for Phase 4:
+  the coupled NACA 0012 drag at Re = 3e6, α = 0 should land between 0.0059 and
+  0.0064.** If it does not, something in Phase 4 is wrong.
+- **L3.3 — Transition modelling dominates the uncertainty, not the boundary-layer
+  integration.** Measured budget for NACA 0012 at Re = 3e6, α = 0:
+
+  | source | effect on Cd |
+  |---|---|
+  | N_crit from 4 to 11 | **32%** |
+  | transition model (e^N N=9 vs Michel) | **12%** |
+  | assumed start shape factor, 1.3 to 1.5 | 4% |
+  | panel count, 240 to 640 | 3% |
+  | station count, 500 to 3000 | 0.2% |
+
+  The transition-model spread alone is wider than the acceptance band. No amount
+  of care in the integration narrows it. For the tunnel project this is the
+  useful message: **calibrate N against the tunnel rather than trusting 9**.
+  Mack's correlation `N = −8.43 − 2.4 ln(Tu)` gives N ≈ 8.2 at Tu = 0.1% and
+  N ≈ 2.6 at Tu = 1%.
+- **L3.4 — The assumed post-transition shape factor is worth 4%.** Varying it
+  from 1.3 to 1.5 moves the NACA 0012 drag by 4%, comparable to the width of the
+  whole acceptance band. Pinned in the tests so it stays visible.
+- **L3.5 — Squire-Young assumes an attached layer at the trailing edge.** Where
+  a surface separates, the drag returned is a lower bound of unknown size.
+- **L3.6 — The e^N growth rate has an unphysical branch below H = 2.374.** The
+  bracketed expression changes sign there and the square root makes the rate
+  rise again as H falls, implying a favourable gradient destabilises the layer.
+  It never acts, because the neutral curve keeps Re_θ below critical in that
+  range and no amplification accumulates, but it is in the fit.
+- **L3.7 — 250 stations per surface is too coarse**, giving drag 1.4% high. The
+  default of 1000 is comfortably converged; 500 is the practical minimum.
+
+### Defect found and fixed
+
+- **D3.1 — Head's inverse correlation had its two branches paired the wrong way
+  round.** The forward branch for `H ≤ 1.6` contains `(H − 1.1)` and maps onto
+  `H1 ≥ 5.3`, so the inverse there must be the `1.1 +` form; the `H > 1.6`
+  branch contains `(H − 0.6778)` and maps onto `H1 < 5.3`. I had them swapped.
+
+  The error was quiet in exactly the way that matters: only 1.4% at H = 1.4,
+  where a turbulent run *starts*, but 54% by H = 2.6 — so it grew through the
+  adverse pressure gradient toward the trailing edge and surfaced as premature
+  separation rather than as an obviously wrong number. Round-trip agreement is
+  now 0.06%; before the fix it was 54%. The round-trip test exists solely to
+  catch this class of error and did so on its first run.
+
+### Validation performed
+
+- **V3.1 — Blasius flat plate.** Thwaites gives θ = 0.6708 √(s/Re) against the
+  exact 0.664 — 1.03% high, asserted as a fixed ratio. Skin friction
+  cf = 0.44/Re_θ against the exact 0.4409/Re_θ — 0.2%, an order of magnitude
+  better than the thickness. Shape factor 2.61 against 2.59.
+- **V3.2 — Falkner-Skan stagnation flow.** `Ue = k s` gives λ = 0.075 uniformly,
+  the classical value, and θ = √(0.075/(Re k)) exactly at the first station.
+- **V3.3 — Howarth's linearly retarded flow.** Separation at x/L = 0.1179
+  against the exact 0.1198, a 1.6% error. See A3.2.
+- **V3.4 — Flat-plate transition Reynolds number.** e^N with N = 9 transitions
+  at Re_x between 2e6 and 3.5e6, the accepted quiet-stream figure. This
+  exercises the neutral curve, the growth rate and the integration together.
+  Critical Re_θ at the Blasius shape factor comes out 224, the classical neutral
+  point.
+- **V3.5 — Correlation round-trips and branch continuity.** Head's forward and
+  inverse agree to 0.06%; both change branch at the same place (H = 1.6,
+  H1 = 5.3) and agree to 0.2% there.
+- **V3.6 — Against measured data.** NACA 2412 at Re = 3e6, α = 4° gives
+  Cd = 0.006774 against Abbott & von Doenhoff's 0.0068 — **0.4%**.
+
+### Acceptance results
+
+| Case | Predicted | Target | |
+|---|---|---|---|
+| NACA 0012, Re 3e6, α=0, Michel | **0.006369** | 0.0058–0.0065 | pass |
+| NACA 0012, Re 3e6, α=0, e^N N=9 | **0.005687** | 0.0058–0.0065 | **fails low by 2%** — see L3.2 |
+| NACA 2412, Re 3e6, α=4, e^N N=9 | **0.006774** | within 15% of A&vD (0.0068) | pass, 0.4% |
+
 ### Versions as built
 
 | Package | Version |
