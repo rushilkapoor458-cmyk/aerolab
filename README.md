@@ -13,7 +13,7 @@ are known, stated, and validated against published data.
 |---|---|---|
 | 0 | Environment, package skeleton, test harness | **complete** |
 | 1 | Geometry: NACA generators, `.dat` import, repaneling | **complete** |
-| 2 | Inviscid 2D: Hess–Smith panel method | not started |
+| 2 | Inviscid 2D: Hess–Smith panel method | **complete** |
 | 3 | Viscous: integral boundary layer, transition, profile drag | not started |
 | 4 | Viscous–inviscid coupling via transpiration | not started |
 | 5 | Polars, CLI, PDF reporting, compressibility corrections | not started |
@@ -50,10 +50,43 @@ imported = read_dat("s1223.dat")      # Selig/Lednicer detected, not guessed
 imported.detected_format              # 'lednicer'
 ```
 
+```python
+import numpy as np
+from aerolab.geometry import naca
+from aerolab.inviscid import HessSmithSystem
+
+system = HessSmithSystem(naca("2412", 401))   # factorised once
+sol = system.solve(np.deg2rad(5.0))           # alpha in RADIANS
+
+sol.cl_pressure, sol.cl_kutta_joukowski       # two independent routes
+sol.cm_quarter_chord                          # positive nose-up
+sol.cd_pressure                               # ~0 by D'Alembert: an error measure
+sol.cp, sol.control_points                    # surface pressure distribution
+sol.velocity_at([[2.0, 0.5]])                 # field query anywhere
+
+# A sweep costs no further factorisations: the freestream enters linearly.
+sols = system.solve_sweep(np.deg2rad(np.arange(-6, 16, 0.5)))
+```
+
+`solve()` **refuses** to return a result whose two lift calculations disagree by
+more than 0.5%; pass `validate=False` to override deliberately.
+
 ## Test
 
 ```bash
 pytest
+```
+
+## Panel-independence study
+
+![convergence](docs/panel_independence.png)
+
+The method is first order — error halves as panels double. Regenerate with:
+
+```python
+from aerolab.validation.panel_independence import run_panel_study, plot_panel_study
+studies = [run_panel_study(c, 5.0) for c in ("0012", "2412", "4412", "23012")]
+plot_panel_study(studies, "docs/panel_independence.png")
 ```
 
 ## Conventions

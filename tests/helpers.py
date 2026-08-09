@@ -55,3 +55,144 @@ def ellipse_perimeter(a: float = A_SEMI, b: float = B_SEMI) -> float:
     """
     h = (a - b) ** 2 / (a + b) ** 2
     return float(np.pi * (a + b) * (1.0 + 3.0 * h / (10.0 + np.sqrt(4.0 - 3.0 * h))))
+
+
+# ---------------------------------------------------------------------------
+# Joukowski airfoil: a thick, cambered section with an exact solution
+# ---------------------------------------------------------------------------
+#
+# A circle of radius R centred at zeta_c and passing through zeta = a is mapped
+# by z = zeta + a**2/zeta. The circle passing exactly through the map's critical
+# point is what produces a closed (cusped) trailing edge. Putting the rear
+# stagnation point there is the Kutta condition, and it fixes the circulation:
+#
+#     Gamma = 4 * pi * R * V_inf * sin(alpha - beta),   beta = arg(a - zeta_c)
+#
+# with Gamma positive **clockwise**, matching the sign convention of
+# aerolab.inviscid.influence. Lift follows from Kutta-Joukowski.
+#
+# This matters because it is the only reference in the suite that is
+# simultaneously thick, cambered and exact. Symmetric NACA sections have
+# closed-form *geometry* but no closed-form flow; the cylinder has an exact flow
+# but no camber and no Kutta condition.
+
+JOUKOWSKI_A = 1.0
+
+
+class Joukowski:
+    """A Joukowski airfoil together with its exact incompressible solution.
+
+    Parameters
+    ----------
+    x_offset, z_offset : float
+        Circle-centre offsets ``(-x_offset, z_offset)`` in the mapping plane.
+        ``x_offset`` controls thickness, ``z_offset`` controls camber.
+
+    Attributes
+    ----------
+    radius : float
+        Radius of the circle in the mapping plane.
+    beta : float
+        ``arg(a - zeta_c)`` in radians; the mean-line angle at the trailing edge.
+    """
+
+    def __init__(self, x_offset: float = 0.10, z_offset: float = 0.08) -> None:
+        self.centre = complex(-x_offset, z_offset)
+        self.radius = abs(JOUKOWSKI_A - self.centre)
+        self.beta = float(np.angle(JOUKOWSKI_A - self.centre))
+
+    def circle(self, n: int) -> np.ndarray:
+        """``n`` points on the mapping-plane circle, starting at the trailing edge."""
+        theta = np.linspace(0.0, 2.0 * np.pi, n)
+        return self.centre + self.radius * np.exp(1j * (theta + self.beta))
+
+    def airfoil(self, n: int = 641) -> Airfoil:
+        """The mapped section, in Selig order.
+
+        Points are uniform in mapping-plane angle, which the transformation turns
+        into extremely fine spacing at the cusped trailing edge (panel lengths
+        there shrink quadratically) and coarser spacing elsewhere.
+        """
+        zeta = self.circle(n)
+        z = zeta + JOUKOWSKI_A**2 / zeta
+        return Airfoil.from_points(z.real, z.imag, name="Joukowski")
+
+    def circulation(self, alpha: float) -> float:
+        """Exact circulation, positive clockwise, for unit freestream speed.
+
+        Parameters
+        ----------
+        alpha : float
+            Angle of attack in **radians**.
+        """
+        return float(
+            4.0 * np.pi * self.radius * np.sin(alpha - self.beta)
+        )
+
+    def cl(self, alpha: float, chord: float) -> float:
+        """Exact lift coefficient, non-dimensionalised by ``chord``.
+
+        Parameters
+        ----------
+        alpha : float
+            Angle of attack in **radians**.
+        chord : float
+            Chord to divide by. Pass the panelled section's own
+            :attr:`~aerolab.geometry.airfoil.Airfoil.chord` so the two
+            coefficients share a reference length.
+        """
+        return 2.0 * self.circulation(alpha) / chord
+
+    def surface_speed(self, zeta: np.ndarray, alpha: float) -> np.ndarray:
+        """Exact speed on the surface, at mapping-plane points ``zeta``.
+
+        Parameters
+        ----------
+        zeta : ndarray
+            Complex points **on the circle**. Passing physical-plane points and
+            inverting the map numerically is a trap: on the surface the two
+            branches of the inverse coincide, and the branch test becomes a coin
+            flip that silently returns interior values.
+        alpha : float
+            Angle of attack in radians.
+        """
+        gamma = self.circulation(alpha)
+        offset = zeta - self.centre
+        dw_dzeta = (
+            np.exp(-1j * alpha)
+            - self.radius**2 * np.exp(1j * alpha) / offset**2
+            + 1j * gamma / (2.0 * np.pi * offset)
+        )
+        return np.abs(dw_dzeta / (1.0 - JOUKOWSKI_A**2 / zeta**2))
+
+    def velocity(self, points: np.ndarray, alpha: float) -> np.ndarray:
+        """Exact velocity at physical-plane points **outside** the section.
+
+        Parameters
+        ----------
+        points : ndarray
+            ``(p, 2)`` array of ``(x, z)`` positions. Must lie clear of the
+            surface, where the inverse map is ambiguous.
+        alpha : float
+            Angle of attack in radians.
+
+        Returns
+        -------
+        ndarray
+            ``(p, 2)`` velocity vectors for unit freestream speed.
+        """
+        z = points[:, 0] + 1j * points[:, 1]
+        root = np.sqrt((z / 2.0) ** 2 - JOUKOWSKI_A**2 + 0j)
+        zeta = z / 2.0 + root
+        inside = np.abs(zeta - self.centre) < self.radius
+        zeta[inside] = z[inside] / 2.0 - root[inside]
+
+        gamma = self.circulation(alpha)
+        offset = zeta - self.centre
+        dw_dzeta = (
+            np.exp(-1j * alpha)
+            - self.radius**2 * np.exp(1j * alpha) / offset**2
+            + 1j * gamma / (2.0 * np.pi * offset)
+        )
+        w = dw_dzeta / (1.0 - JOUKOWSKI_A**2 / zeta**2)
+        return np.column_stack([w.real, -w.imag])

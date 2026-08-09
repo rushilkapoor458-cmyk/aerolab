@@ -45,6 +45,10 @@ UNIFORM = 1.0
 _MIN_CLUSTERING = 1e-3
 _MAX_CLUSTERING = 4.0
 
+#: Panels shorter than this (in chords) make the influence coefficients of a
+#: panel method meaningless, so repaneling refuses to produce them.
+_MIN_PANEL_LENGTH = 1e-9
+
 
 def clustered_fractions(
     n: int, le_clustering: float = COSINE, te_clustering: float = COSINE
@@ -244,4 +248,19 @@ def repanel(
     s_new[-1] = s_end
 
     x_new, z_new = spline.evaluate(s_new)
+
+    # Aggressive clustering on a modest point count can drive the end panels to
+    # zero length, which makes the panel influence coefficients undefined. The
+    # Airfoil constructor would catch it, but only with a message about
+    # duplicate points that says nothing about the cause.
+    shortest = float(np.min(np.hypot(np.diff(x_new), np.diff(z_new))))
+    if shortest < _MIN_PANEL_LENGTH:
+        raise GeometryError(
+            f"the requested clustering collapses a panel to {shortest:.3e} chords, "
+            f"below the working limit of {_MIN_PANEL_LENGTH:.0e}. Clustering "
+            f"exponents (le={le_clustering}, te={te_clustering}) this small need "
+            f"more than {n_points} points; either raise the point count or move "
+            "the exponents back towards 0.5."
+        )
+
     return Airfoil(x_new, z_new, name=airfoil.name)

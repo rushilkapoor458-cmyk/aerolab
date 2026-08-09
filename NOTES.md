@@ -246,6 +246,167 @@ These are asserted once here and repeated in every module docstring.
   mean line is checked to reach its design lift coefficient to 1e-9 relative,
   and every reflexed one to give `Cm_c/4 = 0` to 1e-12 absolute.
 
+---
+
+## Phase 2 — Inviscid 2D panel method
+
+*Recorded 2026-08-09.*
+
+### Conventions fixed in this phase
+
+- **C2.1 — Local influence frame is right-handed; the airfoil's outward normal
+  is not.** The closed-form panel formulas are derived in a frame with tangent
+  `t = (cos, sin)` and normal `n_loc = (-sin, cos)`, so `t × n_loc = +1`. The
+  outward normal of a counter-clockwise contour is `(sin, -cos) = -n_loc`. The
+  distinction is invisible everywhere except *on* the sheet, which is exactly
+  where the self-influence terms live — so the exterior limit is `η → 0⁻` in the
+  local frame, not `η → 0⁺`.
+- **C2.2 — Positive `γ` is clockwise circulation.** Check it far above the
+  panel: at `ξ = S/2` and large `η`, `Δθ → S/η`, so `u_ξ → S/(2πη) > 0`. Fluid
+  above the sheet moves in `+t`, which is clockwise. Positive lift therefore
+  corresponds to positive `γ`, and `Γ = γ · perimeter`.
+- **C2.3 — Kutta condition is `V_t(first panel) + V_t(last surface panel) = 0`.**
+  Both tangents run along the contour traversal, so on the upper surface the
+  tangent points *upstream* and on the lower surface *downstream*. Equal speeds
+  at the trailing edge therefore means equal and **opposite** signed tangential
+  velocities.
+- **C2.4 — Nose-up `Cm` is the negative of the counter-clockwise moment.** Nose-up
+  is a clockwise rotation in the (x aft, z up) plane. Sanity check: an upward
+  force applied aft of the reference lifts the tail, which is nose-down, and
+  gives a positive counter-clockwise moment.
+
+### Assumptions
+
+- **A2.1 — A finite trailing edge is closed by a base panel.** The gap between
+  the two trailing-edge points is spanned by one extra panel carrying its own
+  source strength, with flow tangency enforced at its midpoint. It is excluded
+  from the Kutta pair, which stays on the two *surface* panels.
+
+  Two reasons, in order of weight. First, D'Alembert's paradox — zero drag on a
+  closed body in inviscid flow — is the strongest self-check the solver has, and
+  an open contour breaks it for reasons unrelated to any coding error, precisely
+  for the blunt sections where the check is most wanted. Second, an unclosed
+  source body has non-zero net source strength and therefore a spurious
+  far-field source; mass would not be conserved. Measured net source strength
+  with the base panel present is below 2e-3 in `Σ q·S`.
+
+  *(An earlier note in this project described leaving the gap open as "what
+  XFOIL does". That was wrong: XFOIL closes the trailing edge with a dedicated
+  panel carrying both source and vortex strength, weighted by the gap geometry.)*
+- **A2.2 — The solution is linear in the freestream, and this is exploited.**
+  The influence matrix depends only on geometry and the right-hand side is
+  linear in the freestream vector, so the system is factorised once and solved
+  for unit freestream along `x` and along `z`. Any angle of attack is
+  `cos α` times the first plus `sin α` times the second. An angle sweep costs no
+  further solves, which is what makes the panel study and the Phase 5 polars
+  cheap. Verified directly: superposing the two basis solutions reproduces a
+  direct solve to 1e-10 relative.
+- **A2.3 — Lift is computed twice, by independent routes.** Kutta-Joukowski uses
+  only the circulation; pressure integration uses only the surface `Cp`. They
+  agree only if the whole solution is right, so the gap between them is the most
+  informative single number the solver produces. `solve()` refuses to return a
+  result whose gap exceeds tolerance unless `validate=False` is passed
+  explicitly.
+
+### Limitations
+
+- **L2.1 — Inviscid base pressure is not physical.** Potential flow puts
+  near-stagnant, high pressure on the base panel of a blunt trailing edge. Real
+  flow separates off a blunt base at *below* freestream pressure. The base panel
+  exists to close the body (A2.1), not to model the base flow. Base drag must
+  come from the viscous side or an empirical base-pressure correlation, never
+  from the inviscid `Cp` on that panel.
+- **L2.2 — The method is first order.** Halving the panel spacing halves the
+  error rather than quartering it. Measured order at α = 5°: 1.08 (NACA 0012),
+  1.00 (2412), 1.04 (4412), 1.21 (23012). This is inherent to constant-strength
+  panels with the boundary condition at midpoints — the flat-panel normal
+  differs from the true surface normal by O(h) — and is not a defect to be fixed
+  within the specified formulation. A linear-strength vorticity distribution
+  (what XFOIL uses) would be second order, but that is a different method.
+
+  Consequence: acceptance targets must be judged against **Richardson-
+  extrapolated** values, not against whatever panel count happens to be used.
+  The extrapolation for a first-order sequence sampled at two counts is
+  `f_∞ = f_fine − (f_fine − f_coarse)/(1 − N_fine/N_coarse)`, which reduces to
+  `2·f_fine − f_coarse` only when the count exactly doubles.
+- **L2.3 — The 0.5% lift-agreement criterion is panel-count dependent, and the
+  normalisation matters.** At 400 panels the *absolute* gap `|Cl_KJ − Cl_p|` is
+  at most 0.0053 across NACA 0012 / 2412 / 4412 / 23012 over α ∈ [−4°, 10°].
+  Expressed as a fraction of a reference `Cl` of 1.0 that is ≤ 0.52%. Expressed
+  as a fraction of the *local* `Cl` it is below 0.5% wherever `|Cl| > 0.6`, but
+  rises to 2.3% for NACA 4412 at α = −4° — where `Cl` is only 0.031, so the
+  ratio is large because the denominator is small, not because the solution is
+  worse. Meeting 0.5% of local `Cl` at *every* angle including near zero lift
+  would need roughly 1800 panels.
+
+  The implementation normalises by `max(|Cl|, 0.1)` so the measure stays finite
+  through zero lift. **Recommended working default: 300-400 panels**, giving
+  lift converged to about 0.3% and a D'Alembert residual of a few times 1e-4.
+- **L2.4 — A cusped trailing edge degrades the order further.** The Joukowski
+  section, whose trailing edge has zero included angle, converges at order 0.81
+  rather than 1. Real NACA sections have a 16° trailing-edge wedge and do not
+  suffer this.
+- **L2.5 — Surface velocity is discontinuous across the sheet.** That is what a
+  vortex sheet *is*. `velocity_at` returns the interior-side limit for points on
+  or extremely close to a panel, which is not the physical surface velocity;
+  `v_tangential` carries the correct exterior values.
+- **L2.6 — `Cd_pressure` is an error measure, not a drag.** It is zero in exact
+  inviscid flow. A value that grows with angle of attack or with panel count
+  indicates a real problem in the solution, not viscosity. Physical drag arrives
+  in Phase 3.
+
+### Validation performed
+
+- **V2.1 — Circular cylinder, exact.** `Cp = 1 − 4 sin²θ` reproduced to
+  **2.7e-15** at 40-320 panels, with net source strength zero to machine
+  precision. No Kutta condition involved, so this isolates the influence
+  coefficients and the source solve. The near-exactness is a property of a
+  uniformly panelled circle and should not be read as general accuracy.
+- **V2.2 — Joukowski airfoil, exact.** The only reference in the suite that is
+  simultaneously thick, cambered and exact. Individual panel counts run 1-8%
+  low; extrapolating at the measured order 0.81 gives **1.0939819 against the
+  exact 1.0939550**, agreement to 2.5e-5. This is what establishes that the
+  method converges to the *right* answer rather than merely to a stable one.
+  Far-field velocity matches to 2.2e-4 at 2560 panels.
+- **V2.3 — A trap worth recording: never invert the Joukowski map numerically on
+  the surface.** The inverse picks the root outside the circle, but surface
+  points lie *on* the circle, where the branch test is a coin flip and silently
+  returns interior values. This produced an apparent 57% surface-velocity error
+  that was entirely in the reference, not the solver. Surface comparisons now
+  evaluate the exact solution at known circle points from the parametrisation.
+- **V2.4 — D'Alembert's paradox, on every solve.** `Cd_pressure` below 3e-3 for
+  four sections at four angles at 320 panels, falling monotonically with panel
+  count, and holding for a blunt trailing edge — which is the test that the base
+  panel really does close the body.
+- **V2.5 — Sheet integral properties.** Source-panel outward flux equals its
+  total strength and its circulation is zero; vortex-panel circulation equals its
+  total strength (clockwise) and its net flux is zero; both to 1e-9. The
+  tangential velocity jumps by exactly `γ` across a vortex sheet and the normal
+  velocity by exactly `σ` across a source sheet. Self-influence limits are
+  confirmed by approaching from outside at shrinking offsets and checking the
+  approach is linear in the offset, rather than by restating the algebra.
+- **V2.6 — Structural properties.** Antisymmetric lift for a symmetric section;
+  coefficients independent of freestream speed; superposition of the two basis
+  solutions equals a direct solve.
+
+### Acceptance results
+
+Judged at Richardson-extrapolated values from 480 and 960 panels.
+
+| Case | Quantity | Converged | Target | |
+|---|---|---|---|---|
+| NACA 0012 | dCl/dα | **6.9141** /rad | 6.93 ± 0.02 | pass, near the lower edge |
+| NACA 2412 | zero-lift angle | **−2.1482°** | −2.15 ± 0.05° | pass |
+| NACA 4412, α=4° | Cm about c/4 | **−0.11710** | −0.115 ± 0.005 | pass |
+| NACA 0012, α=0° | Cl, Cm, Cd | < 1e-9, < 1e-9, 1.1e-4 | ≈ 0 | pass |
+| all | Cl_KJ vs Cl_pressure | ≤ 0.0053 absolute at 400 panels | 0.5% | see L2.3 |
+
+The lift slope deserves a note: 6.9141 sits 0.016 below the centre of the stated
+target and 0.004 inside its lower edge. Both lift routes extrapolate to the same
+value (6.9141 by pressure, 6.9142 by Kutta-Joukowski), and the Joukowski
+validation shows the method converging to an exact answer elsewhere, so this is
+reported as the method's converged value rather than adjusted toward the target.
+
 ### Versions as built
 
 | Package | Version |
