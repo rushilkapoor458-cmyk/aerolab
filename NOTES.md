@@ -567,6 +567,123 @@ reported as the method's converged value rather than adjusted toward the target.
 | NACA 0012, Re 3e6, α=0, e^N N=9 | **0.005687** | 0.0058–0.0065 | **fails low by 2%** — see L3.2 |
 | NACA 2412, Re 3e6, α=4, e^N N=9 | **0.006774** | within 15% of A&vD (0.0068) | pass, 0.4% |
 
+---
+
+## Phase 4 — Viscous-inviscid coupling  *(INCOMPLETE — blocked, see L4.1)*
+
+*Recorded 2026-08-10.*
+
+**Status: the transpiration machinery is built and verified; the iteration built
+on it does not converge.** The cause is structural, not a coding error, and is
+set out in L4.1. Nothing here has been tuned to hide it.
+
+### What works and is verified
+
+- **A4.1 — Transpiration enters the panel solver through the right-hand side
+  only.** The flow-tangency condition becomes `V·n = v_n` instead of `V·n = 0`.
+  The influence matrix depends on geometry alone, so it stays factorised and one
+  coupling iteration costs a single back-substitution. Verified: superposition
+  in the transpiration holds to 1e-12, zero transpiration reproduces the
+  solid-wall solution exactly, and the boundary condition is satisfied at every
+  control point to 1e-10.
+- **A4.2 — The Kutta row is untouched.** It equates two tangential velocities and
+  has no normal-velocity term.
+- **A4.3 — With transpiration the body is open, so D'Alembert no longer holds.**
+  `cd_pressure` stops being an error measure and becomes a genuine form drag. It
+  is reported separately and deliberately **not** added to the Squire-Young
+  drag, which already contains the pressure defect.
+- **A4.4 — `v_n = d(Ue δ*)/ds`, differentiated from a spline of the product.** No
+  smoothing. Thinning the stations was tried and discarded: it flattened the
+  genuine trailing-edge peak by 20% while removing nothing real.
+
+### The blocker
+
+- **L4.1 — Direct transpiration coupling does not converge, because the inviscid
+  solution is singular at the trailing edge and there is no wake.**
+
+  The chain is short and each link is measured:
+
+  1. The inviscid solution puts a stagnation point at a sharp trailing edge, so
+     `Ue → 0` there and `dUe/ds` reaches −73 over the last 1% of chord (this is
+     L3.1, inherited).
+  2. The boundary layer, seeing that, blows up: `d(δ*)/ds = 1.75` at the
+     trailing edge, where a free shear layer spreads at 0.1–0.2 — an order of
+     magnitude out.
+  3. That gives `max |v_n| = 0.61`, i.e. blowing at 61% of freestream, all of it
+     in the last 2% of chord. Forward of 90% chord the blowing is below 0.02,
+     exactly as expected.
+  4. Fed back, that blowing drives `Ue` to zero *away* from the stagnation
+     point, and Thwaites' quadrature refuses the resulting negative momentum
+     thickness.
+
+  A blunt trailing edge does not rescue it. There the Kutta condition no longer
+  forces a stagnation point onto the corner (`Ue = 1.66` at the last panel
+  instead of 0.67), and the iteration stops crashing — but the blunt corner has
+  its own inviscid singularity, `d(δ*)/ds = −1.90`, and `max |v_n|` rises to
+  **3.1**. Measured behaviour:
+
+  | TE | relaxation | iterations | final residual | converged |
+  |---|---|---|---|---|
+  | sharp | 0.20 | — | diverged | no |
+  | sharp | 0.05 | 150 | 2.2e+00 | no |
+  | blunt | 0.10 | 150 | 4.6e-04 | no |
+  | blunt | 0.05 | 150 | 6.3e-03 | no |
+
+  Under-relaxation slows the divergence without curing it, which is the
+  signature of a fixed point that is not attracting rather than of a step that
+  is too large.
+
+  **What is missing is a wake.** Every working coupled code has one. The
+  boundary layer must be continued downstream of the trailing edge as a wake,
+  and the wake's own displacement must be represented by source panels along the
+  wake line. That moves the rear stagnation point off the body and into the
+  wake, which is what bounds `dUe/ds` at the trailing edge and makes the fixed
+  point attracting. Without it the transpiration formulation has nowhere to put
+  the trailing-edge singularity.
+
+  This is not a limitation of the specified method so much as an omission in the
+  specification: "transpiration velocity added to the panel source strengths"
+  describes the airfoil half of a two-part construction.
+
+- **L4.2 — Direct coupling is singular at separation in any case (Goldstein).**
+  Even with a wake, solving the boundary layer for a *prescribed* edge velocity
+  is ill-posed once the flow separates, which is exactly where `Cl_max` lives.
+  XFOIL avoids this by solving both systems simultaneously with a Newton method.
+  Whether direct coupling plus a wake reaches `Cl_max` is an open question that
+  the wake work will answer.
+
+### Acceptance: not met
+
+| Criterion | Status |
+|---|---|
+| Departure from linearity above α ≈ 10° | not reached — iteration does not converge |
+| `Cl_max` within 10% of 1.6 | not reached |
+| Report iteration count and residual | **met** — both recorded, on every result |
+| Refuse to return an unconverged result | **met** — `ConvergenceError` carrying iterations, residual and tolerance |
+
+The Phase 3 prediction (L3.2) that coupling would raise the NACA 0012 drag from
+0.005687 into 0.0059–0.0064 is **untested**. The unconverged iterates do sit in
+that range (0.00579 to 0.00666 depending on relaxation and trailing-edge
+treatment), which is suggestive and nothing more; an unconverged number is not a
+prediction and is not recorded as one.
+
+### Defect found and fixed
+
+- **D4.1 — Truncating a separated surface silently dropped the stagnation
+  location.** `_solve_surface` rebuilt its `EdgeDistribution` positionally when
+  a surface separated, so `stagnation_s` and `stagnation_index` fell back to
+  their dataclass defaults of 0.0 and 0. Every panel was then mapped to the
+  wrong boundary-layer station.
+
+  It was invisible through all of Phase 3, because nothing there reads those two
+  fields — they exist only for Phase 4. The symptom when it did surface was a
+  **symmetric section at zero incidence developing Cl = 0.42**, which is
+  impossible and was the fastest possible way to notice. Now pinned by a test
+  asserting `|Cl| < 1e-6` for exactly that case.
+
+  Worth recording as a class of error: a field added for a future phase, given a
+  default, and populated on only one of two construction paths.
+
 ### Versions as built
 
 | Package | Version |

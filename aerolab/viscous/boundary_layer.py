@@ -100,12 +100,20 @@ class EdgeDistribution:
     ue : ndarray
         Edge speed, non-dimensionalised by freestream speed. Non-negative, zero
         at the stagnation point.
+    stagnation_s : float
+        Arc length of the stagnation point measured along the **airfoil
+        contour**, not along this surface. Phase 4 needs it to map a
+        transpiration velocity computed on these stations back onto panels.
+    stagnation_index : int
+        Index of the last panel before the stagnation point.
     """
 
     surface: Surface
     s: FloatArray
     x: FloatArray
     ue: FloatArray
+    stagnation_s: float = 0.0
+    stagnation_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -134,6 +142,13 @@ class SurfaceBoundaryLayer:
         Chordwise stations of separation, if it occurred.
     reached_trailing_edge : bool
         False if the march stopped early at separation.
+    s_total : float
+        Full surface arc length from the stagnation point to the trailing edge,
+        in chords. Retained even when the arrays are truncated at separation,
+        because Phase 4 must extrapolate the displacement thickness over the
+        remaining stretch.
+    stagnation_s, stagnation_index : float, int
+        Stagnation location, carried through from the edge distribution.
     """
 
     surface: Surface
@@ -150,6 +165,9 @@ class SurfaceBoundaryLayer:
     laminar_separation_x: float | None
     turbulent_separation_x: float | None
     reached_trailing_edge: bool
+    s_total: float = 0.0
+    stagnation_s: float = 0.0
+    stagnation_index: int = 0
 
     @property
     def transition_x(self) -> float | None:
@@ -411,6 +429,8 @@ def edge_distributions(
             s=grid,
             x=x_spline(grid),
             ue=np.clip(ue_spline(grid), 0.0, None),
+            stagnation_s=s_stagnation,
+            stagnation_index=index,
         )
 
     upper = build("upper", np.arange(index, -1, -1), -1.0)
@@ -589,6 +609,7 @@ def _solve_surface(
 ) -> SurfaceBoundaryLayer:
     """Solve one surface from the stagnation point to the trailing edge."""
     s, ue = edge.s, edge.ue
+    s_total = float(s[-1])
     ue_spline = CubicSpline(s, ue)
     due_ds_spline = ue_spline.derivative()
     due_ds = due_ds_spline(s)
@@ -670,7 +691,19 @@ def _solve_surface(
             s, ue, theta, shape, cf, re_theta, turbulent = (
                 a[:cut] for a in (s, ue, theta, shape, cf, re_theta, turbulent)
             )
-            edge = EdgeDistribution(edge.surface, s, edge.x[:cut], ue)
+            # Rebuild by keyword. Constructing this positionally silently drops
+            # stagnation_s and stagnation_index back to their defaults, and
+            # since only separated surfaces take this branch, the loss shows up
+            # nowhere until Phase 4 tries to map a transpiration velocity back
+            # onto panels. See NOTES.md, D4.1.
+            edge = EdgeDistribution(
+                surface=edge.surface,
+                s=s,
+                x=edge.x[:cut],
+                ue=ue,
+                stagnation_s=edge.stagnation_s,
+                stagnation_index=edge.stagnation_index,
+            )
 
     return SurfaceBoundaryLayer(
         surface=edge.surface,
@@ -687,6 +720,9 @@ def _solve_surface(
         laminar_separation_x=laminar_separation_x,
         turbulent_separation_x=turbulent_separation_x,
         reached_trailing_edge=reached_te,
+        s_total=s_total,
+        stagnation_s=edge.stagnation_s,
+        stagnation_index=edge.stagnation_index,
     )
 
 

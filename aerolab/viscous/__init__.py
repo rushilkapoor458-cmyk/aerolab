@@ -22,6 +22,12 @@ from aerolab.viscous.boundary_layer import (
     edge_distributions,
     solve_boundary_layer,
 )
+from aerolab.viscous.coupling import (
+    CoupledSolution,
+    coupled_polar,
+    solve_coupled,
+    transpiration_velocity,
+)
 from aerolab.viscous.closure import (
     LAMBDA_SEPARATION,
     TURBULENT_SEPARATION_H,
@@ -42,6 +48,10 @@ from aerolab.viscous.transition import (
 )
 
 __all__ = [
+    "solve_coupled",
+    "coupled_polar",
+    "CoupledSolution",
+    "transpiration_velocity",
     "solve_boundary_layer",
     "BoundaryLayerSolution",
     "SurfaceBoundaryLayer",

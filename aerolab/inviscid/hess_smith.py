@@ -400,6 +400,7 @@ class HessSmithSystem:
         alpha: float,
         *,
         v_inf: float = 1.0,
+        transpiration: FloatArray | None = None,
         validate: bool = True,
         lift_tolerance: float = DEFAULT_LIFT_TOLERANCE,
     ) -> PanelSolution:
@@ -412,9 +413,18 @@ class HessSmithSystem:
         v_inf : float, optional
             Freestream speed. Coefficients are independent of it; it only sets
             the units of the returned velocities.
+        transpiration : ndarray, optional
+            ``(n_panels,)`` normal velocity blown **out** through each panel, in
+            the same units as ``v_inf``. This is how the boundary layer's
+            displacement effect enters the inviscid problem in Phase 4. The
+            flow-tangency condition becomes ``V . n = v_normal`` instead of
+            ``V . n = 0``.
         validate : bool, optional
             If True (default), check that the two independent lift calculations
-            agree and raise if they do not.
+            agree and raise if they do not. Coupled solves should pass False:
+            with mass injected through the surface the body is no longer closed,
+            so the two lift routes are not required to agree (see the note
+            below).
         lift_tolerance : float, optional
             Tolerance for that check.
 
@@ -425,10 +435,39 @@ class HessSmithSystem:
         Raises
         ------
         ValidityRangeError
-            If ``validate`` is set and the two lift calculations disagree.
+            If ``validate`` is set and the two lift calculations disagree, or if
+            ``transpiration`` has the wrong length.
+
+        Notes
+        -----
+        Transpiration enters only the **right-hand side**. The influence matrix
+        depends on geometry alone, so it stays factorised and each coupling
+        iteration costs one back-substitution rather than a fresh solve — which
+        is what makes the Phase 4 iteration cheap enough to run over a whole
+        polar.
+
+        The Kutta row is untouched: it equates two tangential velocities and has
+        no normal-velocity term.
+
+        With transpiration active the body is open, so **D'Alembert's paradox no
+        longer applies**. ``cd_pressure`` stops being an error measure and
+        becomes a real form drag — the pressure drag caused by the displacement
+        thickness. See NOTES.md, A4.3.
         """
         cos_a, sin_a = np.cos(alpha), np.sin(alpha)
         solution = v_inf * (cos_a * self._basis[0] + sin_a * self._basis[1])
+
+        if transpiration is not None:
+            blowing = np.asarray(transpiration, dtype=np.float64)
+            if blowing.shape != (self.n_panels,):
+                raise ValidityRangeError(
+                    f"transpiration must have shape ({self.n_panels},), got "
+                    f"{blowing.shape}"
+                )
+            rhs = np.zeros(self.n_panels + 1)
+            rhs[: self.n_panels] = blowing
+            solution = solution + lu_solve(self._lu, rhs)
+
         sources = solution[:-1]
         gamma = float(solution[-1])
 
