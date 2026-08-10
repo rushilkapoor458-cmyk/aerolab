@@ -657,6 +657,55 @@ was added to do.
   a Newton method, which is XFOIL's architecture and a substantially larger
   piece of work than the wake.
 
+- **L4.5 — The sequential coupling map has a spectral radius of 15.5, so no
+  amount of relaxation or acceleration can converge it. This is the definitive
+  finding of the phase.**
+
+  Measured by power-iterating the Jacobian of the fixed-point map
+  ``G: (transpiration, wake sources) -> (transpiration, wake sources)`` through
+  finite differences, at the operating point for NACA 0012, Re = 3e6, alpha = 0:
+
+  | quantity | measured |
+  |---|---|
+  | spectral radius of `G'` | **15.5** |
+  | dominant mode, share in the last 2% of chord | **98.6%** |
+  | dominant mode peak | x/c = 0.9953 |
+  | local Lipschitz constant, random direction | 2.4 |
+  | noise floor of the map (adaptive ODE stepping) | 1.8e-5 |
+
+  A fixed-point iteration converges only for spectral radius below 1.
+  Under-relaxation by `omega` replaces `G'` with `(1-omega)I + omega G'`, giving
+  an amplification of `|1 + omega(rho - 1)|`. For a **positive real** eigenvalue
+  greater than 1 that exceeds 1 for *every* `omega > 0` — under-relaxation can
+  stabilise a negative or complex eigenvalue but is powerless against this one.
+  That is a theorem, and it explains the measured residuals exactly: 1.03 /
+  0.64 / 0.95 / 1.97 at omega = 0.20 / 0.10 / 0.05 / 0.02, refusing to fall.
+
+  Two further attempts, both recorded because they failed for informative
+  reasons:
+
+  - **Anderson acceleration** (depths 3 to 12, mixing 0.3 and 0.6) also fails,
+    residual stalling at 0.56 to 1.14. Anderson approximates Newton on
+    `R = G(x) - x`, so its failure is evidence that the problem is the
+    decomposition rather than the iteration scheme layered on top.
+  - **Tapering the surface transpiration into the wake** over the last few
+    percent of chord — where the dominant mode lives and where the transpiration
+    is a known artefact — drops the spectral radius from 15.5 to **5.07**, a
+    real and instructive improvement. But it *plateaus* there for every blend
+    station from 0.98 down to 0.90, revealing a **second** unstable mode that is
+    not at the trailing edge. Still above 1, still divergent.
+
+  **What completing this actually requires.** Not a better iteration: a
+  different decomposition. The surface boundary layer, the wake and the outer
+  flow must be solved **simultaneously**, as one set of residual equations with
+  one Newton step, so the trailing-edge coupling is handled implicitly instead
+  of being passed back and forth. That means rewriting the viscous solver from a
+  marching integrator into a residual assembly — unknowns `(theta, delta*, Ue)`
+  at every station plus the panel strengths, with an analytic Jacobian — which
+  is XFOIL's architecture and is why XFOIL is built that way. It is a rewrite of
+  the viscous module, comparable in size to Phase 3, not an adjustment to what
+  is here.
+
 - **L4.4 — Direct coupling is singular at separation in any case (Goldstein).**
   Solving the boundary layer for a *prescribed* edge velocity is ill-posed once
   the flow separates, which is where `Cl_max` lives. This is independent of
