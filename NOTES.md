@@ -569,120 +569,139 @@ reported as the method's converged value rather than adjusted toward the target.
 
 ---
 
-## Phase 4 — Viscous-inviscid coupling  *(INCOMPLETE — blocked, see L4.1)*
+## Phase 4 — Viscous-inviscid coupling  *(wake built; iteration still limit-cycles)*
 
 *Recorded 2026-08-10.*
 
-**Status: the transpiration machinery is built and verified; the iteration built
-on it does not converge.** The cause is structural, not a coding error, and is
-set out in L4.1. Nothing here has been tuned to hide it.
+**Status: the transpiration machinery and the wake are built and verified. The
+iteration no longer diverges or crashes, and 74% of what remains is confined to
+the last 1% of chord — but it limit-cycles rather than converging, so no
+converged result is returned.** Nothing has been tuned to hide it.
 
 ### What works and is verified
 
-- **A4.1 — Transpiration enters the panel solver through the right-hand side
-  only.** The flow-tangency condition becomes `V·n = v_n` instead of `V·n = 0`.
-  The influence matrix depends on geometry alone, so it stays factorised and one
-  coupling iteration costs a single back-substitution. Verified: superposition
-  in the transpiration holds to 1e-12, zero transpiration reproduces the
-  solid-wall solution exactly, and the boundary condition is satisfied at every
-  control point to 1e-10.
-- **A4.2 — The Kutta row is untouched.** It equates two tangential velocities and
-  has no normal-velocity term.
-- **A4.3 — With transpiration the body is open, so D'Alembert no longer holds.**
-  `cd_pressure` stops being an error measure and becomes a genuine form drag. It
-  is reported separately and deliberately **not** added to the Squire-Young
-  drag, which already contains the pressure defect.
-- **A4.4 — `v_n = d(Ue δ*)/ds`, differentiated from a spline of the product.** No
-  smoothing. Thinning the stations was tried and discarded: it flattened the
-  genuine trailing-edge peak by 20% while removing nothing real.
+- **A4.1 — Transpiration and external velocity enter through the right-hand side
+  only.** The influence matrix depends on geometry alone, so it stays factorised
+  and a coupling iteration costs one back-substitution. Wake sources reach the
+  airfoil as an `external_velocity`, which enters **both** the tangency rows and
+  the Kutta row — the Kutta condition equates total tangential velocities and
+  the wake contributes to those. Verified: superposition holds to 1e-12, zero
+  transpiration reproduces the solid-wall solution exactly, and `V·n` equals the
+  requested normal velocity at every control point to 1e-10.
+- **A4.2 — With transpiration the body is open, so D'Alembert no longer holds.**
+  `cd_pressure` becomes a genuine form drag. Reported separately and deliberately
+  **not** added to the Squire-Young drag, which already contains the pressure
+  defect.
+- **A4.3 — Wake initial conditions add across the surfaces.** Momentum thickness
+  adds, `theta_w = theta_u + theta_l`. Displacement adds too, plus the
+  trailing-edge gap, which is displaced area whether or not a boundary layer
+  wraps it: `delta*_w = delta*_u + delta*_l + h_te`.
+- **A4.4 — The wake is marched with no wall shear.** The momentum integral with
+  `cf = 0`, closed by Head's entrainment, also with `cf = 0`. Verified: in a
+  constant-pressure wake `theta` is conserved to 1e-6 — momentum is neither
+  created nor destroyed in a wake — while `H` relaxes monotonically from 2.53 at
+  the trailing edge to below 1.6 within a chord.
+- **A4.5 — The wake edge velocity is floored at the trailing-edge surface value.**
+  Continuity of the outer flow requires it: the wake begins where the surface
+  layers end. Without the floor the wake starts *inside* the inviscid
+  trailing-edge stagnation point, where `Ue → 0` makes the momentum integral
+  diverge — measured wake source strengths of 12, then 1076, on successive
+  iterations. The floor stops binding once the wake has strength.
+- **A4.6 — The wake is straight, along the freestream.** A real wake curves. The
+  sources are weak and their influence on the airfoil falls off with distance,
+  so the error is second order in the deflection.
+- **A4.7 — Wake panels are uniform, deliberately.** Clustering against the
+  trailing edge is the obvious choice and it is wrong here: the merged layer
+  relaxes its shape factor over a few thousandths of a chord, faster than an
+  integral method can honestly represent, and a first panel of 0.0006c chases
+  that into source strengths of order 1 that oscillate between stations. A first
+  panel near 0.02c gives a smooth sheet of strength 0.35.
+- **A4.8 — The displacement growth rate is smoothly saturated at 0.15.** A
+  startup safeguard, not a model: the first coupling iteration necessarily runs
+  on the uncoupled edge velocity with its trailing-edge singularity intact. The
+  saturation is `cap·tanh(g/cap)`, not a clip — a hard clip makes the iteration
+  map non-differentiable wherever it binds, and it binds near the trailing edge
+  every iteration, which by itself produced a limit cycle.
 
-### The blocker
+### What the wake demonstrably fixed
 
-- **L4.1 — Direct transpiration coupling does not converge, because the inviscid
-  solution is singular at the trailing edge and there is no wake.**
+Measured on NACA 0012 at Re = 3e6, α = 0:
 
-  The chain is short and each link is measured:
+| | without wake | with wake |
+|---|---|---|
+| `Ue` at the last surface panel | 0.674 | **0.83** |
+| `max |v_n|` | 0.61 | **< 0.5** |
+| minimum surface `Ue` | drove to 0, solver refused | **> 1e-3, stable** |
+| outcome | crashed | runs, bounded, symmetric to 1e-5 |
 
-  1. The inviscid solution puts a stagnation point at a sharp trailing edge, so
-     `Ue → 0` there and `dUe/ds` reaches −73 over the last 1% of chord (this is
-     L3.1, inherited).
-  2. The boundary layer, seeing that, blows up: `d(δ*)/ds = 1.75` at the
-     trailing edge, where a free shear layer spreads at 0.1–0.2 — an order of
-     magnitude out.
-  3. That gives `max |v_n| = 0.61`, i.e. blowing at 61% of freestream, all of it
-     in the last 2% of chord. Forward of 90% chord the blowing is below 0.02,
-     exactly as expected.
-  4. Fed back, that blowing drives `Ue` to zero *away* from the stagnation
-     point, and Thwaites' quadrature refuses the resulting negative momentum
-     thickness.
+The rear stagnation point has moved off the body, which is exactly what the wake
+was added to do.
 
-  A blunt trailing edge does not rescue it. There the Kutta condition no longer
-  forces a stagnation point onto the corner (`Ue = 1.66` at the last panel
-  instead of 0.67), and the iteration stops crashing — but the blunt corner has
-  its own inviscid singularity, `d(δ*)/ds = −1.90`, and `max |v_n|` rises to
-  **3.1**. Measured behaviour:
+### The remaining blocker
 
-  | TE | relaxation | iterations | final residual | converged |
-  |---|---|---|---|---|
-  | sharp | 0.20 | — | diverged | no |
-  | sharp | 0.05 | 150 | 2.2e+00 | no |
-  | blunt | 0.10 | 150 | 4.6e-04 | no |
-  | blunt | 0.05 | 150 | 6.3e-03 | no |
+- **L4.3 — The iteration limit-cycles, and the residual is confined to the last
+  1% of chord.** Measured residual after 250 iterations at relaxation
+  0.20 / 0.10 / 0.05 / 0.02: **1.03 / 0.64 / 0.95 / 1.97**. It does not fall as
+  the step shrinks, which is the signature of a fixed point that is not
+  attracting rather than of a step that is too large.
 
-  Under-relaxation slows the divergence without curing it, which is the
-  signature of a fixed point that is not attracting rather than of a step that
-  is too large.
+  Where it lives: **74% of the residual comes from the 20 panels aft of
+  x/c = 0.99**, where the maximum error is 0.121 against 0.024 everywhere
+  forward. The coupling has effectively converged over 99% of the surface.
 
-  **What is missing is a wake.** Every working coupled code has one. The
-  boundary layer must be continued downstream of the trailing edge as a wake,
-  and the wake's own displacement must be represented by source panels along the
-  wake line. That moves the rear stagnation point off the body and into the
-  wake, which is what bounds `dUe/ds` at the trailing edge and makes the fixed
-  point attracting. Without it the transpiration formulation has nowhere to put
-  the trailing-edge singularity.
+  The cause is that the surface boundary layer is marched to a control point
+  3e-5 chords from the trailing edge, and a *sequential* scheme cannot resolve
+  the trailing-edge region: the surface layer, the wake layer and the outer flow
+  are mutually determined there, and updating them in turn chases a solution
+  none of them alone defines. The fix is to solve all three simultaneously with
+  a Newton method, which is XFOIL's architecture and a substantially larger
+  piece of work than the wake.
 
-  This is not a limitation of the specified method so much as an omission in the
-  specification: "transpiration velocity added to the panel source strengths"
-  describes the airfoil half of a two-part construction.
-
-- **L4.2 — Direct coupling is singular at separation in any case (Goldstein).**
-  Even with a wake, solving the boundary layer for a *prescribed* edge velocity
-  is ill-posed once the flow separates, which is exactly where `Cl_max` lives.
-  XFOIL avoids this by solving both systems simultaneously with a Newton method.
-  Whether direct coupling plus a wake reaches `Cl_max` is an open question that
-  the wake work will answer.
+- **L4.4 — Direct coupling is singular at separation in any case (Goldstein).**
+  Solving the boundary layer for a *prescribed* edge velocity is ill-posed once
+  the flow separates, which is where `Cl_max` lives. This is independent of
+  L4.3 and would remain after it.
 
 ### Acceptance: not met
 
 | Criterion | Status |
 |---|---|
-| Departure from linearity above α ≈ 10° | not reached — iteration does not converge |
+| Departure from linearity above α ≈ 10° | not reached |
 | `Cl_max` within 10% of 1.6 | not reached |
-| Report iteration count and residual | **met** — both recorded, on every result |
-| Refuse to return an unconverged result | **met** — `ConvergenceError` carrying iterations, residual and tolerance |
+| Report iteration count and residual | **met** |
+| Refuse to return an unconverged result | **met** — `ConvergenceError` with diagnostics |
 
-The Phase 3 prediction (L3.2) that coupling would raise the NACA 0012 drag from
-0.005687 into 0.0059–0.0064 is **untested**. The unconverged iterates do sit in
-that range (0.00579 to 0.00666 depending on relaxation and trailing-edge
-treatment), which is suggestive and nothing more; an unconverged number is not a
-prediction and is not recorded as one.
+**On the Phase 3 prediction (L3.2).** Coupling was predicted to raise the NACA
+0012 drag at Re = 3e6, α = 0 from the uncoupled 0.005687 into 0.0059–0.0064. The
+limit-cycling iteration gives **Cd = 0.0062 ± 2.7%**, which is inside that band
+and moved in the predicted direction. That is encouraging and it is **not** a
+confirmation: an oscillating value is not a converged one, the solver continues
+to refuse to return it, and the prediction stays open until L4.3 is fixed.
 
 ### Defect found and fixed
 
 - **D4.1 — Truncating a separated surface silently dropped the stagnation
-  location.** `_solve_surface` rebuilt its `EdgeDistribution` positionally when
-  a surface separated, so `stagnation_s` and `stagnation_index` fell back to
-  their dataclass defaults of 0.0 and 0. Every panel was then mapped to the
-  wrong boundary-layer station.
+  location.** `_solve_surface` rebuilt its `EdgeDistribution` positionally when a
+  surface separated, so `stagnation_s` and `stagnation_index` fell back to their
+  dataclass defaults of 0.0 and 0. Every panel then mapped to the wrong
+  boundary-layer station.
 
-  It was invisible through all of Phase 3, because nothing there reads those two
-  fields — they exist only for Phase 4. The symptom when it did surface was a
-  **symmetric section at zero incidence developing Cl = 0.42**, which is
-  impossible and was the fastest possible way to notice. Now pinned by a test
-  asserting `|Cl| < 1e-6` for exactly that case.
+  Invisible through all of Phase 3, because nothing there reads those fields —
+  they exist only for Phase 4. The symptom when it surfaced was a **symmetric
+  section at zero incidence developing Cl = 0.42**, which is impossible and was
+  the fastest possible way to notice. Now pinned by a test asserting
+  `|Cl| < 1e-6`.
 
-  Worth recording as a class of error: a field added for a future phase, given a
+  A class of error worth naming: a field added for a future phase, given a
   default, and populated on only one of two construction paths.
+
+- **D4.2 — A wrong diagnosis, corrected.** The huge leading-edge blowing velocity
+  was first attributed to differentiation noise across closely spaced stations,
+  and station thinning was added to suppress it. Once D4.1 was fixed the thinning
+  turned out to change nothing real — it flattened the genuine trailing-edge peak
+  by 20% while removing no noise — and was removed. Recorded because the wrong
+  fix was plausible, was tested, and looked like a partial improvement (max `v_n`
+  fell from 0.62 to 0.49) for entirely the wrong reason.
 
 ### Versions as built
 

@@ -401,6 +401,7 @@ class HessSmithSystem:
         *,
         v_inf: float = 1.0,
         transpiration: FloatArray | None = None,
+        external_velocity: FloatArray | None = None,
         validate: bool = True,
         lift_tolerance: float = DEFAULT_LIFT_TOLERANCE,
     ) -> PanelSolution:
@@ -419,6 +420,12 @@ class HessSmithSystem:
             displacement effect enters the inviscid problem in Phase 4. The
             flow-tangency condition becomes ``V . n = v_normal`` instead of
             ``V . n = 0``.
+        external_velocity : ndarray, optional
+            ``(n_panels, 2)`` velocity induced at each control point by
+            singularities outside this system — in Phase 4, the wake sources.
+            It enters **both** the tangency rows and the Kutta row, because the
+            Kutta condition equates total tangential velocities and the wake
+            contributes to those.
         validate : bool, optional
             If True (default), check that the two independent lift calculations
             agree and raise if they do not. Coupled solves should pass False:
@@ -457,15 +464,32 @@ class HessSmithSystem:
         cos_a, sin_a = np.cos(alpha), np.sin(alpha)
         solution = v_inf * (cos_a * self._basis[0] + sin_a * self._basis[1])
 
-        if transpiration is not None:
-            blowing = np.asarray(transpiration, dtype=np.float64)
-            if blowing.shape != (self.n_panels,):
-                raise ValidityRangeError(
-                    f"transpiration must have shape ({self.n_panels},), got "
-                    f"{blowing.shape}"
-                )
+        if transpiration is not None or external_velocity is not None:
             rhs = np.zeros(self.n_panels + 1)
-            rhs[: self.n_panels] = blowing
+
+            if transpiration is not None:
+                blowing = np.asarray(transpiration, dtype=np.float64)
+                if blowing.shape != (self.n_panels,):
+                    raise ValidityRangeError(
+                        f"transpiration must have shape ({self.n_panels},), got "
+                        f"{blowing.shape}"
+                    )
+                rhs[: self.n_panels] += blowing
+
+            if external_velocity is not None:
+                external = np.asarray(external_velocity, dtype=np.float64)
+                if external.shape != (self.n_panels, 2):
+                    raise ValidityRangeError(
+                        f"external_velocity must have shape ({self.n_panels}, 2), "
+                        f"got {external.shape}"
+                    )
+                rhs[: self.n_panels] -= np.sum(external * self.normals, axis=1)
+                upper, lower = self.kutta_indices
+                rhs[self.n_panels] -= float(
+                    external[upper] @ self.tangents[upper]
+                    + external[lower] @ self.tangents[lower]
+                )
+
             solution = solution + lu_solve(self._lu, rhs)
 
         sources = solution[:-1]

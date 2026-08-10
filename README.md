@@ -15,7 +15,7 @@ are known, stated, and validated against published data.
 | 1 | Geometry: NACA generators, `.dat` import, repaneling | **complete** |
 | 2 | Inviscid 2D: Hess–Smith panel method | **complete** |
 | 3 | Viscous: integral boundary layer, transition, profile drag | **complete** |
-| 4 | Viscous–inviscid coupling via transpiration | **blocked** — needs a wake, see [`NOTES.md`](NOTES.md) L4.1 |
+| 4 | Viscous–inviscid coupling via transpiration | wake built; iteration limit-cycles in the last 1% of chord — [`NOTES.md`](NOTES.md) L4.3 |
 | 5 | Polars, CLI, PDF reporting, compressibility corrections | not started |
 | 6 | Finite wings: vortex lattice | not started |
 | 7 | Tunnel corrections and experimental validation | not started |

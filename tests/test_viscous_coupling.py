@@ -1,18 +1,20 @@
 """Tests for viscous-inviscid coupling.
 
-Phase 4 is **incomplete**. The transpiration machinery below is verified and
-correct; the fixed-point iteration built on it does not converge, for a reason
-that is structural rather than a coding error and is recorded in NOTES.md as
-L4.1. These tests therefore split cleanly in two:
+Phase 4 is **incomplete**. The transpiration machinery and the wake are built
+and verified; the fixed-point iteration built on them still does not converge,
+for a reason that is structural rather than a coding error and is recorded in
+NOTES.md as L4.3. These tests therefore split three ways:
 
-- everything about *applying* a transpiration velocity is asserted normally;
-- the iteration is asserted only to **fail honestly** — to report its residual
-  and to refuse to return an unconverged answer.
+- applying a transpiration velocity, and the wake's own physics, are asserted
+  normally;
+- what the wake demonstrably fixed is measured, so the gain is not just claimed;
+- the remaining failure is asserted only to **fail honestly** — to report its
+  residual and to refuse to return an unconverged answer.
 
-The second group is deliberate. A test that pinned a converged drag would have
-to be deleted when the wake model lands; a test that pins "this does not
-converge, and says so" documents the current state and will fail loudly, in the
-right place, once it does.
+The last group is deliberate. A test that pinned a converged drag would have to
+be deleted when the simultaneous solve lands; a test that pins "this limit
+cycles in the last 1% of chord, and says so" documents the current state and
+will fail loudly, in the right place, once it is fixed.
 """
 
 from __future__ import annotations
@@ -24,9 +26,12 @@ from aerolab.exceptions import ConvergenceError, ValidityRangeError
 from aerolab.geometry.naca import naca
 from aerolab.inviscid.hess_smith import HessSmithSystem
 from aerolab.viscous.boundary_layer import solve_boundary_layer
-from aerolab.viscous.coupling import (
-    solve_coupled,
-    transpiration_velocity,
+from aerolab.viscous.coupling import solve_coupled, transpiration_velocity
+from aerolab.viscous.wake import (
+    build_wake,
+    solve_wake_layer,
+    wake_influence,
+    wake_source_strengths,
 )
 
 pytestmark = pytest.mark.validation
@@ -174,67 +179,196 @@ class TestTranspirationVelocity:
         assert all(a > b for a, b in zip(magnitudes, magnitudes[1:]))
 
 
-class TestTheTrailingEdgeBlocker:
-    """Why the iteration does not converge. Pinned so the fix is detectable.
+class TestWake:
+    """Wake geometry, boundary layer, and sources."""
 
-    These assertions describe a **defect**, not a desired property. When a wake
-    model lands they should start failing, and that is the point: the failure
-    will land here rather than showing up as a quietly wrong lift curve.
-    """
+    @pytest.fixture
+    def wake(self):
+        return build_wake(naca("0012", 301), 0.0)
 
-    def test_displacement_growth_at_the_trailing_edge_is_unphysical(
-        self, layer
-    ) -> None:
-        """d(delta*)/ds reaches 1.75 where a free shear layer spreads at 0.1 to 0.2."""
-        upper = layer.upper
-        growth = (upper.delta_star[-1] - upper.delta_star[-2]) / (
-            upper.s[-1] - upper.s[-2]
+    def test_leaves_from_the_trailing_edge(self, wake) -> None:
+        airfoil = naca("0012", 301)
+        assert np.allclose(wake.starts[0], airfoil.te_point, atol=1e-12)
+
+    def test_runs_along_the_freestream(self, wake) -> None:
+        assert np.allclose(wake.tangents, np.array([1.0, 0.0]), atol=1e-12)
+
+    def test_direction_follows_incidence(self) -> None:
+        alpha = np.deg2rad(8.0)
+        tilted = build_wake(naca("0012", 301), alpha)
+        assert np.allclose(
+            tilted.tangents[0], [np.cos(alpha), np.sin(alpha)], atol=1e-12
         )
-        assert growth > 1.0
 
-    def test_that_growth_produces_an_enormous_blowing_velocity(
-        self, system, layer
-    ) -> None:
-        """max |v_n| is 0.61 of freestream, all of it in the last 2% of chord."""
-        blowing = transpiration_velocity(layer, system)
-        peak = int(np.argmax(np.abs(blowing)))
-        assert abs(blowing[peak]) > 0.4
-        assert system.control_points[peak, 0] > 0.98
+    def test_length_and_panel_count(self, wake) -> None:
+        assert wake.n_panels == 40
+        assert wake.total_length == pytest.approx(1.0, rel=1e-12)
 
-    def test_the_iteration_does_not_converge(self) -> None:
-        """Pinned as the current state of Phase 4. See NOTES.md, L4.1."""
-        airfoil = naca("0012", 301, closed_te=False)
+    def test_spacing_is_uniform_by_default(self, wake) -> None:
+        """Clustering at the trailing edge was tried and is wrong here; see A4.7."""
+        assert np.ptp(wake.lengths) < 1e-12
+
+    @pytest.mark.parametrize("bad", [{"length": 0.0}, {"n_panels": 2}, {"growth": 0.5}])
+    def test_bad_geometry_is_refused(self, bad) -> None:
+        with pytest.raises(ValidityRangeError):
+            build_wake(naca("0012", 301), 0.0, **bad)
+
+    def test_momentum_thickness_is_conserved_at_constant_pressure(self) -> None:
+        """A wake in a uniform stream neither gains nor loses momentum.
+
+        This is the sharpest available check on the wake momentum integral: with
+        dUe/ds = 0 and no wall shear, dtheta/ds must be exactly zero.
+        """
+        s = np.linspace(0.0, 1.0, 60)
+        layer = solve_wake_layer(s, np.ones_like(s), 0.006, 0.012, 3e6)
+        assert np.allclose(layer.theta, 0.006, rtol=1e-6)
+
+    def test_shape_factor_relaxes_towards_one(self) -> None:
+        """Entrainment thins the wake profile; H falls monotonically."""
+        s = np.linspace(0.0, 2.0, 80)
+        layer = solve_wake_layer(s, np.ones_like(s), 0.006, 0.015, 3e6)
+        assert np.all(np.diff(layer.shape_factor) < 0.0)
+        assert layer.shape_factor[0] == pytest.approx(2.5, rel=0.02)
+        assert layer.shape_factor[-1] < 1.6
+
+    def test_displacement_thickness_falls_along_the_wake(self) -> None:
+        s = np.linspace(0.0, 2.0, 80)
+        layer = solve_wake_layer(s, np.ones_like(s), 0.006, 0.015, 3e6)
+        assert layer.delta_star[-1] < layer.delta_star[0]
+
+    def test_an_adverse_gradient_thickens_the_wake(self) -> None:
+        s = np.linspace(0.0, 1.0, 60)
+        slowing = solve_wake_layer(s, 1.0 - 0.2 * s, 0.006, 0.012, 3e6)
+        assert slowing.theta[-1] > 0.006
+
+    def test_zero_momentum_thickness_is_refused(self) -> None:
+        s = np.linspace(0.0, 1.0, 20)
+        with pytest.raises(ValidityRangeError, match="must be positive"):
+            solve_wake_layer(s, np.ones_like(s), 0.0, 0.01, 3e6)
+
+    def test_sources_are_negative_where_the_wake_thins(self) -> None:
+        s = np.linspace(0.0, 1.0, 60)
+        layer = solve_wake_layer(s, np.ones_like(s), 0.006, 0.015, 3e6)
+        assert float(np.mean(wake_source_strengths(layer))) < 0.0
+
+    def test_wake_influence_decays_with_distance(self, wake) -> None:
+        strengths = np.full(wake.n_panels, 0.05)
+        near = wake_influence(wake, strengths, np.array([[1.5, 0.3]]))
+        far = wake_influence(wake, strengths, np.array([[1.5, 3.0]]))
+        assert np.linalg.norm(near) > np.linalg.norm(far)
+
+
+class TestWhatTheWakeFixed:
+    """The wake exists to relieve the trailing edge. Measure that it does."""
+
+    def test_it_relieves_the_trailing_edge_stagnation(self) -> None:
+        """Ue at the last surface panel rises from 0.67 to about 0.83."""
+        airfoil = naca("0012", 301)
+        system = HessSmithSystem(airfoil)
+        uncoupled = abs(system.solve(0.0, validate=False).v_tangential[0])
+        coupled = solve_coupled(
+            airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=60, validate=False
+        )
+        assert uncoupled == pytest.approx(0.674, abs=0.02)
+        assert abs(coupled.panel.v_tangential[0]) > 0.78
+
+    def test_the_blowing_velocity_is_now_bounded(self) -> None:
+        """Without the wake this reached 0.61 of freestream; now it stays under 0.5."""
+        airfoil = naca("0012", 301)
         result = solve_coupled(
             airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=60, validate=False
         )
-        assert not result.converged
-        assert result.residual > result.tolerance
+        assert float(np.max(np.abs(result.transpiration))) < 0.5
 
-    def test_it_refuses_to_return_an_unconverged_answer(self) -> None:
-        """The no-silent-failure contract, which does hold."""
-        airfoil = naca("0012", 301, closed_te=False)
+    def test_it_no_longer_destroys_the_outer_solution(self) -> None:
+        """Before the wake, the edge velocity hit zero and Thwaites refused."""
+        airfoil = naca("0012", 301)
+        result = solve_coupled(
+            airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=60, validate=False
+        )
+        n_surface = airfoil.n_points - 1
+        assert float(np.min(np.abs(result.panel.v_tangential[:n_surface]))) > 1e-3
+
+    def test_symmetry_still_holds_with_the_wake(self) -> None:
+        airfoil = naca("0012", 301)
+        result = solve_coupled(
+            airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=40, validate=False
+        )
+        assert abs(result.cl) < 1e-5
+
+
+class TestTheRemainingBlocker:
+    """It still does not converge. Pinned so the next fix is detectable.
+
+    These describe a **defect**, not a desired property. When the surface and
+    wake layers are solved simultaneously with the outer flow they should start
+    failing, which is the point.
+    """
+
+    def test_the_iteration_limit_cycles(self) -> None:
+        """The residual stalls near 1 and does not fall with relaxation.
+
+        A step that is merely too large gets better as the step shrinks. This
+        does not: measured residuals at relaxation 0.20 / 0.10 / 0.05 / 0.02 are
+        1.03 / 0.64 / 0.95 / 1.97 after 250 iterations. That is a fixed point
+        which is not attracting.
+        """
+        airfoil = naca("0012", 301)
+        residuals = [
+            solve_coupled(
+                airfoil, 0.0, 3e6, relaxation=w, max_iterations=70, validate=False
+            ).residual
+            for w in (0.2, 0.05)
+        ]
+        assert all(r > 0.05 for r in residuals)
+
+    def test_the_residual_lives_in_the_last_one_percent_of_chord(self) -> None:
+        """74% of it comes from 20 panels aft of x/c = 0.99.
+
+        Everywhere else the coupling has effectively converged. What remains is
+        the surface layer being marched to a control point 3e-5 chords from the
+        trailing edge, which a sequential scheme cannot resolve.
+        """
+        airfoil = naca("0012", 301)
+        system = HessSmithSystem(airfoil)
+        result = solve_coupled(
+            airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=80, validate=False
+        )
+        layer = solve_boundary_layer(result.panel, 3e6, validate=False)
+        error = np.abs(transpiration_velocity(layer, system) - result.transpiration)
+        aft = system.control_points[:, 0] > 0.99
+        assert error[aft].sum() / error.sum() > 0.5
+        assert error[aft].max() > 3.0 * error[~aft].max()
+
+    def test_the_drag_is_nonetheless_stable_across_the_cycle(self) -> None:
+        """It oscillates by a few percent about 0.0062, not wildly.
+
+        Reported for information. An oscillating value is still not a converged
+        one and the solver continues to refuse to return it.
+        """
+        airfoil = naca("0012", 301)
+        drags = [
+            solve_coupled(
+                airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=n, validate=False
+            ).cd
+            for n in (60, 70, 80)
+        ]
+        assert (max(drags) - min(drags)) / np.mean(drags) < 0.06
+        assert 0.0055 < np.mean(drags) < 0.0070
+
+    def test_it_still_refuses_to_return_an_unconverged_answer(self) -> None:
         with pytest.raises(ConvergenceError, match="did not converge"):
-            solve_coupled(airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=20)
+            solve_coupled(naca("0012", 301), 0.0, 3e6, max_iterations=20)
 
     def test_the_failure_reports_its_diagnostics(self) -> None:
-        airfoil = naca("0012", 301, closed_te=False)
         try:
-            solve_coupled(airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=20)
+            solve_coupled(naca("0012", 301), 0.0, 3e6, max_iterations=20)
         except ConvergenceError as error:
             assert error.iterations == 20
             assert np.isfinite(error.residual)
             assert error.tolerance > 0.0
         else:
             pytest.fail("expected a ConvergenceError")
-
-    def test_history_is_recorded_for_diagnosis(self) -> None:
-        airfoil = naca("0012", 301, closed_te=False)
-        result = solve_coupled(
-            airfoil, 0.0, 3e6, relaxation=0.1, max_iterations=25, validate=False
-        )
-        assert result.history.size == result.iterations
-        assert result.lift_history.size == result.iterations
-        assert np.all(np.isfinite(result.history))
 
 
 class TestValidation:

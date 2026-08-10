@@ -54,6 +54,17 @@ from aerolab.viscous.boundary_layer import (
     solve_boundary_layer,
 )
 from aerolab.viscous.transition import DEFAULT_N_CRIT, TransitionMethod
+from aerolab.viscous.wake import (
+    DEFAULT_WAKE_LENGTH,
+    DEFAULT_WAKE_PANELS,
+    Wake,
+    WakeBoundaryLayer,
+    build_wake,
+    solve_wake_layer,
+    wake_influence,
+    wake_self_tangential,
+    wake_source_strengths,
+)
 
 FloatArray = NDArray[np.float64]
 
@@ -97,8 +108,14 @@ class CoupledSolution:
         The final inviscid solution, including the transpiration.
     boundary_layer : BoundaryLayerSolution
         The final boundary layer.
+    wake : Wake
+        The panelled wake.
+    wake_layer : WakeBoundaryLayer
+        Converged wake boundary layer.
     transpiration : ndarray
         ``(n_panels,)`` converged normal velocity, positive outward.
+    wake_strengths : ndarray
+        ``(n_wake_panels,)`` converged wake source strengths.
     iterations : int
         Iterations actually performed.
     residual : float
@@ -113,7 +130,10 @@ class CoupledSolution:
 
     panel: PanelSolution
     boundary_layer: BoundaryLayerSolution
+    wake: Wake
+    wake_layer: WakeBoundaryLayer
     transpiration: FloatArray
+    wake_strengths: FloatArray
     iterations: int
     residual: float
     converged: bool
@@ -179,6 +199,35 @@ class CoupledSolution:
         )
 
 
+def _bounded_growth(s: FloatArray, delta_star: FloatArray) -> FloatArray:
+    """Rebuild ``delta*`` with its growth rate limited to a physical spreading rate.
+
+    A boundary or shear layer cannot thicken faster than a free shear layer
+    spreads, which is roughly 0.1 to 0.2. The uncoupled solution violates this
+    badly at the trailing edge — measured ``d(delta*)/ds = 1.75`` — because the
+    inviscid edge velocity is heading for a stagnation point there.
+
+    The limiter is a **startup safeguard, not a model**. The first coupling
+    iteration necessarily runs on the uncoupled edge velocity, complete with
+    that trailing-edge singularity, and without the bound it produces a blowing
+    velocity of 0.6 freestream that wrecks the outer solution before the wake
+    has any strength to relieve it. Once the wake is established the trailing
+    edge is no longer singular and the limiter stops binding; the tests assert
+    that it is inactive over the whole surface in a converged attached solution,
+    so it cannot be quietly propping up a result.
+    The saturation is **smooth**, not a hard clip. A clip makes the
+    iteration map non-differentiable wherever it binds, and since it binds near
+    the trailing edge on every iteration, the coupling settled into a limit
+    cycle instead of converging — the residual bounced between 0.12 and 0.20
+    indefinitely. ``cap * tanh(g / cap)`` has the same bound and the same
+    behaviour for small ``g``, but is smooth everywhere.
+    """
+    spacing = np.diff(s)
+    raw = np.diff(delta_star) / np.maximum(spacing, 1e-15)
+    growth = SEPARATED_GROWTH_CAP * np.tanh(raw / SEPARATED_GROWTH_CAP)
+    return delta_star[0] + np.concatenate([[0.0], np.cumsum(growth * spacing)])
+
+
 def _extended_displacement(
     surface: SurfaceBoundaryLayer,
 ) -> tuple[FloatArray, FloatArray]:
@@ -186,25 +235,29 @@ def _extended_displacement(
 
     The boundary-layer march stops at separation, but the inviscid problem needs
     a displacement effect over the whole surface. Downstream of separation the
-    layer is continued linearly at the growth rate it had reached, capped by
-    :data:`SEPARATED_GROWTH_CAP`, with the edge velocity held at its last value.
+    layer is continued linearly at the growth rate it had reached, with the edge
+    velocity held at its last value. Both the continued stretch and the marched
+    one are passed through :func:`_bounded_growth`.
     """
     s = surface.s
-    flux = surface.ue * surface.delta_star
+    delta_star = surface.delta_star
+    ue = surface.ue
 
-    if surface.reached_trailing_edge or s[-1] >= surface.s_total - 1e-12:
-        return s, flux
+    if not (surface.reached_trailing_edge or s[-1] >= surface.s_total - 1e-12):
+        span = max(s[-1] - s[-2], 1e-12)
+        growth = float(
+            np.clip(
+                (delta_star[-1] - delta_star[-2]) / span, 0.0, SEPARATED_GROWTH_CAP
+            )
+        )
+        tail = np.linspace(s[-1], surface.s_total, 40)[1:]
+        s = np.concatenate([s, tail])
+        delta_star = np.concatenate(
+            [delta_star, delta_star[-1] + growth * (tail - s[len(ue) - 1])]
+        )
+        ue = np.concatenate([ue, np.full(tail.size, ue[-1])])
 
-    span = max(s[-1] - s[-2], 1e-12)
-    growth = (surface.delta_star[-1] - surface.delta_star[-2]) / span
-    growth = float(np.clip(growth, 0.0, SEPARATED_GROWTH_CAP))
-
-    tail = np.linspace(s[-1], surface.s_total, 40)[1:]
-    delta_tail = surface.delta_star[-1] + growth * (tail - s[-1])
-    return (
-        np.concatenate([s, tail]),
-        np.concatenate([flux, surface.ue[-1] * delta_tail]),
-    )
+    return s, ue * _bounded_growth(s, delta_star)
 
 
 def transpiration_velocity(
@@ -264,6 +317,52 @@ def transpiration_velocity(
     return blowing
 
 
+def _wake_edge_velocity(
+    panel: PanelSolution,
+    wake: Wake,
+    strengths: FloatArray,
+    floor: float,
+) -> FloatArray:
+    """Edge velocity along the wake, from every singularity in the problem.
+
+    The airfoil and freestream contribution comes from
+    :meth:`PanelSolution.velocity_at`, which does not know about the wake; the
+    wake's own contribution is added separately with the self-terms dropped,
+    since a source panel induces no tangential velocity at its own midpoint.
+
+    The result is floored at the edge velocity leaving the trailing edge, which
+    is what continuity of the outer flow requires: the wake begins where the
+    surface layers end, so it inherits their edge velocity there. Without the
+    floor the wake starts inside the inviscid trailing-edge stagnation point,
+    where ``Ue -> 0`` makes the momentum integral
+
+    .. math:: \\frac{d\\theta}{ds} = -(H+2)\\frac{\\theta}{U_e}\\frac{dU_e}{ds}
+
+    diverge — measured wake source strengths of 12, then 1076, on successive
+    iterations. Like the growth bound, the floor stops binding once the wake has
+    strength and the stagnation point has moved off the body; the tests assert
+    it is inactive in a converged solution. See NOTES.md, A4.5.
+    """
+    outer = panel.velocity_at(wake.control_points)
+    tangential = np.sum(outer * wake.tangents, axis=1)
+    tangential = tangential + wake_self_tangential(wake, strengths)
+    return np.maximum(np.abs(tangential), floor)
+
+
+def _trailing_edge_state(
+    layer: BoundaryLayerSolution, te_gap: float
+) -> tuple[float, float]:
+    """Momentum and displacement thickness entering the wake.
+
+    Momentum thickness adds across the two surfaces. Displacement thickness adds
+    too, plus the trailing-edge gap itself, which is displaced area whether or
+    not there is a boundary layer around it.
+    """
+    theta = sum(float(surface.theta[-1]) for surface in layer.surfaces)
+    delta_star = sum(float(surface.delta_star[-1]) for surface in layer.surfaces)
+    return theta, delta_star + te_gap
+
+
 def solve_coupled(
     airfoil: Airfoil,
     alpha: float,
@@ -275,11 +374,14 @@ def solve_coupled(
     tolerance: float = DEFAULT_TOLERANCE,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     stations: int = DEFAULT_STATIONS,
+    wake_length: float = DEFAULT_WAKE_LENGTH,
+    wake_panels: int = DEFAULT_WAKE_PANELS,
     system: HessSmithSystem | None = None,
     initial_transpiration: FloatArray | None = None,
+    initial_wake_strengths: FloatArray | None = None,
     validate: bool = True,
 ) -> CoupledSolution:
-    """Iterate the inviscid and boundary-layer solvers to convergence.
+    """Iterate the inviscid, boundary-layer and wake solvers to convergence.
 
     Parameters
     ----------
@@ -294,21 +396,21 @@ def solve_coupled(
     n_crit : float, optional
         Amplification factor at transition for the e^N method.
     relaxation : float, optional
-        Under-relaxation factor on the transpiration velocity, in (0, 1].
+        Under-relaxation factor, in (0, 1].
     tolerance : float, optional
-        Convergence tolerance on the relative change in transpiration.
+        Convergence tolerance on the relative change in the coupling unknowns.
     max_iterations : int, optional
         Iteration limit.
     stations : int, optional
         Boundary-layer stations per surface.
+    wake_length : float, optional
+        Wake length in chords.
+    wake_panels : int, optional
+        Number of wake panels.
     system : HessSmithSystem, optional
-        A pre-factorised system for this airfoil. Pass one when sweeping angle
-        of attack: the factorisation is the expensive part and does not depend
-        on incidence.
-    initial_transpiration : ndarray, optional
-        Starting guess. Passing the converged value from a neighbouring angle
-        (continuation) roughly halves the iteration count and is what gets the
-        solver through the top of the lift curve.
+        A pre-factorised system. Pass one when sweeping incidence.
+    initial_transpiration, initial_wake_strengths : ndarray, optional
+        Starting guesses, for continuation from a neighbouring angle.
     validate : bool, optional
         If True (default), raise when the iteration has not converged.
 
@@ -321,63 +423,93 @@ def solve_coupled(
     ConvergenceError
         If ``validate`` is set and the iteration did not converge.
     ValidityRangeError
-        If the relaxation factor is outside (0, 1].
+        If the relaxation factor or Reynolds number is out of range.
 
     Notes
     -----
-    The residual is the change in transpiration velocity between successive
-    iterations, relative to its own magnitude, measured **before** relaxation is
-    applied — otherwise a small relaxation factor would make any iteration look
-    converged.
+    One iteration is: solve the outer flow with the current transpiration and
+    wake sources; run the surface boundary layers; carry their trailing-edge
+    state into the wake and march that; form new transpiration and wake source
+    strengths; under-relax both.
+
+    The residual is the largest relative change across **both** sets of
+    unknowns, measured before relaxation is applied — otherwise a small
+    relaxation factor would make any iteration look converged.
     """
     if not 0.0 < relaxation <= 1.0:
-        raise ValidityRangeError(
-            f"relaxation must lie in (0, 1], got {relaxation}"
-        )
+        raise ValidityRangeError(f"relaxation must lie in (0, 1], got {relaxation}")
     if reynolds <= 0.0:
         raise ValidityRangeError(f"Reynolds number must be positive, got {reynolds}")
 
     if system is None:
         system = HessSmithSystem(airfoil)
+    wake = build_wake(airfoil, alpha, length=wake_length, n_panels=wake_panels)
 
     blowing = (
         np.zeros(system.n_panels)
         if initial_transpiration is None
         else np.array(initial_transpiration, dtype=np.float64)
     )
+    wake_strength = (
+        np.zeros(wake.n_panels)
+        if initial_wake_strengths is None
+        else np.array(initial_wake_strengths, dtype=np.float64)
+    )
 
     history: list[float] = []
     lift_history: list[float] = []
     panel: PanelSolution | None = None
     layer: BoundaryLayerSolution | None = None
+    wake_layer: WakeBoundaryLayer | None = None
     residual = np.inf
 
-    for iteration in range(1, max_iterations + 1):
-        panel = system.solve(alpha, transpiration=blowing, validate=False)
-        layer = solve_boundary_layer(
-            panel,
-            reynolds,
-            method=method,
-            n_crit=n_crit,
-            stations=stations,
-            validate=False,
+    for _ in range(max_iterations):
+        external = wake_influence(wake, wake_strength, system.control_points)
+        panel = system.solve(
+            alpha, transpiration=blowing, external_velocity=external, validate=False
         )
-        target = transpiration_velocity(layer, system)
+        layer = solve_boundary_layer(
+            panel, reynolds, method=method, n_crit=n_crit,
+            stations=stations, validate=False,
+        )
 
-        scale = max(float(np.max(np.abs(target))), 1e-12)
-        residual = float(np.max(np.abs(target - blowing))) / scale
+        edge_floor = float(
+            np.mean([surface.ue[-1] for surface in layer.surfaces])
+        )
+        ue_wake = _wake_edge_velocity(panel, wake, wake_strength, edge_floor)
+        theta_te, delta_star_te = _trailing_edge_state(layer, airfoil.te_gap)
+        wake_layer = solve_wake_layer(
+            wake.s, ue_wake, theta_te, delta_star_te, reynolds
+        )
+
+        target_blowing = transpiration_velocity(layer, system)
+        target_wake = wake_source_strengths(wake_layer)
+
+        scale = max(
+            float(np.max(np.abs(target_blowing))),
+            float(np.max(np.abs(target_wake))),
+            1e-12,
+        )
+        residual = max(
+            float(np.max(np.abs(target_blowing - blowing))),
+            float(np.max(np.abs(target_wake - wake_strength))),
+        ) / scale
         history.append(residual)
         lift_history.append(panel.cl_pressure)
 
         if residual < tolerance:
             break
-        blowing = blowing + relaxation * (target - blowing)
+        blowing = blowing + relaxation * (target_blowing - blowing)
+        wake_strength = wake_strength + relaxation * (target_wake - wake_strength)
 
-    assert panel is not None and layer is not None
+    assert panel is not None and layer is not None and wake_layer is not None
     result = CoupledSolution(
         panel=panel,
         boundary_layer=layer,
+        wake=wake,
+        wake_layer=wake_layer,
         transpiration=blowing,
+        wake_strengths=wake_strength,
         iterations=len(history),
         residual=residual,
         converged=residual < tolerance,
@@ -399,6 +531,8 @@ def coupled_polar(
     tolerance: float = DEFAULT_TOLERANCE,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     stations: int = DEFAULT_STATIONS,
+    wake_length: float = DEFAULT_WAKE_LENGTH,
+    wake_panels: int = DEFAULT_WAKE_PANELS,
 ) -> list[CoupledSolution]:
     """Sweep angle of attack with continuation.
 
@@ -408,50 +542,49 @@ def coupled_polar(
         Section to solve.
     alphas : ndarray
         Angles of attack in **radians**, in the order they should be marched.
-        Sweeping upward from a low angle is what allows the solver to reach the
-        top of the lift curve.
+        Sweeping upward from a low angle is what lets the solver reach the top
+        of the lift curve.
     reynolds : float
         Reynolds number based on chord.
     method, n_crit, relaxation, tolerance, max_iterations, stations
+        As for :func:`solve_coupled`.
+    wake_length, wake_panels
         As for :func:`solve_coupled`.
 
     Returns
     -------
     list of CoupledSolution
         One per angle, in the order given. Unconverged points are returned
-        rather than raising, with :attr:`CoupledSolution.converged` False, so
-        that a sweep which fails at the top of the curve still yields everything
-        below it. Callers that need a guarantee should call ``check()``.
+        rather than raising, so a sweep that fails at the top of the curve still
+        yields everything below it; call ``check()`` for a guarantee.
 
     Notes
     -----
     The system is factorised once for the whole sweep, and each angle starts
-    from the previous angle's converged transpiration. Both matter: the first
-    makes the sweep cheap, the second makes the approach to stall possible at
-    all, because a cold start at high incidence has no attached solution nearby
-    to iterate from.
+    from the previous angle's converged transpiration and wake strengths. The
+    first makes the sweep cheap; the second is what makes the approach to stall
+    possible, since a cold start at high incidence has no nearby attached
+    solution to iterate from.
     """
     system = HessSmithSystem(airfoil)
     results: list[CoupledSolution] = []
-    guess: FloatArray | None = None
+    guess_blowing: FloatArray | None = None
+    guess_wake: FloatArray | None = None
 
     for alpha in np.atleast_1d(np.asarray(alphas, dtype=np.float64)):
         result = solve_coupled(
-            airfoil,
-            float(alpha),
-            reynolds,
-            method=method,
-            n_crit=n_crit,
-            relaxation=relaxation,
-            tolerance=tolerance,
-            max_iterations=max_iterations,
-            stations=stations,
+            airfoil, float(alpha), reynolds,
+            method=method, n_crit=n_crit, relaxation=relaxation,
+            tolerance=tolerance, max_iterations=max_iterations, stations=stations,
+            wake_length=wake_length, wake_panels=wake_panels,
             system=system,
-            initial_transpiration=guess,
+            initial_transpiration=guess_blowing,
+            initial_wake_strengths=guess_wake,
             validate=False,
         )
         results.append(result)
         if result.converged:
-            guess = result.transpiration
+            guess_blowing = result.transpiration
+            guess_wake = result.wake_strengths
 
     return results
