@@ -260,5 +260,130 @@ def report(
         raise typer.Exit(EXIT_FLAGGED)
 
 
+@app.command()
+def wing(
+    airfoil: Annotated[str, typer.Option("--airfoil", "-a")],
+    re: Annotated[float, typer.Option("--re", help="Reynolds number on mean chord")],
+    span: Annotated[float, typer.Option("--span", help="full span")] = 6.0,
+    root: Annotated[float, typer.Option("--root-chord")] = 1.0,
+    taper: Annotated[float, typer.Option("--taper", help="tip chord / root chord")] = 1.0,
+    sweep: Annotated[float, typer.Option("--sweep", help="leading-edge sweep, degrees")] = 0.0,
+    dihedral: Annotated[float, typer.Option("--dihedral", help="degrees")] = 0.0,
+    washout: Annotated[float, typer.Option("--washout", help="tip washout, degrees, positive nose-down")] = 0.0,
+    alpha: Annotated[str, typer.Option("--alpha", help="degrees, start:stop:step")] = "0:12:2",
+    out: Annotated[Path, typer.Option("--out", "-o")] = Path("wing.csv"),
+    n_span: Annotated[int, typer.Option("--n-span", help="spanwise panels per semi-span")] = 40,
+) -> None:
+    """Sweep a finite wing: induced drag by Trefftz plane, profile drag by strips."""
+    import csv as _csv
+
+    from aerolab.inviscid.vlm import tapered_wing
+    from aerolab.polar import wing_polar
+
+    try:
+        angles = parse_alpha_range(alpha)
+        planform = tapered_wing(
+            span=span, root_chord=root, taper=taper,
+            sweep=float(np.deg2rad(sweep)), dihedral=float(np.deg2rad(dihedral)),
+            twist_tip=float(np.deg2rad(-washout)),
+        )
+        section = load_airfoil(airfoil, DEFAULT_PANELS)
+        section_polar = compute_polar(
+            section, np.arange(-8.0, 16.1, 1.0), re, name=section.name
+        )
+        points = wing_polar(planform, angles, section_polar, n_span=n_span)
+    except AerolabError as error:
+        typer.secho(f"error: {error}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from error
+
+    typer.echo(
+        f"{section.name} wing   span {planform.span:g}   area "
+        f"{planform.area:.4f}   AR {planform.aspect_ratio:.3f}"
+    )
+    typer.echo(f"  {'alpha':>7} {'CL':>9} {'CDi':>10} {'CD_prof':>10} "
+               f"{'CD':>10} {'L/D':>7} {'e':>7}")
+    for point in points:
+        typer.echo(
+            f"  {point.alpha_deg:>7.2f} {point.cl:>9.4f} {point.cdi:>10.6f} "
+            f"{point.cd_profile:>10.6f} {point.cd:>10.6f} "
+            f"{point.lift_to_drag:>7.1f} {point.span_efficiency:>7.4f}"
+        )
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", newline="", encoding="utf-8") as handle:
+        handle.write(f"# aerolab wing polar\n")
+        handle.write(f"# section = {section.name}\n")
+        handle.write(f"# reynolds = {re:.6g}\n")
+        handle.write(f"# span = {planform.span:g}\n")
+        handle.write(f"# area = {planform.area:.6g}\n")
+        handle.write(f"# aspect_ratio = {planform.aspect_ratio:.6g}\n")
+        writer = _csv.writer(handle)
+        writer.writerow(["alpha_deg", "cl", "cdi", "cd_profile", "cd",
+                         "span_efficiency", "strips_outside_polar"])
+        for point in points:
+            writer.writerow([
+                f"{point.alpha_deg:.4f}", f"{point.cl:.6f}", f"{point.cdi:.7f}",
+                f"{point.cd_profile:.7f}", f"{point.cd:.7f}",
+                f"{point.span_efficiency:.5f}", point.strips_outside_polar,
+            ])
+    typer.echo(f"  written to    {out}")
+
+    stranded = sum(p.strips_outside_polar for p in points)
+    if stranded:
+        typer.secho(
+            f"  {stranded} strip-angles fell outside the section polar and were "
+            "clamped to its ends; widen --alpha on the section or reduce "
+            "incidence", fg=typer.colors.YELLOW, err=True,
+        )
+        raise typer.Exit(EXIT_FLAGGED)
+
+
+@app.command()
+def tunnel(
+    measured: Annotated[Path, typer.Option("--measured", "-m",
+                                           help="CSV from the balance")],
+    predicted: Annotated[Path, typer.Option("--predicted", "-p",
+                                            help="polar CSV from `aerolab polar`")],
+    height: Annotated[float, typer.Option("--height", help="test-section height")],
+    chord: Annotated[float, typer.Option("--chord", help="model chord, same units")],
+    thickness: Annotated[float, typer.Option("--thickness", help="model t/c")] = 0.12,
+    area_ratio: Annotated[float, typer.Option("--area-ratio",
+                                              help="model area / chord^2")] = 0.0822,
+    gradient: Annotated[float, typer.Option("--pressure-gradient",
+                                            help="empty-tunnel dCp/dx per chord")] = 0.0,
+    shape_factor: Annotated[float, typer.Option("--shape-factor",
+                                                help="solid-blockage Lambda; omit to derive from t/c")] = -1.0,
+) -> None:
+    """Correct measured tunnel data and compare it against a predicted polar."""
+    from aerolab.tunnel import TunnelSection, compare_with_polar, read_measurements
+
+    try:
+        section = TunnelSection(
+            height=height, chord=chord, thickness_ratio=thickness,
+            area_ratio=area_ratio, pressure_gradient=gradient,
+            shape_factor=None if shape_factor < 0 else shape_factor,
+        )
+        data = read_measurements(measured)
+        prediction = Polar.from_csv(predicted)
+        result = compare_with_polar(data, section, prediction)
+    except AerolabError as error:
+        typer.secho(f"error: {error}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from error
+
+    typer.echo(f"measured   {data.source}   {len(data)} points")
+    typer.echo(f"predicted  {prediction.name}   Re = {prediction.reynolds:.3g}")
+    typer.echo(f"{section}")
+    typer.echo("")
+    typer.echo(result.report())
+
+    if abs(result.drag["bias"]) > 0.2 * max(np.mean(result.measured_cd), 1e-9):
+        typer.secho(
+            "  drag bias exceeds 20% of the measured level. A consistent drag "
+            "offset usually means N_crit is wrong for this tunnel rather than "
+            "that the solver is broken; try calibrating it.",
+            fg=typer.colors.YELLOW, err=True,
+        )
+
+
 if __name__ == "__main__":  # pragma: no cover - manual entry point
     app()

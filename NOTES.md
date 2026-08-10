@@ -869,6 +869,176 @@ to refuse to return it, and the prediction stays open until L4.3 is fixed.
 | Assumptions page pulled from `NOTES.md` | **met** — 54 entries, read at generation time |
 | Karman-Tsien and Prandtl-Glauert with a warning above local Mach 0.7 | **met** |
 
+---
+
+## Phase 6 — Finite wings (vortex lattice)
+
+*Recorded 2026-08-10.*
+
+### Assumptions
+
+- **A6.1 — Induced drag from the Trefftz plane, not the near field.** Summing
+  streamwise force on the bound legs converges slowly and is sensitive to how
+  the wake leaves the trailing edge. The Trefftz plane looks at the wake far
+  downstream, where only the spanwise circulation survives, and Glauert's
+  Fourier decomposition then gives `CL = pi AR A1`, `CDi = pi AR sum(n An^2)`
+  and `e = A1^2 / sum(n An^2)` directly.
+- **A6.2 — Control points at three-quarter chord, bound legs at quarter chord.**
+  The placement that makes a single chordwise panel reproduce thin-airfoil
+  theory exactly, which is why four chordwise panels are already enough for lift
+  and induced drag. Measured: going from 1 to 8 chordwise panels moves `CL` by
+  under 5%.
+- **A6.3 — Spanwise panels are cosine-clustered towards the tips.** The loading
+  has an infinite gradient at the tip of an elliptic wing, and uniform panels
+  put the largest error exactly where the induced-drag integral is most
+  sensitive.
+- **A6.4 — All Fourier harmonics are fitted, not only the odd ones.** An
+  asymmetric loading — from asymmetric twist, say — genuinely contains even
+  harmonics, and dropping them would silently symmetrise the answer.
+- **A6.5 — Profile drag by strip theory.** Each spanwise strip is treated as a
+  two-dimensional section at its own local lift coefficient, drag interpolated
+  from a section polar and weighted by chord.
+
+### Limitations
+
+- **L6.1 — Strip theory is worst exactly where the flow is most
+  three-dimensional.** Near the tips the assumption of locally two-dimensional
+  behaviour fails. Those strips also carry the least chord, which limits the
+  damage, but the tip contribution to profile drag is the least trustworthy part
+  of a wing polar.
+- **L6.2 — Strips outside the section polar are clamped and counted, never
+  extrapolated.** `WingPolarPoint.strips_outside_polar` reports how many, on
+  every point, so a wing whose tips are working outside the available data
+  cannot be mistaken for one that is not.
+- **L6.3 — The lattice is linear and knows nothing about stall.** It will
+  happily report a lift coefficient at 30 degrees. The section polar it draws
+  drag from does know, which is what makes L6.2's count worth reading.
+- **L6.4 — No wake roll-up.** The trailing vortices go straight downstream. Real
+  wakes roll up, which matters for close-coupled surfaces and not much for a
+  single wing.
+
+### Validation performed
+
+- **V6.1 — Elliptic wing, the acceptance case.** `e = 0.9964` against 1.0, and
+  `CDi` within **+0.35%** of `CL^2/(pi AR)`, at every angle tested. These are
+  two independent statements — one about the *shape* of the loading, one about
+  its *magnitude* — so an error in a sign or a factor generally breaks one
+  without the other.
+- **V6.2 — Classical results the method was never told about.** Lift slope rises
+  towards `2 pi` with aspect ratio (5.70 /rad at AR = 32) and stays below the
+  lifting-line estimate `2 pi AR/(AR+2)`, as a lattice should. Span efficiency
+  peaks at a taper ratio of 0.45, the textbook optimum. Washout unloads the tips
+  and reduces total lift. Sweep reduces lift slope.
+- **V6.3 — Internal consistency.** `CDi` scales exactly as `CL^2` for an
+  untwisted wing; span efficiency is independent of incidence for one; loading
+  is symmetric to 1e-8 and falls to zero at the tips; the circulation integral
+  reproduces the reported `CL` to 1e-12.
+
+### Acceptance
+
+| Criterion | Result | |
+|---|---|---|
+| Elliptic wing `e = 1.0 +/- 0.02` | **0.9964** | pass |
+| `CDi` within 2% of `CL^2/(pi AR)` | **+0.35%** | pass |
+| Spanwise loading, induced drag, `e`, total wing `Cl`/`Cd` | all reported | pass |
+
+---
+
+## Phase 7 — Tunnel corrections and experimental validation
+
+*Recorded 2026-08-10.*
+
+### Assumptions
+
+- **A7.1 — Allen and Vincenti's two-dimensional corrections**, as presented in
+  Barlow, Rae and Pope. Solid blockage, wake blockage, streamline curvature and
+  horizontal buoyancy, with `sigma = (pi^2/48)(c/h)^2` as the single geometry
+  parameter every term scales with.
+- **A7.2 — Corrections take measured values to free-air ones.** Every blockage
+  correction *reduces* a coefficient, because the model saw a higher dynamic
+  pressure than the reference probe recorded. The angle correction goes the
+  other way: the walls suppress streamline curvature, so the model behaved as
+  though at a higher angle than the balance recorded. Both directions are
+  asserted in the tests, because a reversed correction is silent.
+- **A7.3 — Buoyancy is subtracted, not scaled.** It is a force free air would
+  not apply at all, not a mis-referenced one.
+- **A7.4 — Above `c/h = 0.4` the corrections are refused.** They are a
+  small-perturbation expansion in `c/h`; past that the corrections themselves
+  exceed 10% and the linearisation is no longer defensible. A model that large
+  needs a different tunnel, not a bigger correction.
+- **A7.5 — The prediction is interpolated onto the measured angles**, not the
+  other way round. The measurements are the fixed points of the exercise, and
+  resampling them would smooth exactly the scatter being quantified.
+- **A7.6 — Bias and scatter are reported separately.** They have entirely
+  different causes: a bias in lift usually means a geometry or angle-datum
+  error, a bias in drag usually means the transition model is wrong for the
+  tunnel, and scatter usually means the measurement rather than the prediction.
+
+### Limitations
+
+- **L7.1 — The solid-blockage shape factor is the one coefficient here taken
+  from a remembered value rather than derived or verified against the primary
+  source.** `solid_blockage_factor` returns `10/3 * (t/c)`, which reproduces the
+  commonly quoted `Lambda = 0.40` at `t/c = 0.12` and has the right scaling with
+  thickness, but Barlow, Rae and Pope tabulate `Lambda` per section family and
+  those values should be preferred when the book is to hand — pass them as
+  `shape_factor`. **Nothing else in the module depends on this choice**, and the
+  round-trip validation (V7.1) is independent of it.
+- **L7.2 — Closed test section only.** An open-jet section has corrections of
+  the opposite sign and different magnitude. Not implemented; passing open-jet
+  data through this would be worse than doing nothing.
+- **L7.3 — Two-dimensional only.** A finite-span model in a tunnel also needs
+  three-dimensional wall corrections, which are not here.
+- **L7.4 — Corrections are applied to coefficients, not to the pressure
+  distribution.** A corrected `Cp` distribution would need the blockage applied
+  point by point.
+
+### Validation performed
+
+- **V7.1 — Round trip, exact to 1e-12.** Synthesise what a tunnel would measure
+  from a known free-air polar, then run that synthetic data through the whole
+  correction chain and require the original back. Any sign slip, transposed term
+  or mismatched convention breaks it, and it needs no external reference to be
+  trusted. Verified on individual points and on a whole polar.
+- **V7.2 — End to end.** A synthetic measurement file written from a prediction,
+  read back, corrected and compared, gives zero bias and zero scatter to the
+  file's own write precision.
+- **V7.3 — Bias and scatter are distinguished.** A constant offset injected into
+  synthetic data appears as bias with scatter below 0.005; random noise appears
+  as scatter with bias below 0.02.
+- **V7.4 — Directions and scalings.** Blockage reduces lift and drag; the angle
+  correction follows the sign of the lift and vanishes at zero lift; corrections
+  grow with model size and vanish for a small model; wake blockage scales
+  linearly with drag.
+
+### A finding that changes the advice given in Phase 3
+
+- **L7.5 — At the Reynolds number of a small tunnel, `N_crit` does nothing.**
+  Phase 3 recorded that `N_crit` moves the drag by 32% and recommended
+  calibrating it against the tunnel (L3.3). That was measured at
+  `Re = 3e6` and **does not hold at low Reynolds number**. Measured on
+  NACA 0012 at 3 degrees:
+
+  | Re | transition set by | Cd at N=9 | Cd at N=5 | difference |
+  |---|---|---|---|---|
+  | 5e4 | laminar separation | 0.01977 | 0.01977 | **0.0%** |
+  | 1e5 | laminar separation | 0.01519 | 0.01519 | **0.0%** |
+  | 2e5 | laminar separation | 0.01184 | 0.01184 | **0.0%** |
+  | 5e5 | laminar separation | 0.00874 | 0.00909 | 4.0% |
+  | 1e6 | e^N | 0.00723 | 0.00812 | 12.3% |
+  | 3e6 | e^N | 0.00628 | 0.00730 | 16.2% |
+
+  Below about `Re = 5e5` the laminar layer separates *before* the amplification
+  factor ever reaches `N`, so transition is fixed by the separation bubble and
+  the parameter has no effect whatsoever. A tunnel running a 100 mm chord at
+  15 m/s sits at `Re = 1e5`, squarely in that regime.
+
+  **What dominates there instead is the short-bubble assumption (A3.4)** —
+  transition placed at laminar separation with the bubble's own drag neglected.
+  That is a cruder model than e^N and it is the thing to be sceptical of when
+  comparing against low-Reynolds-number tunnel data. Calibrating `N_crit` at
+  `Re = 1e5` would be calibrating a parameter that does not act.
+
 ### Versions as built
 
 | Package | Version |

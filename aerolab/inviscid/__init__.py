@@ -17,6 +17,14 @@ from aerolab.inviscid.hess_smith import (
     solve_panel_method,
 )
 from aerolab.inviscid.influence import panel_frames, panel_influence, self_influence
+from aerolab.inviscid.vlm import (
+    VLMResult,
+    Wing,
+    WingSection,
+    elliptic_wing,
+    solve_vlm,
+    tapered_wing,
+)
 
 __all__ = [
     "HessSmithSystem",
@@ -25,4 +33,10 @@ __all__ = [
     "panel_influence",
     "panel_frames",
     "self_influence",
+    "solve_vlm",
+    "Wing",
+    "WingSection",
+    "VLMResult",
+    "elliptic_wing",
+    "tapered_wing",
 ]

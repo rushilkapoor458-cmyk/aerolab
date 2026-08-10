@@ -750,3 +750,135 @@ def batch_polars(
 
     with ProcessPoolExecutor(max_workers=count) as pool:
         return list(pool.map(run_request, requests))
+
+
+# ---------------------------------------------------------------------------
+# Finite wings
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class WingPolarPoint:
+    """One angle of attack on a finite wing.
+
+    Attributes
+    ----------
+    alpha : float
+        Angle of attack in **radians**.
+    cl : float
+        Wing lift coefficient on planform area.
+    cdi : float
+        Induced drag, from the Trefftz plane.
+    cd_profile : float
+        Profile drag, from strip theory: the section drag at each strip's own
+        local lift coefficient, weighted by chord.
+    span_efficiency : float
+        ``e`` for the loading at this angle.
+    strips_outside_polar : int
+        Strips whose local lift fell outside the range covered by the section
+        polar, and were therefore clamped to its ends.
+    """
+
+    alpha: float
+    cl: float
+    cdi: float
+    cd_profile: float
+    span_efficiency: float
+    strips_outside_polar: int
+
+    @property
+    def cd(self) -> float:
+        """Total drag: induced plus profile."""
+        return self.cdi + self.cd_profile
+
+    @property
+    def alpha_deg(self) -> float:
+        """Angle of attack in degrees."""
+        return float(np.rad2deg(self.alpha))
+
+    @property
+    def lift_to_drag(self) -> float:
+        """Wing lift-to-drag ratio."""
+        return self.cl / self.cd if self.cd > 0.0 else float("nan")
+
+
+def wing_polar(
+    wing,
+    alphas_deg: FloatArray,
+    section_polar: Polar,
+    *,
+    n_span: int = 40,
+    n_chord: int = 4,
+) -> list[WingPolarPoint]:
+    """Sweep a finite wing, combining induced and profile drag.
+
+    Parameters
+    ----------
+    wing : Wing
+        Planform.
+    alphas_deg : ndarray
+        Angles of attack in **degrees**.
+    section_polar : Polar
+        Two-dimensional polar of the wing's section, at the appropriate
+        Reynolds number. Only its converged points are used.
+    n_span, n_chord : int, optional
+        Lattice resolution.
+
+    Returns
+    -------
+    list of WingPolarPoint
+
+    Notes
+    -----
+    Strip theory assumes each spanwise strip behaves as a two-dimensional
+    section at its own local lift coefficient. That is a good approximation
+    where the loading varies slowly along the span and a poor one near the tips,
+    where the flow is strongly three-dimensional — so the tip strips contribute
+    the least reliable part of the profile drag. They also carry the least
+    chord, which limits the damage.
+
+    Strips whose local lift falls outside the section polar are **clamped to its
+    ends and counted**, not extrapolated. The count is reported on every point
+    so that a wing whose tips are working outside the available data cannot be
+    mistaken for one that is not.
+    """
+    from aerolab.inviscid.vlm import solve_vlm
+
+    usable = section_polar.converged & np.isfinite(section_polar.cd)
+    if int(np.count_nonzero(usable)) < 2:
+        raise ValidityRangeError(
+            "the section polar has fewer than two converged points, so strip "
+            "theory has nothing to interpolate"
+        )
+    section_cl = section_polar.cl[usable]
+    section_cd = section_polar.cd[usable]
+    order = np.argsort(section_cl)
+    section_cl, section_cd = section_cl[order], section_cd[order]
+
+    points: list[WingPolarPoint] = []
+    for alpha_deg in np.atleast_1d(np.asarray(alphas_deg, dtype=np.float64)):
+        result = solve_vlm(
+            wing, float(np.deg2rad(alpha_deg)), n_span=n_span, n_chord=n_chord
+        )
+        outside = int(
+            np.count_nonzero(
+                (result.section_cl < section_cl[0])
+                | (result.section_cl > section_cl[-1])
+            )
+        )
+        strip_cd = np.interp(result.section_cl, section_cl, section_cd)
+        edges = wing._span_edges(n_span)
+        width = np.diff(edges)
+        profile = float(np.sum(strip_cd * result.chord * width) / wing.area)
+
+        points.append(
+            WingPolarPoint(
+                alpha=float(np.deg2rad(alpha_deg)),
+                cl=result.cl,
+                cdi=result.cdi,
+                cd_profile=profile,
+                span_efficiency=result.span_efficiency,
+                strips_outside_polar=outside,
+            )
+        )
+    return points

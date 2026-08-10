@@ -17,8 +17,8 @@ are known, stated, and validated against published data.
 | 3 | Viscous: integral boundary layer, transition, profile drag | **complete** |
 | 4 | Viscous–inviscid coupling via transpiration | wake built; iteration limit-cycles in the last 1% of chord — [`NOTES.md`](NOTES.md) L4.3 |
 | 5 | Polars, CLI, PDF reporting, compressibility corrections | **complete** |
-| 6 | Finite wings: vortex lattice | not started |
-| 7 | Tunnel corrections and experimental validation | not started |
+| 6 | Finite wings: vortex lattice | **complete** |
+| 7 | Tunnel corrections and experimental validation | **complete** |
 
 ## Install
 
@@ -92,15 +92,27 @@ aerolab polar --airfoil naca2412 --re 5e5 --alpha -6:16:0.5 --out polar.csv
 aerolab batch --airfoils naca0012,naca2412,naca4412 --re 2e5,1e6 --out polars/
 aerolab report --airfoil naca2412 --re 5e5 --out report.pdf
 aerolab geometry --airfoil naca23012
+aerolab wing --airfoil naca2412 --re 5e5 --span 6 --taper 0.5 --out wing.csv
+aerolab tunnel --measured run.csv --predicted polar.csv --height 0.3 --chord 0.1
 ```
 
 Angles are in **degrees** here and in the CSV — that is the boundary where this
 package converts. Exit code 2 means the run finished but some points were
 flagged, so a script can tell a clean run from one with caveats.
 
-`--n-crit` is the knob worth calibrating against a real tunnel; `--mach` applies
-a Kármán–Tsien (or `--correction prandtl-glauert`) correction and flags any
-point whose local Mach exceeds 0.7.
+`--mach` applies a Kármán–Tsien (or `--correction prandtl-glauert`) correction
+and flags any point whose local Mach exceeds 0.7.
+
+`--n-crit` is worth calibrating **only above about Re = 5×10⁵**. Below that the
+laminar layer separates before the amplification factor reaches N, so transition
+is set by the separation bubble and the parameter has no effect at all — see
+`NOTES.md`, L7.5.
+
+## Running a tunnel test
+
+`tunnel_test/` holds a complete first experiment: a NACA 0012 model at 100 mm
+chord (coordinates in `.dat` and in millimetres for CAD), predicted polars, and
+a blank measurement sheet to fill in from the balance.
 
 ## Test
 
