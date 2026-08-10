@@ -703,6 +703,123 @@ to refuse to return it, and the prediction stays open until L4.3 is fixed.
   fix was plausible, was tested, and looked like a partial improvement (max `v_n`
   fell from 0.62 to 0.49) for entirely the wrong reason.
 
+---
+
+## Phase 5 — Polars, CLI, reporting, compressibility
+
+*Recorded 2026-08-10.*
+
+### Conventions fixed in this phase
+
+- **C5.1 — Degrees at every human boundary, radians everywhere inside.** The
+  CLI takes degrees, CSV files store `alpha_deg`, plot axes are labelled in
+  degrees, and `compute_polar` takes degrees because it is a reporting-level
+  entry point. Conversion happens once on entry. No solver ever sees a degree.
+- **C5.2 — Exit code 2 means "finished, with caveats".** The CLI exits 0 when
+  every point is clean, 1 when the run failed, and 2 when it completed but some
+  points were flagged. A script can then tell the three apart without parsing
+  output.
+
+### Assumptions
+
+- **A5.1 — Polars use the uncoupled Phase 3 solver by default.** It converges,
+  its error bounds are written down, and it is what can honestly be compared
+  against tunnel data. The Phase 4 coupling is available with `coupled=True`
+  and, as of this phase, marks every point unconverged (L4.3).
+- **A5.2 — Batch work is split across polars, not across angles.** A single
+  polar shares one factorised panel system between all its angles; splitting it
+  would throw that saving away to buy back less than it cost. Measured 416% CPU
+  on a six-polar batch.
+- **A5.3 — A failed angle is recorded as failed, never dropped.** Every
+  requested angle appears in the output with its own `converged` flag and a note
+  giving the reason. A polar with a hole in it is far easier to interpret than
+  one that silently stops at the angle where the physics got hard.
+- **A5.4 — The report's assumptions page is read from this file at generation
+  time.** Not transcribed. A report whose caveats are copied by hand drifts away
+  from the code within a phase or two; one that reads them cannot. If `NOTES.md`
+  is not found — an installed, non-editable copy of the package will not have it
+  — the page says so in red and tells the reader not to circulate the report,
+  rather than quietly omitting the caveats.
+- **A5.5 — Karman-Tsien is the default correction.** Being non-linear in `Cp` it
+  amplifies a strong suction peak more than a weak one, which is physically
+  right and tracks measured pressures better than Prandtl-Glauert up to about
+  the critical Mach number. Prandtl-Glauert remains available and has one
+  property Karman-Tsien lacks: being linear, it scales integrated forces by
+  exactly `1/beta`.
+- **A5.6 — Corrected forces are obtained by integrating the corrected
+  pressures**, not by scaling the incompressible coefficient. For
+  Prandtl-Glauert the two agree exactly; for Karman-Tsien they do not, and only
+  the integral is consistent for both.
+
+### Limitations
+
+- **L5.1 — Both corrections are subcritical, and the limit is not sharp.** Below
+  a local Mach of about 0.7 they are within a few percent of measured pressures;
+  by 0.8 they are visibly wrong; at 1.0 a shock forms and the isentropic
+  assumption underneath them fails outright. Results above 0.7 are **flagged,
+  not suppressed** — a user may legitimately want to see how close to critical a
+  section is — and `CompressibleField.check()` turns the flag into an exception
+  for callers who want that.
+- **L5.2 — The Karman-Tsien denominator changes sign at high Mach.** For
+  `Cp_0 = -2` it passes through zero near Mach 0.9, beyond which the correction
+  turns a suction peak into a pressure peak. Refused rather than returned,
+  because the number looks perfectly ordinary and is meaningless.
+- **L5.3 — `Polar.cl_max` is the highest lift among *unflagged* points.** For a
+  section that separates at moderate incidence this is well below the peak of
+  the drawn lift curve, and the report labels it accordingly. It is not a stall
+  prediction; nothing in this package yet makes one (L4.3).
+- **L5.4 — The critical Mach number is where a shock first appears, not where
+  drag rises.** Drag divergence follows 0.05 to 0.1 higher depending on section.
+  This package does not predict it.
+- **L5.5 — Compressibility is applied to pressures only.** The boundary layer,
+  transition and drag are all computed incompressibly. That is defensible while
+  the correction itself is (below local Mach 0.7) and is why the flag matters.
+
+### Defect found and fixed
+
+- **D5.1 — The Karman-Tsien guard caught the wrong thing, and the root search
+  stepped over the answer.** The denominator was checked only for being *near
+  zero* (`|d| < 1e-9`), which misses it having gone cleanly negative — at Mach
+  0.95 with `Cp_0 = -1` it is -0.032, and the correction happily returned
+  `Cp = +31.5` for a suction. The critical-Mach search then bracketed
+  `[1e-4, 0.95]` straight across that breakdown and reported that the section
+  never goes sonic. Fixed by requiring the denominator to stay positive, and by
+  scanning for the *first* sign change rather than bracketing the whole range.
+
+### Validation performed
+
+- **V5.1 — Critical Mach against an independent closed form.** At the critical
+  Mach number the corrected peak suction must equal `Cp*`, the sonic pressure
+  coefficient, which follows from the isentropic relations alone and shares no
+  code with the root finder. Verified to 1e-6 relative for both corrections at
+  four peak suctions. This is the classical graphical construction — the
+  correction curve crossing the sonic line — done numerically.
+- **V5.2 — Local Mach against its own definition.** At `Cp = 0` the local Mach
+  number equals the freestream value exactly, for every freestream Mach tested.
+  Feeding `Cp*` back in returns exactly 1.
+- **V5.3 — Prandtl-Glauert linearity.** A random pressure distribution and a
+  random weighting reproduce `1/beta` scaling of the integrated force to 1e-12.
+- **V5.4 — Ordering of the two corrections.** Karman-Tsien predicts a lower
+  critical Mach than Prandtl-Glauert at every peak suction, because it amplifies
+  the suction more. A thin section with `Cp_min = -0.4` gives 0.733, in the low
+  0.7s as expected.
+- **V5.5 — CSV round trip.** Values, run conditions, flags and notes all survive
+  to written precision. A polar file is self-describing and can be reloaded
+  without being told what it was.
+- **V5.6 — Serial and parallel batches agree** to floating-point equality.
+- **V5.7 — The Phase 2 and 3 numbers survive the polar layer.** Lift slope and
+  zero-lift angle come back at 6.91 /rad and -2.14 degrees for NACA 2412.
+
+### Acceptance
+
+| Criterion | Status |
+|---|---|
+| `aerolab polar --airfoil naca2412 --re 5e5 --alpha -6:16:0.5 --out polar.csv` | **works, verbatim** |
+| Batch sweeps over Re and airfoil families, parallelised | **met** — 416% CPU measured |
+| PDF report: geometry, Cp, lift curve, drag polar, transition, assumptions | **met** — six pages |
+| Assumptions page pulled from `NOTES.md` | **met** — 54 entries, read at generation time |
+| Karman-Tsien and Prandtl-Glauert with a warning above local Mach 0.7 | **met** |
+
 ### Versions as built
 
 | Package | Version |

@@ -16,7 +16,7 @@ are known, stated, and validated against published data.
 | 2 | Inviscid 2D: Hess–Smith panel method | **complete** |
 | 3 | Viscous: integral boundary layer, transition, profile drag | **complete** |
 | 4 | Viscous–inviscid coupling via transpiration | wake built; iteration limit-cycles in the last 1% of chord — [`NOTES.md`](NOTES.md) L4.3 |
-| 5 | Polars, CLI, PDF reporting, compressibility corrections | not started |
+| 5 | Polars, CLI, PDF reporting, compressibility corrections | **complete** |
 | 6 | Finite wings: vortex lattice | not started |
 | 7 | Tunnel corrections and experimental validation | not started |
 
@@ -84,6 +84,23 @@ bl.upper.turbulent_separation_x                # H > 2.6
 `n_crit` is the knob to calibrate against a real tunnel: 9 is free flight,
 4–7 a small open-circuit tunnel. It moves the drag by **32%** across that range,
 which is far more than any other modelling choice — see `NOTES.md`, L3.3.
+
+## Command line
+
+```bash
+aerolab polar --airfoil naca2412 --re 5e5 --alpha -6:16:0.5 --out polar.csv
+aerolab batch --airfoils naca0012,naca2412,naca4412 --re 2e5,1e6 --out polars/
+aerolab report --airfoil naca2412 --re 5e5 --out report.pdf
+aerolab geometry --airfoil naca23012
+```
+
+Angles are in **degrees** here and in the CSV — that is the boundary where this
+package converts. Exit code 2 means the run finished but some points were
+flagged, so a script can tell a clean run from one with caveats.
+
+`--n-crit` is the knob worth calibrating against a real tunnel; `--mach` applies
+a Kármán–Tsien (or `--correction prandtl-glauert`) correction and flags any
+point whose local Mach exceeds 0.7.
 
 ## Test
 
