@@ -1281,3 +1281,101 @@ that converges on an aerofoil.
 - **V9.2 — Skin friction changes sign at separation**, asserted in the tests.
 - **V9.3 — The shear stress genuinely lags**, asserted against the local
   equilibrium value in a rising-equilibrium flow.
+
+---
+
+## Phase 10 — Drela's lag closure, shear stress as a fourth unknown
+
+*Recorded 2026-08-11.*
+
+Phase 9 implemented Drela's turbulent closure with the shear-stress coefficient
+integrated *around* the Newton solve. It did not converge on an airfoil, and the
+diagnosis was L9.1: the shape relation `H*(H)` has a minimum near H = 3.2 and is
+double-valued above it, so nothing in the system said which branch the solution
+was on and Newton walked onto the wrong one — H reached **35.8** on a NACA 0012
+at zero incidence. This phase makes `C_tau` a genuine unknown with its own
+residual, which is the fix that was named.
+
+### Conventions
+
+- **C10.1 — Four unknowns per station.** `theta`, `delta*`, `Ue`, `C_tau`, and
+  four residuals: momentum, shape, interaction, lag. The state vector is `4n`.
+
+### Assumptions
+
+- **A10.1 — Turbulent closure selectable.** `turbulent_closure="head"` (default)
+  is Phase 8's validated entrainment closure; `"lag"` is Drela's. The default is
+  the one that converges, and it is stated in the signature rather than buried.
+- **A10.2 — One calibrated constant.** `CTAU_EQUILIBRIUM = 0.001766`, fitted so
+  the kinetic-energy equation reproduces the zero-pressure-gradient flat plate
+  (H from Coles' law of the wake, cf from Ludwieg-Tillmann) over Re_theta from
+  500 to 50000. Worst error in the dissipation over that range **1.4%**. This is
+  the only fitted number in the package. It is fitted to published data, never
+  to a result this package produces.
+- **A10.3 — The slip constant is not calibrated.** The flat plate cannot
+  determine it: the slip velocity moves from 0.835 to 0.877 over the whole
+  range, so the fit ran to its bound. Drela's 6.7 is used unchanged and A10.2
+  absorbs the difference.
+- **A10.4 — Equilibrium at the start of each surface.** There is no upstream
+  history at the first station, so there is nothing for the lag equation to
+  inherit.
+
+### Defects found and fixed
+
+- **D10.1 — A branch cut invisible to the value and fatal to the derivative.**
+  `H*` switches branch at `H0 = 3 + 400/Re_theta`, and the low branch contains
+  `(H0 - H)**1.6`. At the switch that base is exactly zero, and a **fractional**
+  power of zero has a branch cut in the complex plane. The values were finite
+  and correct; the complex-step derivative was not. One station happened to land
+  on `H0 = 3.550` and produced a Jacobian entry of **4.4e21**. The same latent
+  fault sat in the laminar dissipation at H = 4. Both bases are now soft-floored
+  at 1e-3, where the terms they multiply are already negligible.
+  This is the one defect in the package that a real finite difference would have
+  caught and the complex step did not — worth recording, because the complex
+  step is used here precisely on the grounds that it is exact.
+- **D10.2 — The starting guess began on the wrong side of the fold.** The
+  turbulent run was seeded with the *laminar* Thwaites shape factor, so it
+  started at H = 3.1 to 3.5, above the `H*` minimum. Newton cannot climb back
+  over a fold: the residual stalled at 0.82 with H at 3.15 where the answer is
+  1.6. The guess is now rebuilt once transition is known, with the turbulent run
+  seeded at H = 1.45.
+
+### Validation
+
+- **V10.1 — Jacobian exact for all sixteen blocks.** Agrees with central
+  differences to **5e-9** relative across momentum, shape, interaction and lag
+  rows against theta, delta*, Ue and C_tau columns.
+- **V10.2 — Turbulent H* against an exact profile.** 1.7880 at H = 1.2857,
+  Re_theta = 5000, against the 1/7 power law's exact 1.8000 — **0.7%**.
+- **V10.3 — Turbulent cf against Ludwieg-Tillmann.** Within **1.5-2.2%** at
+  H = 1.3 to 1.4, and **negative above H = 3.2**, which Ludwieg-Tillmann can
+  never be. This is what lifts L8.4.
+- **V10.4 — Turbulent flat plate.** H within **1.8%** of Coles' law of the wake
+  at Re_theta = 18000; momentum thickness within **1.8%** of the 1/7-power
+  correlation.
+- **V10.5 — The lag is a lag.** In a rising-equilibrium flow the solved `C_tau`
+  sits below the local equilibrium value downstream, which is the entire point.
+- **V10.6 — The shape factor no longer runs away.** NACA 0012 at zero incidence:
+  H_max fell from **35.8 to 3.19**.
+
+### Limitations
+
+- **L10.1 — The lag closure still does not converge on an airfoil.** Residual
+  0.2 at zero incidence against a tolerance of 1e-9, and the largest residual is
+  the lag equation **at the transition point**. The cause is identified and not
+  guessed at: `C_tau` is pinned to its equilibrium value through the laminar
+  run, and the equilibrium relation evaluated on a laminar profile (H around
+  2.5) returns roughly **seven times** what it returns just downstream of
+  transition (H around 1.45), so `C_tau` is required to step discontinuously
+  there. Letting it float through the laminar run instead was tried and is
+  worse — under-determined, residual 3 rather than 0.2.
+  What this needs is XFOIL's actual transition treatment, in which the
+  transition interval is **split** at the transition point and the two
+  sub-intervals carry laminar and turbulent closures separately, rather than one
+  interval carrying a weighted blend of both. That is a change to the station
+  layout, not to the closure.
+- **L10.2 — Therefore the default stays `"head"`.** It converges in four to
+  seven Newton steps and is validated against Blasius, Falkner-Skan and
+  published drag. The lag closure is available, its constants are validated
+  where they can be, and its remaining failure is written down here rather than
+  hidden behind a limiter.

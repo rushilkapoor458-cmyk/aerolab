@@ -134,6 +134,9 @@ H_FLOOR = 1.13
 
 DEFAULT_TOLERANCE = 1e-9
 DEFAULT_MAX_ITERATIONS = 60
+#: Shape factor a turbulent layer is taken to start with.
+TURBULENT_START_SHAPE = 1.45
+
 DEFAULT_MAX_OUTER = 25
 
 #: How close the transition position must come to settling, in chords.
@@ -225,7 +228,8 @@ def _laminar_diss_reth(h: ComplexArray) -> ComplexArray:
     low = h.real < 4.0
     # The 5.5 power of a negative base is not real; the branch is unused there,
     # but it must still evaluate to something finite for np.where.
-    safe_low = _pick(low, 4.0 - h, np.ones_like(h))
+    # Same fractional-power branch cut as in _turbulent_h_star, at H = 4.
+    safe_low = _soft_floor(_pick(low, 4.0 - h, np.ones_like(h)), 0.0, 2.0e-3)
     return _pick(
         low,
         0.207 + 0.00205 * safe_low**5.5,
@@ -313,7 +317,13 @@ def _turbulent_h_star(h: ComplexArray, re_theta: ComplexArray) -> ComplexArray:
     rt = _soft_floor(re_theta, 100.0, 20.0)
     h0 = 3.0 + 400.0 / rt
     low = h.real < (3.0 + 400.0 / np.maximum(re_theta.real, 100.0))
-    gap = _pick(low, h0 - h, np.ones_like(h))
+    # Soft-floored because the exponent below is fractional. At the branch
+    # switch H = H0 the gap is exactly zero, and a fractional power of zero has
+    # a branch cut in the complex plane — which is invisible to the value and
+    # fatal to the complex-step derivative. Measured: a Jacobian entry of 4e21
+    # at the one station that happened to land on H0. The floor is 1e-3, where
+    # the term it multiplies is already negligible.
+    gap = _soft_floor(_pick(low, h0 - h, np.ones_like(h)), 0.0, 2.0e-3)
     above = _pick(low, np.ones_like(h), h - h0)
     log_rt = np.log(rt)
     return 1.505 + 4.0 / rt + _pick(
@@ -747,7 +757,6 @@ class _Problem:
     spacing: FloatArray
     wall: FloatArray
     turbulent: FloatArray
-    shear: FloatArray
     lag: bool
     first: NDArray[np.int64]
     te_upper: int
@@ -762,7 +771,6 @@ def _build_problem(
     reynolds: float,
     te_gap: float,
     turbulent: FloatArray,
-    shear: FloatArray,
     lag: bool = False,
 ) -> _Problem:
     left, right, wall = [], [], []
@@ -784,7 +792,6 @@ def _build_problem(
         spacing=layout.s[right_a] - layout.s[left_a],
         wall=np.concatenate(wall),
         turbulent=turbulent,
-        shear=shear,
         lag=lag,
         first=layout.starts.copy(),
         te_upper=int(layout.starts[1]) - 1,
@@ -805,8 +812,8 @@ def _interval_residuals(
     turbulent: FloatArray,
     wall: FloatArray,
     reynolds: float,
-    shear_l: FloatArray,
-    shear_r: FloatArray,
+    shear_l: ComplexArray,
+    shear_r: ComplexArray,
     lag: bool = False,
 ) -> tuple[ComplexArray, ComplexArray]:
     """Momentum and shape-parameter residuals on every interval at once.
@@ -913,8 +920,90 @@ def _interval_residuals(
     return momentum, shape
 
 
+def _lag_residuals(
+    theta_l: ComplexArray,
+    theta_r: ComplexArray,
+    dstar_l: ComplexArray,
+    dstar_r: ComplexArray,
+    ue_l: ComplexArray,
+    ue_r: ComplexArray,
+    shear_l: ComplexArray,
+    shear_r: ComplexArray,
+    spacing: FloatArray,
+    turbulent: FloatArray,
+    reynolds: float,
+) -> ComplexArray:
+    """Residual of the shear-stress lag equation on every interval.
+
+    .. math:: \\delta\\,\\frac{dC_\\tau}{ds} = K(C_{\\tau,eq} - C_\\tau)
+
+    Notes
+    -----
+    Making this a residual — rather than integrating it around the outside of
+    the Newton solve, which is what Phase 9 did — is the whole point. The
+    kinetic-energy shape relation :math:`H^*(H)` has a minimum near ``H = 3.2``
+    and is **double-valued** above it, so the shape equation alone cannot say
+    which root it is on, and Newton is free to walk onto the non-physical
+    large-``H`` branch. It did: the shape factor reached 35.8 on a NACA 0012 at
+    zero incidence.
+
+    The lag equation fixes that because it is a statement about *history*. The
+    shear stress at a station is inherited from upstream, and the dissipation is
+    then no longer free to take whatever value would balance a runaway shape
+    factor — it is pinned to where the layer has been. Solving it simultaneously
+    puts that constraint inside the Newton system, where it can select the
+    branch, instead of outside it, where it could only be told about the branch
+    after the fact.
+
+    Divided through by ``delta_bar * C_tau_bar`` so the residual is
+    dimensionless and comparable with the other three.
+
+    Laminar intervals carry no turbulent shear stress, so there ``C_tau`` is
+    simply held at its equilibrium value; the two are blended by the same
+    turbulent fraction used everywhere else, which keeps the residual continuous
+    through transition.
+    """
+    h_l, h_r = dstar_l / theta_l, dstar_r / theta_r
+    reth_l = reynolds * ue_l * theta_l
+    reth_r = reynolds * ue_r * theta_r
+
+    hs_l = _turbulent_h_star(h_l, reth_l)
+    hs_r = _turbulent_h_star(h_r, reth_r)
+    eq_l = _equilibrium_shear(hs_l, h_l, _slip_velocity(hs_l, h_l))
+    eq_r = _equilibrium_shear(hs_r, h_r, _slip_velocity(hs_r, h_r))
+
+    thickness = 0.5 * (
+        _thickness(theta_l, h_l) + _thickness(theta_r, h_r)
+    )
+    shear_bar = 0.5 * (shear_l + shear_r)
+    equilibrium = 0.5 * (eq_l + eq_r)
+
+    lagged = (shear_r - shear_l) / shear_bar - LAG_CONSTANT * (
+        spacing / thickness
+    ) * (equilibrium / shear_bar - 1.0)
+    # The laminar run carries no turbulent shear stress, so C_tau is held at the
+    # equilibrium value there. Letting it float instead — merely carried from
+    # station to station — was tried and is worse: it leaves C_tau
+    # under-determined through the laminar run and the residual rose from 0.2 to
+    # 3. The cost of pinning it is a step in C_tau at transition, because the
+    # equilibrium relation evaluated on a laminar profile is several times the
+    # turbulent value; that step is the largest single obstacle left (L10.1).
+    frozen = shear_r / eq_r - 1.0
+    return turbulent * lagged + (1.0 - turbulent) * frozen
+
+
+def _thickness(theta: ComplexArray, h: ComplexArray) -> ComplexArray:
+    """Physical thickness, complex-safe, for the lag length scale."""
+    hh = _soft_floor(h, 1.02, 0.01)
+    return theta * (3.15 + 1.72 / (hh - 1.0) + hh)
+
+
 def _trailing_edge_pair(
-    theta: ComplexArray, dstar: ComplexArray, ue: ComplexArray, problem: _Problem
+    theta: ComplexArray,
+    dstar: ComplexArray,
+    ue: ComplexArray,
+    shear: ComplexArray,
+    problem: _Problem,
 ) -> tuple[ComplexArray, ComplexArray]:
     """Momentum and shape residuals across the trailing-edge gap.
 
@@ -956,54 +1045,107 @@ def _trailing_edge_pair(
         one,
         0.0 * one,
         problem.reynolds,
-        np.atleast_1d(0.5 * (problem.shear[problem.te_upper] + problem.shear[problem.te_lower])),
-        np.atleast_1d(problem.shear[index]),
+        np.atleast_1d(0.5 * (shear[problem.te_upper] + shear[problem.te_lower])),
+        np.atleast_1d(shear[index]),
         problem.lag,
     )
     return momentum[0], shape[0]
 
 
 def _residuals(state: ComplexArray, problem: _Problem) -> ComplexArray:
-    """Full residual vector: momentum, shape, and interaction, in that order."""
+    """Momentum, shape, interaction and lag residuals, in that order.
+
+    Four unknowns per station and four equations per station. The fourth pair —
+    the shear-stress coefficient and its lag equation — is what lets the solver
+    stay on the physical branch of the shape relation through separation.
+    """
     n = problem.layout.n_stations
-    theta, dstar, ue = state[:n], state[n : 2 * n], state[2 * n :]
-    out = np.zeros(3 * n, dtype=state.dtype)
+    theta = state[:n]
+    dstar = state[n : 2 * n]
+    ue = state[2 * n : 3 * n]
+    shear = state[3 * n :]
+    out = np.zeros(4 * n, dtype=state.dtype)
+    left, right = problem.left, problem.right
 
     momentum, shape = _interval_residuals(
-        theta[problem.left],
-        theta[problem.right],
-        dstar[problem.left],
-        dstar[problem.right],
-        ue[problem.left],
-        ue[problem.right],
-        problem.spacing,
-        problem.turbulent,
-        problem.wall,
-        problem.reynolds,
-        problem.shear[problem.left],
-        problem.shear[problem.right],
-        problem.lag,
+        theta[left], theta[right], dstar[left], dstar[right],
+        ue[left], ue[right], problem.spacing, problem.turbulent,
+        problem.wall, problem.reynolds, shear[left], shear[right], problem.lag,
     )
-    out[problem.right] = momentum
-    out[n + problem.right] = shape
+    out[right] = momentum
+    out[n + right] = shape
+    out[3 * n + right] = _lag_residuals(
+        theta[left], theta[right], dstar[left], dstar[right],
+        ue[left], ue[right], shear[left], shear[right],
+        problem.spacing, problem.turbulent, problem.reynolds,
+    )
 
     # Leading-edge starting conditions, from the exact stagnation-point solution.
-    s = problem.layout.s
+    s_arc = problem.layout.s
     for side in (0, 1):
         i = int(problem.first[side])
         out[i] = (
-            problem.reynolds * theta[i] ** 2 * ue[i] / s[i]
+            problem.reynolds * theta[i] ** 2 * ue[i] / s_arc[i]
         ) / LAMBDA_STAGNATION - 1.0
         out[n + i] = dstar[i] / theta[i] / H_STAGNATION - 1.0
+        out[3 * n + i] = _equilibrium_start(
+            theta, dstar, ue, shear, i, problem.reynolds
+        )
 
     # The wake inherits the two surface layers, integrated across the joint.
     w = problem.wake_first
-    out[w], out[n + w] = _trailing_edge_pair(theta, dstar, ue, problem)
+    out[w], out[n + w] = _trailing_edge_pair(theta, dstar, ue, shear, problem)
+    # and inherits their shear stress, weighted by the momentum each carries.
+    weight_upper = theta[problem.te_upper] / (
+        theta[problem.te_upper] + theta[problem.te_lower]
+    )
+    out[3 * n + w] = shear[w] / (
+        weight_upper * shear[problem.te_upper]
+        + (1.0 - weight_upper) * shear[problem.te_lower]
+    ) - 1.0
 
-    out[2 * n :] = (
+    out[2 * n : 3 * n] = (
         ue - problem.interaction.ue_inviscid - problem.interaction.matrix @ (ue * dstar)
     )
     return out
+
+
+def _equilibrium_start(
+    theta: ComplexArray,
+    dstar: ComplexArray,
+    ue: ComplexArray,
+    shear: ComplexArray,
+    index: int,
+    reynolds: float,
+) -> ComplexArray:
+    """Start each surface with the shear stress an equilibrium layer would carry.
+
+    There is no upstream history at the first station, so there is nothing for
+    the lag equation to inherit; equilibrium is the only defensible condition.
+    The laminar run that follows holds it there anyway, so the value only starts
+    to matter at transition, by which point the lag equation has taken over.
+    """
+    h = dstar[index] / theta[index]
+    re_theta = reynolds * ue[index] * theta[index]
+    h_star = _turbulent_h_star(h, re_theta)
+    equilibrium = _equilibrium_shear(h_star, h, _slip_velocity(h_star, h))
+    return shear[index] / equilibrium - 1.0
+
+
+def _stencil_residuals(
+    theta_l, theta_r, dstar_l, dstar_r, ue_l, ue_r, shear_l, shear_r, problem
+):
+    """All three interval residuals at once, for one complex-step pass."""
+    momentum, shape = _interval_residuals(
+        theta_l, theta_r, dstar_l, dstar_r, ue_l, ue_r,
+        problem.spacing, problem.turbulent, problem.wall, problem.reynolds,
+        shear_l, shear_r, problem.lag,
+    )
+    lag = _lag_residuals(
+        theta_l, theta_r, dstar_l, dstar_r, ue_l, ue_r, shear_l, shear_r,
+        problem.spacing, problem.turbulent, problem.reynolds,
+    )
+    return momentum, shape, lag
 
 
 def _jacobian(state: FloatArray, problem: _Problem) -> FloatArray:
@@ -1011,79 +1153,87 @@ def _jacobian(state: FloatArray, problem: _Problem) -> FloatArray:
 
     Notes
     -----
-    The interval residuals are differentiated by the complex step
-    :math:`f'(x) = \\mathrm{Im}[f(x + ih)]/h`, which for an analytic ``f`` is
-    exact to machine precision at any ``h`` small enough not to underflow —
-    there is no subtraction and therefore no cancellation error, unlike a real
-    finite difference. Every closure relation used here was written to be
-    analytic for exactly this reason.
+    The closure rows are differentiated by the complex step
+    :math:`f'(x) = \\mathrm{Im}[f(x + ih)]/h`, exact to machine precision for an
+    analytic ``f`` because there is no subtraction and so no cancellation error.
+    Every closure relation here was written to be analytic for that reason, and
+    none was differentiated by hand — hand-differentiation is where an error in
+    a fit like these would hide.
 
-    Six evaluations suffice for the whole matrix, one per variable of the
-    interval stencil, because all intervals are perturbed simultaneously and
-    they do not interact. The interaction rows are written down analytically:
-    they are bilinear in ``Ue`` and ``delta*``.
+    Eight evaluations fill the whole closure block, one per variable of the
+    interval stencil, because every interval is perturbed at once and intervals
+    do not interact. The interaction rows are written down analytically: they
+    are bilinear in ``Ue`` and ``delta*`` and involve no closure at all.
     """
     n = problem.layout.n_stations
     step = 1e-30
-    jac = np.zeros((3 * n, 3 * n))
+    jac = np.zeros((4 * n, 4 * n))
+    left, right = problem.left, problem.right
 
-    theta, dstar, ue = state[:n], state[n : 2 * n], state[2 * n :]
-    args = [
-        theta[problem.left],
-        theta[problem.right],
-        dstar[problem.left],
-        dstar[problem.right],
-        ue[problem.left],
-        ue[problem.right],
-    ]
-    # (block offset, stencil side) for each of the six stencil variables.
+    blocks = [state[i * n : (i + 1) * n] for i in range(4)]
+    args = []
+    for block in blocks:
+        args.extend([block[left], block[right]])
     targets = [
-        (0, problem.left),
-        (0, problem.right),
-        (n, problem.left),
-        (n, problem.right),
-        (2 * n, problem.left),
-        (2 * n, problem.right),
+        (offset, side)
+        for offset in (0, n, 2 * n, 3 * n)
+        for side in (left, right)
     ]
-    rows = problem.right
+
     for position, (offset, columns) in enumerate(targets):
         perturbed = [np.asarray(a, dtype=np.complex128) for a in args]
         perturbed[position] = perturbed[position] + 1j * step
-        momentum, shape = _interval_residuals(
-            *perturbed, problem.spacing, problem.turbulent, problem.wall,
-            problem.reynolds, problem.shear[problem.left],
-            problem.shear[problem.right], problem.lag,
-        )
-        jac[rows, offset + columns] += momentum.imag / step
-        jac[n + rows, offset + columns] += shape.imag / step
+        momentum, shape, lag = _stencil_residuals(*perturbed, problem)
+        jac[right, offset + columns] += momentum.imag / step
+        jac[n + right, offset + columns] += shape.imag / step
+        jac[3 * n + right, offset + columns] += lag.imag / step
 
-    s = problem.layout.s
+    theta, dstar, ue = blocks[0], blocks[1], blocks[2]
+    arc = problem.layout.s
     for side in (0, 1):
         i = int(problem.first[side])
-        jac[i, i] = 2.0 * problem.reynolds * theta[i] * ue[i] / s[i] / LAMBDA_STAGNATION
+        jac[i, i] = (
+            2.0 * problem.reynolds * theta[i] * ue[i] / arc[i] / LAMBDA_STAGNATION
+        )
         jac[i, 2 * n + i] = (
-            problem.reynolds * theta[i] ** 2 / s[i] / LAMBDA_STAGNATION
+            problem.reynolds * theta[i] ** 2 / arc[i] / LAMBDA_STAGNATION
         )
         jac[n + i, i] = -dstar[i] / theta[i] ** 2 / H_STAGNATION
         jac[n + i, n + i] = 1.0 / theta[i] / H_STAGNATION
+        for column in (i, n + i, 2 * n + i, 3 * n + i):
+            probe = state.astype(np.complex128)
+            probe[column] += 1j * step
+            jac[3 * n + i, column] = _equilibrium_start(
+                probe[:n], probe[n : 2 * n], probe[2 * n : 3 * n],
+                probe[3 * n :], i, problem.reynolds,
+            ).imag / step
 
     w = problem.wake_first
-    for column in (
-        problem.te_upper, problem.te_lower, w,
-        n + problem.te_upper, n + problem.te_lower, n + w,
-        2 * n + problem.te_upper, 2 * n + problem.te_lower, 2 * n + w,
-    ):
+    touching = [
+        base + index
+        for base in (0, n, 2 * n, 3 * n)
+        for index in (problem.te_upper, problem.te_lower, w)
+    ]
+    for column in touching:
         probe = state.astype(np.complex128)
         probe[column] += 1j * step
         momentum, shape = _trailing_edge_pair(
-            probe[:n], probe[n : 2 * n], probe[2 * n :], problem
+            probe[:n], probe[n : 2 * n], probe[2 * n : 3 * n], probe[3 * n :], problem
         )
         jac[w, column] = momentum.imag / step
         jac[n + w, column] = shape.imag / step
+        upper = probe[:n][problem.te_upper] / (
+            probe[:n][problem.te_upper] + probe[:n][problem.te_lower]
+        )
+        inherited = probe[3 * n :][w] / (
+            upper * probe[3 * n :][problem.te_upper]
+            + (1.0 - upper) * probe[3 * n :][problem.te_lower]
+        ) - 1.0
+        jac[3 * n + w, column] = inherited.imag / step
 
     matrix = problem.interaction.matrix
-    jac[2 * n :, n : 2 * n] = -matrix * ue[None, :]
-    jac[2 * n :, 2 * n :] = np.eye(n) - matrix * dstar[None, :]
+    jac[2 * n : 3 * n, n : 2 * n] = -matrix * ue[None, :]
+    jac[2 * n : 3 * n, 2 * n : 3 * n] = np.eye(n) - matrix * dstar[None, :]
     return jac
 
 
@@ -1334,9 +1484,9 @@ class NewtonSolution:
         so its pressures and forces are the viscous ones.
     layout : StationLayout
         Where the boundary-layer stations sit.
-    theta, delta_star, ue : ndarray
+    theta, delta_star, ue, shear : ndarray
         ``(n_stations,)`` momentum thickness, displacement thickness (both in
-        chords) and edge velocity (non-dimensional).
+        chords), edge velocity (non-dimensional) and shear-stress coefficient.
     transition_s : tuple of float
         Transition arc length on the upper and lower surface, in chords from the
         stagnation point. ``inf`` if the surface never transitioned.
@@ -1358,6 +1508,7 @@ class NewtonSolution:
     theta: FloatArray
     delta_star: FloatArray
     ue: FloatArray
+    shear: FloatArray
     reynolds: float
     transpiration: FloatArray
     wake_strengths: FloatArray
@@ -1509,7 +1660,11 @@ class NewtonSolution:
 
 
 def _initial_state(
-    layout: StationLayout, ue_inviscid: FloatArray, reynolds: float, te_gap: float
+    layout: StationLayout,
+    ue_inviscid: FloatArray,
+    reynolds: float,
+    te_gap: float,
+    transition: list[float] | None = None,
 ) -> FloatArray:
     """A starting guess: Thwaites on the inviscid edge velocity.
 
@@ -1540,7 +1695,16 @@ def _initial_state(
         # and at high Reynolds number that state has no solution at all.
         gradient = _derivative_matrix(s) @ u
         lambda_ = np.clip(reynolds * theta[sl] ** 2 * gradient, -0.09, 0.09)
-        dstar[sl] = thwaites_shape_factor(lambda_) * theta[sl]
+        shape = thwaites_shape_factor(lambda_)
+        if transition is not None:
+            # Downstream of transition the layer is turbulent, and its shape
+            # factor is nothing like the laminar one. Seeding it laminar puts
+            # the starting guess at H = 3.1 to 3.5, which is **above** the
+            # minimum of H*(H) — on the wrong side of a fold the Newton
+            # iteration then cannot climb back over. Measured: the residual
+            # stalled at 0.82 with H stuck at 3.15 where the answer is 1.6.
+            shape = np.where(s > transition[side], TURBULENT_START_SHAPE, shape)
+        dstar[sl] = shape * theta[sl]
 
     wake = layout.side_slice(2)
     theta_te = theta[wake.start - 1] + theta[layout.starts[1] - 1]
@@ -1549,7 +1713,8 @@ def _initial_state(
     theta[wake] = theta_te
     dstar[wake] = dstar_te * (1.0 - relax) + 1.3 * theta_te * relax
 
-    return np.concatenate([theta, dstar, ue])
+    shear = _lagged_shear_arrays(layout, theta, dstar, ue, reynolds)
+    return np.concatenate([theta, dstar, ue, shear])
 
 
 #: Largest multiplicative change any unknown may take in one Newton step.
@@ -1593,6 +1758,23 @@ def _log_step(
     return delta
 
 
+def _lagged_shear_arrays(
+    layout: StationLayout,
+    theta: FloatArray,
+    dstar: FloatArray,
+    ue: FloatArray,
+    reynolds: float,
+) -> FloatArray:
+    """Shear-stress field for a starting guess, side by side."""
+    shear = np.empty(layout.n_stations)
+    for side in range(3):
+        sl = layout.side_slice(side)
+        shear[sl] = _lagged_shear(
+            layout.s[sl], theta[sl], dstar[sl], ue[sl], reynolds
+        )
+    return shear
+
+
 def _remap_state(previous: "NewtonSolution", layout: StationLayout) -> FloatArray:
     """Carry a solution from one station layout onto another, by arc length.
 
@@ -1611,14 +1793,14 @@ def _remap_state(previous: "NewtonSolution", layout: StationLayout) -> FloatArra
     away.
     """
     n = layout.n_stations
-    state = np.empty(3 * n)
+    state = np.empty(4 * n)
     for side in range(3):
         target = layout.side_slice(side)
         source = previous.layout.side_slice(side)
         s_old = previous.layout.s[source]
         s_new = layout.s[target]
         for block, values in enumerate(
-            (previous.theta, previous.delta_star, previous.ue)
+            (previous.theta, previous.delta_star, previous.ue, previous.shear)
         ):
             state[block * n + target.start : block * n + target.stop] = np.interp(
                 s_new, s_old, values[source]
@@ -1740,13 +1922,18 @@ def solve_newton(
     # starting point than the one it was given. One cheap e^N pass on the
     # starting guess avoids the whole problem.
     ends = [float(layout.s[layout.side_slice(i)][-1]) for i in (0, 1)]
-    shear = _update_shear(state, layout, reynolds)
     seed = _build_problem(
         layout, interaction, reynolds, airfoil.te_gap,
-        _turbulent_weights(layout, left, right, ends), shear, lag,
+        _turbulent_weights(layout, left, right, ends), lag,
     )
     if previous is None:
         locations, causes = _transition_locations(state, seed, reynolds, n_crit)
+        # Rebuild the guess now that transition is known, so the turbulent run
+        # starts turbulent.
+        state = _initial_state(
+            layout, interaction.ue_inviscid, reynolds, airfoil.te_gap, locations
+        )
+        cold = state.copy()
     else:
         # Continuing from a neighbouring angle. Estimating transition as if the
         # state were laminar everywhere is wrong here and quietly ruinous: the
@@ -1773,12 +1960,6 @@ def solve_newton(
         norm = np.inf
         taken = 0
         for taken in range(1, max_iterations + 1):
-            # The shear stress is a property of the solution, so it follows the
-            # iterate rather than being frozen for a whole pass. Freezing it
-            # made every airfoil case diverge while the flat plate, which is
-            # solved the same way but refreshes it, converged — the frozen value
-            # came from the starting guess and was wrong by a factor of five.
-            problem.shear[:] = _update_shear(current, problem.layout, problem.reynolds)
             vector = _residuals(current.astype(np.complex128), problem).real
             norm = float(np.max(np.abs(vector)))
             trace.append(norm)
@@ -1812,7 +1993,7 @@ def solve_newton(
     for outer in range(1, max_outer + 1):
         problem = _build_problem(
             layout, interaction, reynolds, airfoil.te_gap,
-            _turbulent_weights(layout, left, right, locations), shear, lag,
+            _turbulent_weights(layout, left, right, locations), lag,
         )
 
         trial_state, residual, steps, history = newton(state, problem)
@@ -1830,11 +2011,6 @@ def solve_newton(
             break
         state = trial_state
 
-        updated = _update_shear(state, layout, reynolds)
-        shear_moved = float(
-            np.max(np.abs(updated - shear)) / max(float(np.max(updated)), 1e-12)
-        )
-        shear = updated
         new_locations, causes = _transition_locations(
             state, problem, reynolds, n_crit, locations
         )
@@ -1860,7 +2036,7 @@ def solve_newton(
         )
         visited.append(list(locations))
         locations = capped
-        if (moved < TRANSITION_TOLERANCE or cycled) and shear_moved < 1e-3:
+        if moved < TRANSITION_TOLERANCE or cycled:
             settled = True
             break
 
@@ -1869,7 +2045,7 @@ def solve_newton(
         # pass started from, so an unconverged result is at least the closest
         # this got — and is still flagged unconverged.
         state, residual = best_state, min(residual, best_residual)
-    mass = state[2 * n :] * state[n : 2 * n]
+    mass = state[2 * n : 3 * n] * state[n : 2 * n]
     rates = interaction.derivative @ mass
     surface = layout.side < 2
     transpiration = np.zeros(system.n_panels)
@@ -1891,7 +2067,8 @@ def solve_newton(
         layout=layout,
         theta=state[:n],
         delta_star=state[n : 2 * n],
-        ue=state[2 * n :],
+        ue=state[2 * n : 3 * n],
+        shear=state[3 * n :],
         reynolds=float(reynolds),
         transpiration=transpiration,
         wake_strengths=wake_strengths,
