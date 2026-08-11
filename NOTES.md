@@ -1049,3 +1049,177 @@ to refuse to return it, and the prediction stays open until L4.3 is fixed.
 | Matplotlib | 3.11.1 |
 | Typer | 0.27.1 |
 | pytest | 9.1.1 |
+
+---
+
+## Phase 8 — Simultaneous Newton coupling
+
+*Recorded 2026-08-11.*
+
+Phase 4 failed for two structural reasons (L4.3, L4.4, L4.5). Both are gone.
+Both came from the same choice — treating `Ue` as an *input* to the boundary
+layer — and both disappear when it becomes an unknown solved simultaneously with
+the boundary-layer equations. `aerolab/viscous/newton.py` does that; the old
+sequential `coupling.py` is kept because the diagnosis is part of the record.
+
+### Conventions
+
+- **C8.1 — Station layout.** Boundary-layer stations sit on panel control points,
+  not on a resampled grid. Three sides laid end to end: upper surface from the
+  stagnation point to the trailing edge, lower likewise, then the wake. `s` is
+  measured along each side from its own start.
+- **C8.2 — Unknowns.** Three per station: `theta`, `delta*`, `Ue`, all positive,
+  all in chords or non-dimensionalised by freestream speed.
+
+### Assumptions
+
+- **A8.1 — Laminar closure is Drela's, checked against exact Falkner-Skan.**
+  `H*(H)`, `Re_theta cf/2 (H)` and `Re_theta 2cD/H* (H)` close the kinetic-energy
+  form of the equations. Every constant is measured against the exact
+  self-similar solutions computed by `aerolab/viscous/falkner_skan.py`, not
+  quoted. Worst errors over beta from 1 to -0.19: **H\* 0.10%**, **cD 0.51%**,
+  cf 0.08% at Blasius rising to 12% near separation on a quantity heading for
+  zero (absolute error stays below 0.006).
+- **A8.2 — Turbulent closure is Head's, unchanged from Phase 3.** Entrainment
+  plus Ludwieg-Tillmann skin friction, already validated in Phase 3, now solved
+  simultaneously rather than marched. Nothing new is asserted about turbulence.
+- **A8.3 — Starting conditions are exact, not correlated.** The leading-edge
+  condition is the Falkner-Skan solution at beta = 1: `H = 2.21623` and
+  `theta^2 (dUe/ds) / nu = 0.085465`. Thwaites' own integral gives 0.075 for the
+  same quantity, which is 12% low in `theta`; the exact value is used because it
+  is available.
+- **A8.4 — The Jacobian is exact.** The interaction rows are written down
+  analytically. The closure rows are differentiated by the complex step
+  `f'(x) = Im[f(x+ih)]/h`, exact to machine precision, which is why no closure
+  relation here was hand-differentiated — hand-differentiation is where an error
+  would hide. Checked against central differences to 1e-6 relative.
+- **A8.5 — The stagnation point is located once, from the inviscid solution, and
+  held.** It moves by well under one panel when the displacement effect is added.
+  Re-locating it would mean rebuilding the layout and the interaction matrix at
+  every outer pass.
+- **A8.6 — Transition enters through an outer loop, not the Newton system.**
+  Held fixed while Newton runs; then `n(s_tr) = n_crit` is solved by a Newton
+  step on `s_tr`. Intervals carry a continuous turbulent *fraction* so the
+  residual is a continuous function of transition position.
+- **A8.7 — Head's H1 jump is blended.** Head's two branches do not meet: at
+  H = 1.6 they give 5.3095 and 5.2866. The blend is a tanh of half-width 0.02 in
+  H, moving H1 by at most 0.2% and only over 1.54 < H < 1.66.
+- **A8.8 — Transition inside the last 2% of a surface is treated as no
+  transition.** A turbulent run that short changes `theta` by well under 1%.
+
+### Limitations
+
+- **L8.1 — Turbulent separation is not reached.** The solver converges wherever
+  Head's correlation is valid and fails where it would be extrapolating. On a
+  NACA 0012 at Re = 3e6 that boundary is near **alpha = 5-6 degrees**. This is a
+  closure limitation, not a coupling one: see L8.5.
+- **L8.2 — Laminar separation is predicted at H = 4.137, not 4.029.** Drela's cf
+  fit crosses zero 2.7% late. Published as `closure.H_SEPARATION_LAMINAR`.
+- **L8.3 — The H >= 4 branches of the laminar closure are unvalidated.** No
+  attached self-similar solution exists beyond H = 4.029, so Falkner-Skan cannot
+  check them. They are used only inside a laminar separation bubble.
+- **L8.4 — Turbulent skin friction cannot go negative.** Ludwieg-Tillmann is
+  positive everywhere, so a separated turbulent station gets a small positive
+  cf. The displacement effect is still captured, which is what sets the lift;
+  the friction drag in a separated region is not.
+- **L8.5 — Head's correlation stops determining H, and that is what caps the
+  solver.** `H1` tends to 3.3 asymptotically, so `dH1/dH` falls from **-16.6 at
+  H = 1.4 to -0.036 at H = 4.0, a factor of 460**. The shape equation loses
+  control of `H` exactly where separation begins: at alpha = 6 degrees the
+  solution ran away to **H = 42.9**. The Jacobian condition number rises from
+  9.2e3 at alpha = 4 to 6.0e9 at alpha = 8, but conditioning is the symptom, not
+  the cause. `NewtonSolution.closure_in_range` reports it and `check()` refuses a
+  result above H = 4 rather than returning it.
+  **The fix is known and not guessed at**: Drela's lag-entrainment closure, with
+  the shear-stress coefficient as a fourth unknown, keeps sensitivity through
+  separation. It was not implemented because its constants could not be
+  validated here the way the laminar ones were against Falkner-Skan, and an
+  unvalidatable constant in a closure is exactly what this file exists to
+  prevent.
+- **L8.6 — 121 panels is not enough.** Cd comes out 0.0087 against 0.0065 at 161
+  and above. The panel count that suffices for an inviscid solve does not
+  suffice once the boundary layer reads the trailing-edge velocities.
+- **L8.7 — Howarth separation is 7% late.** `H` reaches the exact separation
+  value at x/L = 0.128 against the exact 0.1198. Phase 3's Thwaites criterion
+  gave -1.6% on the same problem, but its threshold was empirically fitted to
+  this class of flow; the kinetic-energy method is far better on attached flow
+  (Blasius 0.023% against 1.03%) and worse at the separation point.
+
+### Defects found and fixed
+
+- **D8.1 — The trailing-edge momentum defect.** No equation covered the interval
+  between the last surface station and the first wake station, where `Ue`
+  recovers from 0.823 to 0.903 over 0.014 chord. The skipped term is
+  `theta (H+2) d(ln Ue) = 1.9e-3`, 35% of the momentum thickness. The wake never
+  shed it, and drag came out **0.0077 against a published 0.0060** while the
+  trailing-edge state feeding it was correct to 6%. The joint is now an interval
+  like any other. Drag fell to 0.00555.
+- **D8.2 — Transition could never fire.** Imposing transition at `s_tr` makes the
+  layer turbulent downstream, where the critical Reynolds number is enormous, so
+  the amplification factor stops growing there *by construction* and can never
+  exceed what it reached at `s_tr`. Scanning for "the first station where
+  n >= n_crit" therefore never fires: measured plateau **7.93 against n_crit = 9**.
+  The outer loop oscillated between "no transition" and "transition far aft"
+  indefinitely. The condition is `n(s_tr) = n_crit` *at* the transition point — a
+  scalar equation, now solved by a Newton step.
+- **D8.3 — Head's H1 discontinuity stalled Newton.** The published branches jump
+  by 0.023 at H = 1.6. A marching integrator steps over it; Newton cannot
+  converge across a jump, and the residual floor **was** the jump: the iteration
+  stalled at 6.7e-3 with the line search collapsed to zero. Blended (A8.7).
+- **D8.4 — Additive Newton steps were vetoed by the stagnation point.** A global
+  step fraction meant one station with `Ue = 0.013` shrank the step for all 435
+  unknowns to 2e-4. The step is now taken in `ln`, where positivity is automatic
+  and a limit is a limit on a ratio. Same case: four steps instead of failure.
+- **D8.5 — Continuation silently corrupted the guess.** Between 0 and 1 degree
+  the stagnation point moves one panel, so the upper surface gains a station and
+  the lower loses one — **the total length is unchanged**, a length check passes,
+  and every station means something different. Reported `Cl = 1.11` at 1 degree.
+  States are now interpolated onto the new layout by arc length.
+- **D8.6 — Continuation seeded transition as if the state were laminar.** The
+  previous angle's solution is turbulent over most of its length, so the
+  amplification integral over it barely grows, the estimate returned "no
+  transition", and the first pass was handed a fully laminar configuration with
+  no solution. The previous angle's own transition position is used instead.
+- **D8.7 — The initial guess used a constant H = 2.2.** That made the first
+  transition estimate too low everywhere at once, so e^N never fired. `H` now
+  comes from Thwaites' parameter.
+- **D8.8 — `separated` reported separation on every attached airfoil.** It
+  applied the turbulent threshold H > 2.6 to laminar stations, where Blasius
+  alone is 2.59. Now only turbulent stations count.
+- **D8.9 — A failed pass reported the starting guess.** The state was only
+  assigned on success, so an unconverged result returned the previous angle's
+  numbers. The best iterate reached is now reported, still flagged unconverged.
+- **D8.10 — `falkner_skan_family` crashed on its own seed value.** Requesting
+  beta = 0 gave an empty continuation path and an unbound `residual`.
+- **D8.11 — A misleading convergence message.** A solve whose residual was
+  1.4e-14 raised "did not converge ... residual 1.366e-14 > tolerance 1e-9",
+  which is plainly false: the residual had converged and the *transition
+  position* had not. The message now says which.
+
+### Validation
+
+- **V8.1 — Interaction operator exact.** `dUe/dm` reproduces a full nonlinear
+  panel solve to **7.8e-16**, and is verified linear to 1e-15.
+- **V8.2 — Jacobian exact.** Agrees with central differences to 1e-6 relative
+  across all nine blocks.
+- **V8.3 — Blasius.** `theta` to **0.023%**, `H` = 2.59043 against the exact
+  2.59110 (0.026%), `cf` to 0.021%. Phase 3's Thwaites march gave 1.03%.
+- **V8.4 — Falkner-Skan self-similar flows hold their exact shape factor.**
+  beta = 0: 0.03%. beta = -0.1: 0.09%. beta = -0.15: 0.57%. beta = -0.19: 4.01%.
+  `theta` within 0.7% throughout.
+- **V8.5 — Exact solutions reproduced.** Blasius f''(0) = 0.469600, H = 2.59110,
+  H\* = 1.57259, Re_theta cf/2 = 0.220524; Hiemenz f''(0) = 1.232588, H = 2.21623;
+  separation shape factor extrapolates to **4.027** against the accepted 4.029.
+- **V8.6 — The Goldstein singularity is present where it should be and absent
+  where it should not.** The prescribed-`Ue` solver fails at Howarth separation,
+  as the direct problem must; the coupled solver passes through the same
+  condition.
+- **V8.7 — NACA 0012, Re = 3e6, alpha = 0.** Cd = **0.00555** against Abbott and
+  von Doenhoff's 0.0060 (-7.5%); XFOIL-class codes give 0.0055-0.0058. Transition
+  at x/c = 0.455 on both surfaces, against XFOIL's 0.45-0.50. `Cl` is zero to
+  1e-6 and the two surfaces agree to 1e-6.
+- **V8.8 — Convergence is quadratic.** Four to seven Newton steps to 1e-13,
+  against Phase 4's failure to converge at any relaxation factor.
+- **V8.9 — Panel independence.** 161, 201 and 241 panels agree within 1% in `Cl`
+  and 3% in `Cd`.
+- **V8.10 — Wake truncation.** 3 and 8 chords agree within 2% in `Cd`.

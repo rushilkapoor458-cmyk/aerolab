@@ -39,13 +39,47 @@ __all__ = [
     "LAMBDA_MIN",
     "LAMBDA_MAX",
     "TURBULENT_SEPARATION_H",
+    "H_SEPARATION_LAMINAR",
+    "HEAD_H_MAX",
+    "HEAD_H_UNINFORMATIVE",
     "thwaites_shape_factor",
     "thwaites_shear",
     "head_h1_from_h",
     "head_h_from_h1",
     "head_entrainment",
     "ludwieg_tillmann_cf",
+    "laminar_h_star",
+    "laminar_cf_reynolds_theta",
+    "laminar_dissipation_reynolds_theta",
 ]
+
+#: Shape factor at which the laminar skin-friction fit predicts separation.
+#:
+#: The exact Falkner-Skan value is 4.029 (see
+#: :mod:`aerolab.viscous.falkner_skan`). The fit in
+#: :func:`laminar_cf_reynolds_theta` puts it at 4.137 instead — 2.7% high — so a
+#: laminar layer separates slightly later in this package than in reality. The
+#: figure is stated here rather than buried because it sets the accuracy of
+#: every laminar separation and every short-bubble prediction that follows from
+#: one. See NOTES.md, L8.2.
+H_SEPARATION_LAMINAR = 4.137
+
+#: Largest shape factor Head's entrainment correlation was fitted over.
+#:
+#: Past this the correlation is not merely uncertain, it is uninformative:
+#: ``H1`` approaches 3.3 asymptotically, so ``dH1/dH`` falls from -16.6 at
+#: H = 1.4 to -0.036 at H = 4.0. Any solver that determines ``H`` from ``H1``
+#: loses control of it here. See NOTES.md, L8.5.
+HEAD_H_MAX = 3.0
+
+#: Shape factor beyond which Head's correlation carries no usable information.
+#:
+#: Between HEAD_H_MAX and this value the correlation is an extrapolation but
+#: still responds to H, and a solution there is usable with the caveat stated.
+#: Above it, ``dH1/dH = -0.036`` against -16.6 at H = 1.4, so the shape equation
+#: has effectively stopped constraining H: solves either fail or converge on a
+#: shape factor of 40. A result reaching this is refused rather than returned.
+HEAD_H_UNINFORMATIVE = 4.0
 
 #: Thwaites' parameter at laminar separation.
 #:
@@ -326,3 +360,137 @@ def ludwieg_tillmann_cf(h: ArrayLike, re_theta: ArrayLike) -> FloatArray:
             "meaning at this Reynolds number."
         )
     return 0.246 * 10.0 ** (-0.678 * hh) * rt**-0.268
+
+
+# ---------------------------------------------------------------------------
+# Drela's laminar closure
+#
+# These three relations close the kinetic-energy (shape-parameter) form of the
+# integral equations, which is what the simultaneous Newton solver in
+# aerolab.viscous.newton needs. Unlike Thwaites' correlations above, they are
+# functions of H alone, so the shape factor can be carried as an independent
+# unknown rather than inferred from a pressure-gradient parameter — and that is
+# precisely what removes the Goldstein singularity at separation.
+#
+# Every constant below is checked against the exact Falkner-Skan family
+# computed by aerolab.viscous.falkner_skan, over beta from 1 (stagnation) to
+# -0.19 (near separation). The agreement is asserted in
+# tests/test_viscous_falkner_skan.py and quoted in each docstring. Nothing here
+# is taken on trust.
+# ---------------------------------------------------------------------------
+
+
+def laminar_h_star(h: ArrayLike) -> FloatArray:
+    """Kinetic energy shape factor ``H* = theta*/theta`` for a laminar layer.
+
+    Parameters
+    ----------
+    h : array_like
+        Shape factor ``delta*/theta``, greater than 1.
+
+    Returns
+    -------
+    ndarray
+        ``H*``, dimensionless.
+
+    Notes
+    -----
+    .. math::
+        H^* = 1.515 + 0.076\\frac{(4-H)^2}{H}, \\qquad H < 4
+
+        H^* = 1.515 + 0.040\\frac{(H-4)^2}{H}, \\qquad H \\ge 4
+
+    Checked against the exact Falkner-Skan family: the worst error over
+    ``beta`` from 1 to -0.19 is **0.10%**, at the stagnation point. At Blasius
+    the fit gives 1.57322 against the exact 1.57258, an error of 0.04%.
+
+    The ``H >= 4`` branch cannot be checked this way, because no attached
+    self-similar solution exists beyond ``H = 4.029``. It is used only inside a
+    laminar separation bubble and is an extrapolation there; see NOTES.md, L8.3.
+    """
+    hh = _as_array(h)
+    return np.where(
+        hh < 4.0,
+        1.515 + 0.076 * (4.0 - hh) ** 2 / hh,
+        1.515 + 0.040 * (hh - 4.0) ** 2 / hh,
+    )
+
+
+def laminar_cf_reynolds_theta(h: ArrayLike) -> FloatArray:
+    """``Re_theta * cf / 2`` for a laminar layer, as a function of ``H`` alone.
+
+    Parameters
+    ----------
+    h : array_like
+        Shape factor, greater than 1.
+
+    Returns
+    -------
+    ndarray
+        ``Re_theta * cf / 2``, dimensionless. **Negative past separation**,
+        which is the whole point: this correlation can represent reversed flow,
+        and :func:`ludwieg_tillmann_cf` cannot.
+
+    Notes
+    -----
+    .. math::
+        Re_\\theta \\frac{c_f}{2} = -0.067 + 0.01977\\frac{(7.4-H)^2}{H-1},
+            \\qquad H < 7.4
+
+        Re_\\theta \\frac{c_f}{2} = -0.067
+            + 0.022\\left(1 - \\frac{1.4}{H-6}\\right)^2, \\qquad H \\ge 7.4
+
+    Checked against exact Falkner-Skan: 0.08% at Blasius, 0.9% at
+    ``beta = 0.3``, rising to 2.6% at stagnation and 12% at ``beta = -0.19``.
+    The large relative errors are on a quantity that is itself heading for zero,
+    so the absolute error stays below 0.006 throughout.
+
+    What matters more than any of those is **where it crosses zero**, since that
+    is the separation point. The fit gives ``H = 4.137``; the exact value is
+    4.029. See :data:`H_SEPARATION_LAMINAR`.
+    """
+    hh = _as_array(h)
+    return np.where(
+        hh < 7.4,
+        -0.067 + 0.01977 * (7.4 - hh) ** 2 / (hh - 1.0),
+        -0.067 + 0.022 * (1.0 - 1.4 / (hh - 6.0)) ** 2,
+    )
+
+
+def laminar_dissipation_reynolds_theta(h: ArrayLike) -> FloatArray:
+    """``Re_theta * (2 cD / H*)`` for a laminar layer.
+
+    Parameters
+    ----------
+    h : array_like
+        Shape factor, greater than 1.
+
+    Returns
+    -------
+    ndarray
+        ``Re_theta * 2 cD / H*``, dimensionless. The dissipation coefficient
+        itself follows as ``cD = H* * value / (2 Re_theta)``.
+
+    Notes
+    -----
+    .. math::
+        Re_\\theta\\frac{2c_D}{H^*} = 0.207 + 0.00205(4-H)^{5.5},
+            \\qquad H < 4
+
+        Re_\\theta\\frac{2c_D}{H^*} = 0.207
+            - 0.0016\\frac{(H-4)^2}{1 + 0.02(H-4)^2}, \\qquad H \\ge 4
+
+    Checked against exact Falkner-Skan, where the dissipation integral is
+    ``Re_theta cD = delta_2 * int f''^2 d(eta)``: the worst error over ``beta``
+    from 1 to -0.19 is **0.51%**, and it is 0.03% at Blasius. This is the
+    best-behaved of the three laminar relations.
+
+    As with :func:`laminar_h_star`, the ``H >= 4`` branch is beyond the reach of
+    the Falkner-Skan check and is an extrapolation into the separated region.
+    """
+    hh = _as_array(h)
+    return np.where(
+        hh < 4.0,
+        0.207 + 0.00205 * np.maximum(4.0 - hh, 0.0) ** 5.5,
+        0.207 - 0.0016 * (hh - 4.0) ** 2 / (1.0 + 0.02 * (hh - 4.0) ** 2),
+    )

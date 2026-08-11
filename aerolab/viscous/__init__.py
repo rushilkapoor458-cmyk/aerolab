@@ -11,8 +11,10 @@ theta) are likewise non-dimensionalised by chord. Reynolds numbers are based
 on chord unless the name says ``Re_theta``. Skin friction ``cf`` uses the local
 **edge** dynamic pressure, not the freestream.
 
-This phase is **one-way**: the boundary layer reads the inviscid edge velocity
-and does not feed back into it. Phase 4 adds the coupling.
+Two coupled solvers live here. :func:`solve_coupled` iterates the inviscid and
+viscous problems in sequence and does not converge, for reasons diagnosed in
+NOTES.md (L4.5); it is kept because that diagnosis is part of the record.
+:func:`solve_newton` solves them **simultaneously** and does converge.
 """
 
 from aerolab.viscous.boundary_layer import (
@@ -29,7 +31,12 @@ from aerolab.viscous.coupling import (
     transpiration_velocity,
 )
 from aerolab.viscous.closure import (
+    HEAD_H_MAX,
+    H_SEPARATION_LAMINAR,
     LAMBDA_SEPARATION,
+    laminar_cf_reynolds_theta,
+    laminar_dissipation_reynolds_theta,
+    laminar_h_star,
     TURBULENT_SEPARATION_H,
     head_entrainment,
     head_h1_from_h,
@@ -37,6 +44,19 @@ from aerolab.viscous.closure import (
     ludwieg_tillmann_cf,
     thwaites_shape_factor,
     thwaites_shear,
+)
+from aerolab.viscous.falkner_skan import (
+    BETA_SEPARATION,
+    FalknerSkanSolution,
+    falkner_skan_family,
+    solve_falkner_skan,
+)
+from aerolab.viscous.newton import (
+    NewtonSolution,
+    PrescribedLayer,
+    newton_polar,
+    solve_newton,
+    solve_prescribed,
 )
 from aerolab.viscous.transition import (
     DEFAULT_N_CRIT,
@@ -63,6 +83,20 @@ __all__ = [
     "head_h_from_h1",
     "head_entrainment",
     "ludwieg_tillmann_cf",
+    "solve_newton",
+    "newton_polar",
+    "NewtonSolution",
+    "solve_prescribed",
+    "PrescribedLayer",
+    "solve_falkner_skan",
+    "falkner_skan_family",
+    "FalknerSkanSolution",
+    "BETA_SEPARATION",
+    "laminar_h_star",
+    "laminar_cf_reynolds_theta",
+    "laminar_dissipation_reynolds_theta",
+    "H_SEPARATION_LAMINAR",
+    "HEAD_H_MAX",
     "LAMBDA_SEPARATION",
     "TURBULENT_SEPARATION_H",
     "predict_transition",
