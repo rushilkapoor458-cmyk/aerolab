@@ -1223,3 +1223,61 @@ sequential `coupling.py` is kept because the diagnosis is part of the record.
 - **V8.9 — Panel independence.** 161, 201 and 241 panels agree within 1% in `Cl`
   and 3% in `Cd`.
 - **V8.10 — Wake truncation.** 3 and 8 chords agree within 2% in `Cd`.
+
+---
+
+## Phase 9 — Drela's lag closure
+
+*Recorded 2026-08-11.*
+
+Head's entrainment closure caps the solver at about 6 degrees (L8.5). This adds
+Drela's turbulent closure with a lagged shear stress as an alternative, selected
+by `turbulent_closure="lag"`. `"head"` remains the default because it is the one
+that converges on an aerofoil.
+
+### Assumptions
+
+- **A9.1 — Turbulent closure relations, each anchored outside itself.**
+  `H*(H, Re_th)` gives 1.7880 at H = 1.2857, Re_th = 5000 against the 1/7
+  power-law profile's exact 1.8000 (**0.7%**). `cf(H, Re_th)` is within
+  **1.5-3%** of Ludwieg-Tillmann at H = 1.3-1.4, and **goes negative above
+  H = 3.2**, which Ludwieg-Tillmann cannot do at all — that is the point of
+  changing closure (it repeals L8.4).
+- **A9.2 — One calibrated constant, declared.** `CTAU_EQUILIBRIUM = 0.001766` is
+  fitted so the kinetic-energy equation reproduces the zero-pressure-gradient
+  flat plate: H from Coles' law of the wake `H = 1/(1 - 6.8 sqrt(cf/2))` with cf
+  from Ludwieg-Tillmann, over Re_theta 500 to 50000. Worst error in the
+  dissipation **1.4%**. This is the **only fitted constant in the package**. It
+  is fitted to published data, never to any result aerolab produces. The slip
+  constant is left at Drela's 6.7 because the flat plate cannot determine it —
+  the slip velocity moves only from 0.83 to 0.88 over the whole range — so
+  fitting it was refused and the calibration absorbs the difference.
+- **A9.3 — The lag equation is solved outside Newton.**
+  `delta dC_tau/ds = 5.6 (C_tau_eq - C_tau)`, stepped implicitly, refreshed at
+  every Newton iterate. The alternative is a fourth unknown at every station.
+
+### Limitations
+
+- **L9.1 — The lag closure does not converge on an aerofoil.** It converges on
+  the flat plate and holds Coles' shape factor to 1.8%, but coupled to the panel
+  method the shape factor runs away — H = 35.8 on a NACA 0012 at zero incidence.
+  **The cause is understood**: `H*(H)` has a minimum near H = 3.2 and is
+  therefore **double-valued** above it, and Newton finds the non-physical large-H
+  root. It is a branch-selection failure, not a closure error, and the numbers
+  above show the closure itself is sound.
+  Selecting the branch needs what XFOIL has and this does not: the shear stress
+  as a genuine fourth unknown, so the lag equation constrains the branch from
+  inside the Newton system rather than being refreshed around it. That is the
+  next piece of work, and it is a clearly defined one.
+- **L9.2 — So the converged envelope is unchanged.** Attached flow to about
+  5-6 degrees at Re = 3e6, on Head's closure, exactly as in Phase 8. Nothing
+  claimed in Phase 8 has been withdrawn.
+
+### Validation
+
+- **V9.1 — Turbulent flat plate, lag closure.** H = 1.3360 against Coles' 1.3124
+  (**+1.8%**); momentum thickness within **1.8%** of the 1/7-power correlation
+  `theta = 0.036 x Re_x^-0.2`.
+- **V9.2 — Skin friction changes sign at separation**, asserted in the tests.
+- **V9.3 — The shear stress genuinely lags**, asserted against the local
+  equilibrium value in a rising-equilibrium flow.

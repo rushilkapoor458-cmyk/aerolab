@@ -268,6 +268,121 @@ def _ludwieg_tillmann_cf(h: ComplexArray, re_theta: ComplexArray) -> ComplexArra
     return 0.246 * 10.0 ** (-0.678 * hs) * rt**-0.268
 
 
+
+# ---------------------------------------------------------------------------
+# Drela's turbulent closure, with a lagged shear stress
+#
+# Head's entrainment relation stops determining H near separation (dH1/dH falls
+# by a factor of 460 between H = 1.4 and H = 4.0) and its Ludwieg-Tillmann skin
+# friction cannot go negative, so it can neither find separation nor survive it.
+# These relations replace it. Each is anchored to something outside itself:
+#
+#   H*(H, Re_th)   1.7880 at H = 1.2857, Re_th = 5000, against the 1/7 power
+#                  law's exact 1.8000 -- 0.7%
+#   cf(H, Re_th)   within 1.5-2% of Ludwieg-Tillmann at H = 1.3-1.4, and
+#                  **negative above H = 3.2**, which is the point
+#   cD             one constant, CTAU_EQUILIBRIUM, calibrated against the
+#                  zero-pressure-gradient flat plate (see A9.2). It is the only
+#                  fitted number in this package, and it is fitted to published
+#                  data rather than to any result this package produces.
+# ---------------------------------------------------------------------------
+
+#: Constant in the equilibrium shear-stress relation.
+#:
+#: Calibrated so that the kinetic-energy equation reproduces the
+#: zero-pressure-gradient flat plate: H from Coles' law of the wake,
+#: H = 1/(1 - 6.8 sqrt(cf/2)), with cf from Ludwieg-Tillmann, over Re_theta from
+#: 500 to 50000. Worst error in the dissipation over that range is **1.4%**.
+#: Calibrating one closure constant against published flat-plate data is how
+#: closures are built; it is recorded here so it is never mistaken for a
+#: derived quantity. See NOTES.md, A9.2.
+CTAU_EQUILIBRIUM = 0.001766
+
+#: Constant in Drela's slip-velocity relation. Not calibrated here: the flat
+#: plate cannot determine it (the slip velocity barely moves over the whole
+#: range), so Drela's value is used unchanged and the calibration above absorbs
+#: the difference.
+SLIP_CONSTANT = 6.7
+
+#: Relaxation length constant in the shear-stress lag equation.
+LAG_CONSTANT = 5.6
+
+
+def _turbulent_h_star(h: ComplexArray, re_theta: ComplexArray) -> ComplexArray:
+    """Kinetic energy shape factor for a turbulent layer."""
+    rt = _soft_floor(re_theta, 100.0, 20.0)
+    h0 = 3.0 + 400.0 / rt
+    low = h.real < (3.0 + 400.0 / np.maximum(re_theta.real, 100.0))
+    gap = _pick(low, h0 - h, np.ones_like(h))
+    above = _pick(low, np.ones_like(h), h - h0)
+    log_rt = np.log(rt)
+    return 1.505 + 4.0 / rt + _pick(
+        low,
+        (0.165 - 1.6 / np.sqrt(rt)) * gap**1.6 / h,
+        above**2 * (0.04 / h + 0.007 * log_rt / (above + 4.0 / log_rt) ** 2),
+    )
+
+
+def _turbulent_cf(h: ComplexArray, re_theta: ComplexArray) -> ComplexArray:
+    """Turbulent skin friction. Goes **negative** past separation, unlike
+    Ludwieg-Tillmann, which is why separated flow is reachable at all."""
+    rt = _soft_floor(re_theta, 100.0, 20.0)
+    hs = _soft_floor(h, H_FLOOR)
+    return 0.3 * np.exp(-1.33 * hs) / np.log10(rt) ** (
+        1.74 + 0.31 * hs
+    ) + 0.00011 * (np.tanh(4.0 - hs / 0.875) - 1.0)
+
+
+def _slip_velocity(h_star: ComplexArray, h: ComplexArray) -> ComplexArray:
+    """Drela's equivalent slip velocity, which splits the dissipation."""
+    return 0.5 * h_star * (1.0 - (h - 1.0) / (SLIP_CONSTANT * h))
+
+
+def _equilibrium_shear(
+    h_star: ComplexArray, h: ComplexArray, slip: ComplexArray
+) -> ComplexArray:
+    """Shear-stress coefficient an equilibrium layer would carry."""
+    hh = _soft_floor(h, 1.02, 0.01)
+    return CTAU_EQUILIBRIUM * h_star * (hh - 1.0) ** 3 / ((1.0 - slip) * hh**3)
+
+
+def _turbulent_dissipation(
+    h: ComplexArray,
+    re_theta: ComplexArray,
+    shear: ComplexArray,
+    wall: FloatArray | float = 1.0,
+) -> tuple[ComplexArray, ComplexArray, ComplexArray]:
+    """Return ``(2 cD, H*, cf)`` for a turbulent station carrying ``C_tau``.
+
+    The dissipation splits into the work the wall shear does against the slip
+    velocity and the work the turbulent shear does against the rest:
+
+    .. math:: 2c_D = c_f U_s + 2C_\tau(1 - U_s)
+
+    Passing ``C_tau`` in rather than computing it locally is what makes the lag
+    possible: a boundary layer entering an adverse gradient carries the shear
+    stress of where it has been, not of where it is.
+    """
+    hs = _turbulent_h_star(h, re_theta)
+    cf = _turbulent_cf(h, re_theta) * wall
+    slip = _slip_velocity(hs, h)
+    # A wake has no wall, so no wall-shear contribution to the dissipation; it
+    # has two shear layers instead of one, so the turbulent term is doubled.
+    outer = 2.0 - wall
+    return cf * slip + 2.0 * outer * shear * (1.0 - slip), hs, cf
+
+
+def boundary_layer_thickness(theta: FloatArray, h: FloatArray) -> FloatArray:
+    """Physical thickness ``delta`` from the integral quantities.
+
+    ``delta = theta (3.15 + 1.72/(H-1)) + delta*``, the standard relation
+    consistent with the kinetic-energy closure. It sets the length over which
+    the shear stress relaxes.
+    """
+    hh = np.maximum(h, 1.02)
+    return theta * (3.15 + 1.72 / (hh - 1.0) + hh)
+
+
 # ---------------------------------------------------------------------------
 # Station layout
 # ---------------------------------------------------------------------------
@@ -632,6 +747,8 @@ class _Problem:
     spacing: FloatArray
     wall: FloatArray
     turbulent: FloatArray
+    shear: FloatArray
+    lag: bool
     first: NDArray[np.int64]
     te_upper: int
     te_lower: int
@@ -645,6 +762,8 @@ def _build_problem(
     reynolds: float,
     te_gap: float,
     turbulent: FloatArray,
+    shear: FloatArray,
+    lag: bool = False,
 ) -> _Problem:
     left, right, wall = [], [], []
     for index in range(3):
@@ -665,6 +784,8 @@ def _build_problem(
         spacing=layout.s[right_a] - layout.s[left_a],
         wall=np.concatenate(wall),
         turbulent=turbulent,
+        shear=shear,
+        lag=lag,
         first=layout.starts.copy(),
         te_upper=int(layout.starts[1]) - 1,
         te_lower=int(layout.starts[2]) - 1,
@@ -684,6 +805,9 @@ def _interval_residuals(
     turbulent: FloatArray,
     wall: FloatArray,
     reynolds: float,
+    shear_l: FloatArray,
+    shear_r: FloatArray,
+    lag: bool = False,
 ) -> tuple[ComplexArray, ComplexArray]:
     """Momentum and shape-parameter residuals on every interval at once.
 
@@ -738,8 +862,12 @@ def _interval_residuals(
 
     cf_lam_l = _laminar_cf_reth(h_l) / reth_l
     cf_lam_r = _laminar_cf_reth(h_r) / reth_r
-    cf_turb_l = 0.5 * _ludwieg_tillmann_cf(h_l, reth_l)
-    cf_turb_r = 0.5 * _ludwieg_tillmann_cf(h_r, reth_r)
+    if lag:
+        cf_turb_l = 0.5 * _turbulent_cf(h_l, reth_l)
+        cf_turb_r = 0.5 * _turbulent_cf(h_r, reth_r)
+    else:
+        cf_turb_l = 0.5 * _ludwieg_tillmann_cf(h_l, reth_l)
+        cf_turb_r = 0.5 * _ludwieg_tillmann_cf(h_r, reth_r)
     cf_l = wall * ((1.0 - weight) * cf_lam_l + weight * cf_turb_l)
     cf_r = wall * ((1.0 - weight) * cf_lam_r + weight * cf_turb_r)
     cf_bar = 0.5 * (cf_l + cf_r)
@@ -761,15 +889,25 @@ def _interval_residuals(
         * ds_over_theta
     )
 
-    h1_l, h1_r = _head_h1(h_l), _head_h1(h_r)
-    h1_bar = 0.5 * (h1_l + h1_r)
-    entrainment = 0.5 * (_head_entrainment(h1_l) + _head_entrainment(h1_r))
-    shape_turbulent = (
-        h1_bar * (theta_r - theta_l) / theta_bar
-        + (h1_r - h1_l)
-        + h1_bar * dln_ue
-        - entrainment * ds_over_theta
-    )
+    if lag:
+        diss_l, hst_l, _ = _turbulent_dissipation(h_l, reth_l, shear_l, wall)
+        diss_r, hst_r, _ = _turbulent_dissipation(h_r, reth_r, shear_r, wall)
+        hst_bar = 0.5 * (hst_l + hst_r)
+        shape_turbulent = (
+            (hst_r - hst_l)
+            + hst_bar * (1.0 - h_bar) * dln_ue
+            - (0.5 * (diss_l + diss_r) - hst_bar * 0.5 * (cf_l + cf_r)) * ds_over_theta
+        )
+    else:
+        h1_l, h1_r = _head_h1(h_l), _head_h1(h_r)
+        h1_bar = 0.5 * (h1_l + h1_r)
+        entrainment = 0.5 * (_head_entrainment(h1_l) + _head_entrainment(h1_r))
+        shape_turbulent = (
+            h1_bar * (theta_r - theta_l) / theta_bar
+            + (h1_r - h1_l)
+            + h1_bar * dln_ue
+            - entrainment * ds_over_theta
+        )
 
     shape = (1.0 - weight) * shape_laminar + weight * shape_turbulent
     return momentum, shape
@@ -818,6 +956,9 @@ def _trailing_edge_pair(
         one,
         0.0 * one,
         problem.reynolds,
+        np.atleast_1d(0.5 * (problem.shear[problem.te_upper] + problem.shear[problem.te_lower])),
+        np.atleast_1d(problem.shear[index]),
+        problem.lag,
     )
     return momentum[0], shape[0]
 
@@ -839,6 +980,9 @@ def _residuals(state: ComplexArray, problem: _Problem) -> ComplexArray:
         problem.turbulent,
         problem.wall,
         problem.reynolds,
+        problem.shear[problem.left],
+        problem.shear[problem.right],
+        problem.lag,
     )
     out[problem.right] = momentum
     out[n + problem.right] = shape
@@ -907,7 +1051,8 @@ def _jacobian(state: FloatArray, problem: _Problem) -> FloatArray:
         perturbed[position] = perturbed[position] + 1j * step
         momentum, shape = _interval_residuals(
             *perturbed, problem.spacing, problem.turbulent, problem.wall,
-            problem.reynolds,
+            problem.reynolds, problem.shear[problem.left],
+            problem.shear[problem.right], problem.lag,
         )
         jac[rows, offset + columns] += momentum.imag / step
         jac[n + rows, offset + columns] += shape.imag / step
@@ -940,6 +1085,66 @@ def _jacobian(state: FloatArray, problem: _Problem) -> FloatArray:
     jac[2 * n :, n : 2 * n] = -matrix * ue[None, :]
     jac[2 * n :, 2 * n :] = np.eye(n) - matrix * dstar[None, :]
     return jac
+
+
+def _lagged_shear(
+    s: FloatArray,
+    theta: FloatArray,
+    delta_star: FloatArray,
+    ue: FloatArray,
+    reynolds: float,
+) -> FloatArray:
+    """Shear-stress coefficient along one side, relaxing towards equilibrium."""
+    h = np.maximum(delta_star / theta, 1.02).astype(np.complex128)
+    re_theta = (reynolds * ue * theta).astype(np.complex128)
+    h_star = _turbulent_h_star(h, re_theta)
+    slip = _slip_velocity(h_star, h)
+    equilibrium = _equilibrium_shear(h_star, h, slip).real
+    thickness = boundary_layer_thickness(theta, h.real)
+
+    values = np.empty_like(equilibrium)
+    carried = equilibrium[0]
+    values[0] = carried
+    for i in range(1, equilibrium.size):
+        rate = LAG_CONSTANT * (s[i] - s[i - 1]) / max(thickness[i], 1e-12)
+        carried = (carried + rate * equilibrium[i]) / (1.0 + rate)
+        values[i] = carried
+    return np.maximum(values, 1e-9)
+
+
+def _update_shear(
+    state: FloatArray, layout: StationLayout, reynolds: float
+) -> FloatArray:
+    """Integrate the shear-stress lag equation along each side.
+
+    Notes
+    -----
+    An equilibrium closure sets the turbulent shear stress from the local shape
+    factor, which asserts that the turbulence adjusts instantly. It does not. A
+    layer entering an adverse gradient carries the shear stress of where it has
+    been for a distance of order its own thickness, and that history is most of
+    what decides whether it separates. Drela's lag equation states it directly:
+
+    .. math:: \\delta\\,\\frac{dC_\\tau}{ds} = K(C_{\\tau,eq} - C_\\tau)
+
+    with ``K = 5.6`` and ``delta`` the physical thickness.
+
+    It is integrated here on the converged solution and held fixed while Newton
+    runs, in the same way as the transition position — the alternative is a
+    fourth unknown at every station, and the outer iteration converges on the
+    shear stress in three or four passes without one. The equation is stepped
+    implicitly, ``C = (C_prev + lambda C_eq)/(1 + lambda)``, so a station much
+    shorter than ``delta`` cannot make it oscillate.
+    """
+    n = layout.n_stations
+    shear = np.empty(n)
+    for side in range(3):
+        sl = layout.side_slice(side)
+        shear[sl] = _lagged_shear(
+            layout.s[sl], state[:n][sl], state[n : 2 * n][sl],
+            state[2 * n :][sl], reynolds,
+        )
+    return shear
 
 
 # ---------------------------------------------------------------------------
@@ -1427,6 +1632,7 @@ def solve_newton(
     reynolds: float,
     *,
     n_crit: float = DEFAULT_N_CRIT,
+    turbulent_closure: str = "head",
     tolerance: float = DEFAULT_TOLERANCE,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     max_outer: int = DEFAULT_MAX_OUTER,
@@ -1499,6 +1705,12 @@ def solve_newton(
     if n_crit <= 0.0:
         raise ValidityRangeError(f"n_crit must be positive, got {n_crit}")
 
+    if turbulent_closure not in ("head", "lag"):
+        raise ValidityRangeError(
+            f"turbulent_closure must be 'head' or 'lag', got {turbulent_closure!r}"
+        )
+    lag = turbulent_closure == "lag"
+
     if system is None:
         system = HessSmithSystem(airfoil)
     wake = build_wake(airfoil, alpha, length=wake_length, n_panels=wake_panels)
@@ -1528,9 +1740,10 @@ def solve_newton(
     # starting point than the one it was given. One cheap e^N pass on the
     # starting guess avoids the whole problem.
     ends = [float(layout.s[layout.side_slice(i)][-1]) for i in (0, 1)]
+    shear = _update_shear(state, layout, reynolds)
     seed = _build_problem(
         layout, interaction, reynolds, airfoil.te_gap,
-        _turbulent_weights(layout, left, right, ends),
+        _turbulent_weights(layout, left, right, ends), shear, lag,
     )
     if previous is None:
         locations, causes = _transition_locations(state, seed, reynolds, n_crit)
@@ -1560,6 +1773,12 @@ def solve_newton(
         norm = np.inf
         taken = 0
         for taken in range(1, max_iterations + 1):
+            # The shear stress is a property of the solution, so it follows the
+            # iterate rather than being frozen for a whole pass. Freezing it
+            # made every airfoil case diverge while the flat plate, which is
+            # solved the same way but refreshes it, converged — the frozen value
+            # came from the starting guess and was wrong by a factor of five.
+            problem.shear[:] = _update_shear(current, problem.layout, problem.reynolds)
             vector = _residuals(current.astype(np.complex128), problem).real
             norm = float(np.max(np.abs(vector)))
             trace.append(norm)
@@ -1593,7 +1812,7 @@ def solve_newton(
     for outer in range(1, max_outer + 1):
         problem = _build_problem(
             layout, interaction, reynolds, airfoil.te_gap,
-            _turbulent_weights(layout, left, right, locations),
+            _turbulent_weights(layout, left, right, locations), shear, lag,
         )
 
         trial_state, residual, steps, history = newton(state, problem)
@@ -1611,6 +1830,11 @@ def solve_newton(
             break
         state = trial_state
 
+        updated = _update_shear(state, layout, reynolds)
+        shear_moved = float(
+            np.max(np.abs(updated - shear)) / max(float(np.max(updated)), 1e-12)
+        )
+        shear = updated
         new_locations, causes = _transition_locations(
             state, problem, reynolds, n_crit, locations
         )
@@ -1636,7 +1860,7 @@ def solve_newton(
         )
         visited.append(list(locations))
         locations = capped
-        if moved < TRANSITION_TOLERANCE or cycled:
+        if (moved < TRANSITION_TOLERANCE or cycled) and shear_moved < 1e-3:
             settled = True
             break
 
@@ -1692,6 +1916,7 @@ def newton_polar(
     reynolds: float,
     *,
     n_crit: float = DEFAULT_N_CRIT,
+    turbulent_closure: str = "head",
     tolerance: float = DEFAULT_TOLERANCE,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     max_outer: int = DEFAULT_MAX_OUTER,
@@ -1738,7 +1963,7 @@ def newton_polar(
     for alpha in np.atleast_1d(np.asarray(alphas, dtype=np.float64)):
         result = solve_newton(
             airfoil, float(alpha), reynolds,
-            n_crit=n_crit, tolerance=tolerance,
+            n_crit=n_crit, turbulent_closure=turbulent_closure, tolerance=tolerance,
             max_iterations=max_iterations, max_outer=max_outer,
             wake_length=wake_length, wake_panels=wake_panels,
             system=system, previous=guess, validate=False,
@@ -1748,7 +1973,7 @@ def newton_polar(
             # A cold start sometimes is, and costs one more solve.
             cold = solve_newton(
                 airfoil, float(alpha), reynolds,
-                n_crit=n_crit, tolerance=tolerance,
+                n_crit=n_crit, turbulent_closure=turbulent_closure, tolerance=tolerance,
                 max_iterations=max_iterations, max_outer=max_outer,
                 wake_length=wake_length, wake_panels=wake_panels,
                 system=system, previous=None, validate=False,
@@ -1828,6 +2053,7 @@ def solve_prescribed(
     shape_initial: float | None = None,
     transition_s: float = np.inf,
     wall: bool = True,
+    turbulent_closure: str = "head",
     tolerance: float = DEFAULT_TOLERANCE,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
     validate: bool = True,
@@ -1919,12 +2145,15 @@ def solve_prescribed(
     )
     state = np.concatenate([theta, start_shape * theta])
 
+    shear = np.full(n, 1e-4)
+
     def residuals(vector: ComplexArray) -> ComplexArray:
         th, ds_ = vector[:n], vector[n:]
         momentum, shape = _interval_residuals(
             th[left], th[right], ds_[left], ds_[right],
             ue[left].astype(vector.dtype), ue[right].astype(vector.dtype),
-            spacing, turbulent, wall_flag, reynolds,
+            spacing, turbulent, wall_flag, reynolds, shear[left], shear[right],
+            turbulent_closure == "lag",
         )
         out = np.zeros(2 * n, dtype=vector.dtype)
         out[right] = momentum
@@ -1937,6 +2166,11 @@ def solve_prescribed(
     residual = np.inf
     iterations = 0
     for iterations in range(1, max_iterations + 1):
+        # The shear stress is a property of the solution, so it is refreshed as
+        # the solution moves. Freezing it at a guess is what made a turbulent
+        # flat plate collapse to H = 1.01: the guess was five times the
+        # equilibrium value, so the dissipation was five times too large.
+        shear[:] = _lagged_shear(s, state[:n], state[n:], ue, reynolds)
         vector = residuals(state.astype(np.complex128)).real
         residual = float(np.max(np.abs(vector)))
         if residual < tolerance:

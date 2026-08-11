@@ -160,6 +160,7 @@ class TestJacobian:
             _build_problem,
             _initial_state,
             _turbulent_weights,
+            _update_shear,
         )
 
         airfoil, _, _, _, layout, operator = rig
@@ -170,11 +171,12 @@ class TestJacobian:
                 for i in range(3)
             ]
         )
+        state = _initial_state(layout, operator.ue_inviscid, RE, airfoil.te_gap)
         problem = _build_problem(
             layout, operator, RE, airfoil.te_gap,
             _turbulent_weights(layout, left, left + 1, [0.3, 0.3]),
+            _update_shear(state, layout, RE),
         )
-        state = _initial_state(layout, operator.ue_inviscid, RE, airfoil.te_gap)
 
         analytic = _jacobian(state, problem)
         numeric = np.zeros_like(analytic)
@@ -373,6 +375,80 @@ class TestCoupledSolver:
         assert result.max_shape_factor > 3.0
         assert not result.closure_in_range
         assert "closure extrapolated" in repr(result)
+
+
+class TestDrelaLagClosure:
+    """The lag closure, checked where it can be checked."""
+
+    def test_turbulent_h_star_matches_the_power_law_profile(self):
+        from aerolab.viscous.newton import _turbulent_h_star
+
+        # A 1/7 power-law profile has H = 9/7 and H* = 2(n+2)/(n+3) = 1.8 exactly.
+        value = float(
+            _turbulent_h_star(np.array([1.2857 + 0j]), np.array([5000.0 + 0j])).real[0]
+        )
+        assert value == pytest.approx(1.800, rel=0.01)
+
+    def test_turbulent_skin_friction_matches_ludwieg_tillmann(self):
+        from aerolab.viscous.newton import _turbulent_cf
+
+        for h, re_theta in ((1.4, 1000.0), (1.3, 5000.0)):
+            drela = float(_turbulent_cf(np.array([h + 0j]), np.array([re_theta + 0j])).real[0])
+            published = 0.246 * 10 ** (-0.678 * h) * re_theta**-0.268
+            assert drela == pytest.approx(published, rel=0.03)
+
+    def test_skin_friction_goes_negative_past_separation(self):
+        """The whole reason for this closure: Ludwieg-Tillmann cannot do this."""
+        from aerolab.viscous.newton import _turbulent_cf
+
+        attached = float(_turbulent_cf(np.array([1.4 + 0j]), np.array([3000.0 + 0j])).real[0])
+        separated = float(_turbulent_cf(np.array([4.0 + 0j]), np.array([3000.0 + 0j])).real[0])
+        assert attached > 0.0
+        assert separated < 0.0
+
+    def test_turbulent_flat_plate_matches_coles(self):
+        layer = solve_prescribed(
+            np.linspace(0.05, 1.0, 300), np.ones(300), 1.0e7,
+            theta_initial=1.2e-4, shape_initial=1.45, transition_s=0.0,
+            turbulent_closure="lag", max_iterations=80,
+        )
+        re_theta = layer.reynolds_theta[-1]
+        coles = 1.4
+        for _ in range(60):
+            cf = 0.246 * 10 ** (-0.678 * coles) * re_theta**-0.268
+            coles = 1.0 / (1.0 - 6.8 * np.sqrt(cf / 2))
+        assert layer.shape_factor[-1] == pytest.approx(coles, rel=0.03)
+
+    def test_turbulent_flat_plate_momentum_thickness(self):
+        layer = solve_prescribed(
+            np.linspace(0.05, 1.0, 300), np.ones(300), 1.0e7,
+            theta_initial=1.2e-4, shape_initial=1.45, transition_s=0.0,
+            turbulent_closure="lag", max_iterations=80,
+        )
+        correlation = 0.036 * 1.0 * (1.0e7) ** -0.2
+        assert layer.theta[-1] == pytest.approx(correlation, rel=0.05)
+
+    def test_the_shear_stress_lags_behind_equilibrium(self):
+        """The point of a lag equation: history, not just the local state."""
+        from aerolab.viscous.newton import _equilibrium_shear, _lagged_shear
+        from aerolab.viscous.newton import _slip_velocity, _turbulent_h_star
+
+        s = np.linspace(0.01, 1.0, 200)
+        ue = 1.0 - 0.4 * s
+        theta = 1e-3 * (1.0 + 2.0 * s)
+        dstar = theta * (1.4 + 1.6 * s)
+        lagged = _lagged_shear(s, theta, dstar, ue, 1e6)
+        h = (dstar / theta).astype(complex)
+        re_theta = (1e6 * ue * theta).astype(complex)
+        h_star = _turbulent_h_star(h, re_theta)
+        equilibrium = _equilibrium_shear(h_star, h, _slip_velocity(h_star, h)).real
+        # Rising equilibrium, so the lagged value must sit below it downstream.
+        assert equilibrium[-1] > equilibrium[0]
+        assert lagged[-1] < equilibrium[-1]
+
+    def test_an_unknown_closure_name_is_refused(self):
+        with pytest.raises(ValidityRangeError, match="turbulent_closure"):
+            solve_newton(naca("0012", 121), 0.0, RE, turbulent_closure="green")
 
 
 class TestSweep:
