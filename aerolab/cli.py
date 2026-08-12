@@ -110,7 +110,7 @@ def polar(
                                             help="'karman-tsien', 'prandtl-glauert' or 'none'")] = "karman-tsien",
     panels: Annotated[int, typer.Option("--panels", help="points on the contour")] = DEFAULT_PANELS,
     coupled: Annotated[bool, typer.Option("--coupled/--uncoupled",
-                                          help="use the Phase 4 coupling (does not currently converge)")] = False,
+                                          help="solve the viscous and inviscid problems simultaneously (Newton)")] = False,
 ) -> None:
     """Sweep angle of attack and write the polar as CSV.
 
@@ -130,7 +130,7 @@ def polar(
         typer.secho(f"error: {error}", fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from error
 
-    flagged = int(np.sum(~result.converged))
+    unconverged = int(np.sum(~result.converged))
     typer.echo(f"{result.name}   Re = {re:.3g}   M = {mach:g}   N_crit = {n_crit:g}")
     typer.echo(f"  {len(result)} angles from {angles[0]:+.2f} to {angles[-1]:+.2f} deg")
     typer.echo(f"  lift slope    {result.lift_slope:.4f} /rad")
@@ -140,18 +140,28 @@ def polar(
     typer.echo(f"  best L/D      {ratio:.1f} at {np.rad2deg(ratio_alpha):+.2f} deg")
     typer.echo(f"  written to    {written}")
 
-    if flagged:
+    if result.warnings:
+        # Every point carrying a caveat is listed. The headline counts only the
+        # ones that did not converge, because those are the ones whose numbers
+        # should not be used at all — a converged point with a caveat is a
+        # usable number with a stated limitation, and conflating the two would
+        # make the count disagree with the list underneath it.
         typer.secho(
-            f"  {flagged} of {len(result)} points flagged:",
+            f"  {len(result.warnings)} of {len(result)} points flagged"
+            f" ({unconverged} did not converge):",
             fg=typer.colors.YELLOW, err=True,
         )
-        for message in result.warnings[:6]:
+        for message in result.warnings[:8]:
             typer.secho(f"    {message}", fg=typer.colors.YELLOW, err=True)
-        if len(result.warnings) > 6:
+        if len(result.warnings) > 8:
             typer.secho(
-                f"    ... and {len(result.warnings) - 6} more",
+                f"    ... and {len(result.warnings) - 8} more",
                 fg=typer.colors.YELLOW, err=True,
             )
+        # Exit non-zero on any caveat, not only on non-convergence. A converged
+        # point with a stated limitation is still a point a script should not
+        # consume silently, and telling the two apart is what the message above
+        # is for.
         raise typer.Exit(EXIT_FLAGGED)
 
 

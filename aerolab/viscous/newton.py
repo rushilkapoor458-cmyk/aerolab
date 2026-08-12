@@ -1579,6 +1579,28 @@ class NewtonSolution:
         return float(abs(drag[-1] - drag[-tail]) / abs(drag[-1]))
 
     @property
+    def transition_x(self) -> tuple[float, float]:
+        """Transition position on each surface as ``x/c``, not arc length.
+
+        ``nan`` where the surface never transitioned. Arc length from the
+        stagnation point is what the solver works in; ``x/c`` is what a polar
+        file and a wind tunnel are read in.
+        """
+        points = self.panel.system.control_points[:, 0]
+        chord = self.panel.system.chord
+        leading = float(np.min(points))
+        out = []
+        for side in (0, 1):
+            sl = self.layout.side_slice(side)
+            location = self.transition_s[side]
+            if not np.isfinite(location):
+                out.append(float("nan"))
+                continue
+            station = points[self.layout.panel[sl]]
+            out.append(float(np.interp(location, self.layout.s[sl], station) - leading) / chord)
+        return out[0], out[1]
+
+    @property
     def max_shape_factor(self) -> float:
         """Largest ``H`` anywhere on the two surfaces."""
         return float(np.max(self.shape_factor[self.layout.side < 2]))

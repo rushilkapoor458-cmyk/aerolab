@@ -577,18 +577,32 @@ def _solve_point(
     nan = float("nan")
     try:
         if coupled:
-            from aerolab.viscous.coupling import solve_coupled
+            # The simultaneous Newton solver (Phase 8), not the sequential
+            # coupling of Phase 4, which never converged. Both are still in the
+            # package; only this one is offered here.
+            from aerolab.viscous.newton import solve_newton
 
-            result = solve_coupled(
-                airfoil, alpha, reynolds, method=method, n_crit=n_crit,
+            result = solve_newton(
+                airfoil, alpha, reynolds, n_crit=n_crit,
                 system=system, validate=False,
             )
-            panel, layer = result.panel, result.boundary_layer
+            panel = result.panel
             note = "" if result.converged else (
-                f"coupling did not converge, residual {result.residual:.2e}"
+                f"the Newton solve did not converge, residual "
+                f"{result.residual:.2e}"
             )
             converged = result.converged
+            if converged and not result.closure_in_range:
+                note = (
+                    f"shape factor reached {result.max_shape_factor:.2f}, "
+                    "outside the range Head's correlation was fitted over"
+                )
+            coupled_drag = result.cd
+            coupled_transition = result.transition_x
+            layer = None
         else:
+            coupled_drag = None
+            coupled_transition = None
             panel = system.solve(alpha, validate=False)
             layer = solve_boundary_layer(
                 panel, reynolds, method=method, n_crit=n_crit, validate=False
@@ -601,8 +615,8 @@ def _solve_point(
             note = f"{note}; {field.warning}" if note else field.warning
             converged = False
 
-        drag = layer.cd_profile
-        if layer.separation_is_significant():
+        drag = layer.cd_profile if coupled_drag is None else coupled_drag
+        if layer is not None and layer.separation_is_significant():
             station = min(
                 s.turbulent_separation_x
                 for s in layer.surfaces
@@ -614,25 +628,33 @@ def _solve_point(
             note = f"{note}; {extra}" if note else extra
             converged = False
 
-        upper, lower = layer.surfaces
+        if layer is None:
+            transition_upper, transition_lower = coupled_transition
+            separation_upper = separation_lower = nan
+        else:
+            upper, lower = layer.surfaces
+            transition_upper = upper.transition_x if upper.transition_x else nan
+            transition_lower = lower.transition_x if lower.transition_x else nan
+            separation_upper = (
+                upper.turbulent_separation_x
+                if upper.turbulent_separation_x is not None
+                else nan
+            )
+            separation_lower = (
+                lower.turbulent_separation_x
+                if lower.turbulent_separation_x is not None
+                else nan
+            )
         return PolarPoint(
             alpha=alpha,
             cl=panel.cl_pressure,
             cd=drag,
             cm=panel.cm_quarter_chord,
             cd_inviscid=panel.cd_pressure,
-            transition_upper=upper.transition_x if upper.transition_x else nan,
-            transition_lower=lower.transition_x if lower.transition_x else nan,
-            separation_upper=(
-                upper.turbulent_separation_x
-                if upper.turbulent_separation_x is not None
-                else nan
-            ),
-            separation_lower=(
-                lower.turbulent_separation_x
-                if lower.turbulent_separation_x is not None
-                else nan
-            ),
+            transition_upper=transition_upper,
+            transition_lower=transition_lower,
+            separation_upper=separation_upper,
+            separation_lower=separation_lower,
             cp_min=float(np.min(field.cp)),
             max_local_mach=field.max_local_mach,
             converged=converged,
