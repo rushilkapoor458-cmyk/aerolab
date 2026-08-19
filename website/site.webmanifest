@@ -1,0 +1,14 @@
+{
+  "name": "Aurelia — Contemporary Fire Kitchen",
+  "short_name": "Aurelia",
+  "description": "Book a table or order online from Aurelia, Bandra West, Mumbai.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D0C0A",
+  "theme_color": "#0D0C0A",
+  "lang": "en-IN",
+  "icons": [
+    { "src": "assets/img/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/img/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
