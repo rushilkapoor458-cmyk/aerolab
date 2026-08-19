@@ -839,6 +839,10 @@ def main():
     hero = scene_dish(7, ["#CFA05A", "#E4C288", "#94622E", "#F4DCAA"],
                       size=(1200, 2000), plate="charcoal", garnish="#7E9070",
                       sauce="#3E2C1A", components=10, spread=0.58, relief=105)
+    # Three widths: a phone should not download, decode and downscale a 2000px
+    # hero on a throttled CPU just to show it 390px wide.
+    for w in (900, 1400, 2000):
+        save(hero, f"hero-{w}", quality=82, width=w)
     save(hero, "hero", quality=82)
     # social scrapers want a JPEG; a webp twin here would never be fetched
     save(hero, "og", quality=80, width=1200, webp=False)

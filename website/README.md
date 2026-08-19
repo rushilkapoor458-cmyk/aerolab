@@ -2,7 +2,9 @@
 
 A complete, production-shaped marketing and ordering site for a fictional
 contemporary fire kitchen in Bandra West, Mumbai. Static HTML, CSS and vanilla
-JavaScript: no build step, no framework, no runtime dependencies.
+JavaScript: no framework, no runtime dependencies, and nothing to install to work
+on it. There is one optional build command for deployment — see
+[Production build](#production-build) — but nothing needs it.
 
 Open `index.html` directly, or serve the folder:
 
@@ -15,13 +17,15 @@ python3 -m http.server 8000    # then visit http://localhost:8000/
 | Path | |
 |---|---|
 | `index.html` | The whole page — eleven sections, plus cart, checkout and lightbox overlays |
-| `assets/css/style.css` | Design system and every component, in one commented file |
-| `assets/css/fonts.css` | Self-hosted `@font-face` rules (generated) |
+| `assets/css/style.css` | Typefaces, design system and every component, in one commented file |
 | `assets/js/data.js` | All content: menu, reviews, gallery, hours, FAQ. Edit copy here |
 | `assets/js/main.js` | All behaviour |
+| `assets/js/motion.js` | The animation layer — optional, the site works without it |
 | `assets/img/` | Generated imagery (see below) |
 | `tools/generate_assets.py` | The renderer that produces every image |
 | `tools/fetch_fonts.sh` | Refreshes the self-hosted webfonts |
+| `tools/measure_fallback.js` | Re-measures the metric-matched font fallbacks |
+| `tools/build.py` | Optional production build — see below |
 
 ## Sections
 
@@ -34,6 +38,35 @@ net banking / cash, client-side card validation including a Luhn check, and an
 animated delivery tracker. **No payment is processed and nothing is sent
 anywhere** — the cart persists in `localStorage` and that is all. Point
 `stepPayment`'s submit handler at your real payment provider to make it live.
+
+## Motion
+
+`assets/js/motion.js` holds everything decorative. It is loaded before `main.js`,
+which calls into it only when it is present, so deleting the file degrades the
+site to a static but fully working page.
+
+- **Headlines rise word by word** behind an overflow mask, staggered, with one
+  slow sweep of light across the hero once it settles. Splitting is done at word
+  level, never character level — a screen reader spelling out a headline is a
+  real cost for a decorative gain.
+- **Filtering the menu is a FLIP animation.** Cards that survive a filter change
+  are measured before and after the re-render and animate between the two
+  positions, so the grid rearranges itself instead of blinking.
+- **Adding a dish flies it to the cart** along an arc, and the cart badge springs.
+- **Cards lean towards the pointer** in 3D and carry a specular sheen with it.
+- **The primary buttons are magnetic**, and the dark bands carry a warm pool of
+  light that tracks the cursor.
+- **Images wipe open** rather than fading, and the marquee leans with scroll
+  velocity.
+
+All of it is transform and opacity only, all of it is behind
+`prefers-reduced-motion`, and the pointer effects are behind `pointer: fine` so
+they never fire on touch.
+
+One trap worth recording: the wipe is `clip-path: inset(0 0 100% 0)`, and an
+element that clips itself reports `intersectionRatio: 0` to IntersectionObserver
+no matter where it is on screen. Observing the element to decide when to un-clip
+it can therefore never fire. `motion.js` observes the parent instead.
 
 ## Editing content
 
@@ -60,9 +93,9 @@ to be thrown away. Drop a real photograph at the same path and the page picks it
 up with no code change:
 
 ```
-assets/img/dish-scallop.jpg    +  dish-scallop.webp     4:3, ~1200px wide
-assets/img/hero.jpg            +  hero.webp             wide, dark on the left
-assets/img/interior-*.jpg      +  .webp
+assets/img/dish-scallop.jpg      + dish-scallop.webp     4:3, ~1200px wide
+assets/img/hero-{900,1400,2000}  + .webp                 wide, dark on the left
+assets/img/interior-*.jpg        + .webp
 ```
 
 Filenames are referenced by the `img` key on each menu item in `data.js` and by
@@ -84,21 +117,61 @@ pip install pillow numpy
 python3 tools/generate_assets.py
 ```
 
+## Production build
+
+Development needs no build: open `index.html` and it works. For deployment there
+is one optional command.
+
+```bash
+python3 tools/build.py     # writes dist/
+```
+
+It inlines and minifies the stylesheet into the document and copies the assets.
+That is the whole build. On a single-page site the stylesheet is the entire
+critical path, and removing that one round trip is worth about a second of First
+Contentful Paint on a slow connection. Scripts stay external — they are
+deferred, so they never block the first paint, and external means cacheable.
+
+`dist/` is generated and not tracked. Develop against `index.html`, deploy
+`dist/`.
+
 ## Performance, SEO and accessibility
 
-Measured in Chromium on the built page:
+Lighthouse 13, mobile preset, run against `dist/` served with gzip and cache
+headers (what any real host does — the numbers are meaningfully worse without
+compression, which is a hosting setting, not a code one). Stable across three
+consecutive runs:
 
-- First Contentful Paint ≈ 260 ms, 18 requests, ~570 KB transferred.
-- No render-blocking third-party requests. Fonts are self-hosted and
-  subsetted to latin + latin-ext; the Google Maps embed is behind a click-to-load
-  facade; every below-fold image is lazy and has intrinsic dimensions so nothing
-  shifts.
+| | |
+|---|---|
+| Performance | **95** |
+| Accessibility | **100** |
+| Best Practices | **100** |
+| SEO | **100** |
+
+First Contentful Paint 1.7 s · Largest Contentful Paint 2.8 s · Total Blocking
+Time 40 ms · **Cumulative Layout Shift 0.008**.
+
+Getting CLS down took two specific fixes. Webfonts swapping in used to reflow the
+hero for 0.204 of shift, so the two faces that set most of the visible text are
+preloaded, and `style.css` carries metric-matched `@font-face` fallbacks —
+`size-adjust`, `ascent-override` and `descent-override` measured against the
+shipped woff2 files by `tools/measure_fallback.js`, not guessed. The hero is also
+served at three widths so a phone does not download and decode a 2000px image to
+show it 390px wide.
+
+Also true of the build:
+
+- No third-party requests at all. Fonts are self-hosted and subsetted to latin
+  and latin-ext; the Google Maps embed sits behind a click-to-load facade.
+- Every below-fold image is lazy and carries intrinsic dimensions.
 - **axe-core reports zero violations** on desktop and mobile, and with the cart
   drawer, checkout modal and lightbox open.
 - Focus is trapped inside every overlay, Escape closes them, and focus returns to
   whatever opened them.
-- `prefers-reduced-motion` disables the Ken Burns hero, the marquee, parallax,
-  scroll reveals and count-ups.
+- `prefers-reduced-motion` disables every animation described above, including
+  the Ken Burns hero, the marquee, parallax, reveals and count-ups. Verified:
+  zero running animations, and the headline is never even split.
 - Structured data: `Restaurant` (with hours, geo, rating and menu) and `FAQPage`.
   `sitemap.xml`, `robots.txt` and a web manifest are included.
 

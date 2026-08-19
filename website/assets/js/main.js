@@ -12,6 +12,7 @@
   const $  = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const M = window.AureliaMotion || null;   // decoration; the page works without it
 
   const inr = new Intl.NumberFormat('en-IN', {
     style: 'currency', currency: 'INR', maximumFractionDigits: 0
@@ -167,8 +168,8 @@
     const popular = item.popular
       ? `<span class="dish-badge"><svg class="i"><use href="#i-spark"/></svg> Guest favourite</span>` : '';
     return `
-      <article class="dish-card${opts.reveal ? ' reveal' : ''}" data-id="${item.id}">
-        <div class="dish-media">
+      <article class="dish-card${opts.reveal ? ' reveal' : ''}" data-id="${item.id}" data-tilt>
+        <div class="dish-media" data-reveal-media>
           ${popular}
           <span class="dish-rating"><svg class="i"><use href="#i-star"/></svg>${item.rating}</span>
           ${img(item.img, esc(item.name), 1200, 900)}
@@ -295,9 +296,17 @@
   function renderMenu() {
     if (!menuGrid) return;
     const list = filtered();
-    menuGrid.innerHTML = list.map(dishCard).join('');
-    $$('.dish-card', menuGrid).forEach((c, i) =>
-      (c.style.animationDelay = Math.min(i * 45, 400) + 'ms'));
+
+    // Re-rendering innerHTML would make every surviving card blink out and back.
+    // FLIP measures where each card was, lets the DOM change, then plays the
+    // difference — so filtering reads as the grid rearranging itself.
+    const paint = () => {
+      menuGrid.innerHTML = list.map(dishCard).join('');
+      $$('.dish-card', menuGrid).forEach((c, i) =>
+        (c.style.animationDelay = Math.min(i * 45, 400) + 'ms'));
+    };
+    if (M && menuGrid.children.length) M.flip(menuGrid, paint, { key: 'id' });
+    else paint();
     if (menuCount) {
       menuCount.textContent = list.length
         ? `${list.length} ${list.length === 1 ? 'dish' : 'dishes'}`
@@ -456,7 +465,12 @@
 
   document.addEventListener('click', e => {
     const add = e.target.closest('[data-add]');
-    if (add) { addToCart(add.dataset.add); return; }
+    if (add) {
+      const card = add.closest('.dish-card');
+      if (M && card && cartBtn) M.flyToCart(card.querySelector('.dish-media'), cartBtn);
+      addToCart(add.dataset.add);
+      return;
+    }
 
     const inc = e.target.closest('[data-inc]');
     if (inc) {
@@ -1161,8 +1175,9 @@
   renderMenu();
   renderCart();
   observeReveals();
+  M && M.init();
 
   // anything injected after first paint still needs observing
-  const mo = new MutationObserver(() => observeReveals());
+  const mo = new MutationObserver(() => { observeReveals(); M && M.init(); });
   mo.observe(document.body, { childList: true, subtree: true });
 })();

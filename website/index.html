@@ -28,10 +28,15 @@
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="manifest" href="site.webmanifest">
 
+<!-- The two faces that set almost all the visible text are preloaded so they are
+     in hand by first paint. The metric-matched fallbacks below still cover the
+     gap, but they depend on Georgia/Arial being installed, which is true on most
+     desktops and not on Android — preloading is what makes it deterministic. -->
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/cormorant-garamond-variable-latin.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/inter-variable-latin.woff2" crossorigin>
-<link rel="preload" as="image" href="assets/img/hero.webp" type="image/webp" fetchpriority="high">
-<link rel="stylesheet" href="assets/css/fonts.css">
+<link rel="preload" as="image" href="assets/img/hero-900.webp" type="image/webp"
+      imagesrcset="assets/img/hero-900.webp 900w, assets/img/hero-1400.webp 1400w, assets/img/hero-2000.webp 2000w"
+      imagesizes="100vw" fetchpriority="high">
 <link rel="stylesheet" href="assets/css/style.css">
 
 <script type="application/ld+json">
@@ -142,7 +147,7 @@
 <!-- ===================== header ===================== -->
 <header class="site-header" id="header">
   <div class="shell header-inner">
-    <a class="brand" href="#home" aria-label="Aurelia, home">
+    <a class="brand" href="#home" aria-label="Aurelia Fire Kitchen, home">
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 40 40"><path d="M20 3l4.4 11.1L36 18l-11.6 3.9L20 33l-4.4-11.1L4 18l11.6-3.9z" fill="none" stroke="currentColor" stroke-width="1.1"/><circle cx="20" cy="18" r="2.2"/></svg>
       </span>
@@ -187,8 +192,12 @@
 <section class="hero" id="home">
   <div class="hero-media" aria-hidden="true">
     <picture>
-      <source srcset="assets/img/hero.webp" type="image/webp">
-      <img src="assets/img/hero.jpg" alt="" width="2000" height="1200" fetchpriority="high" decoding="async" id="heroImg">
+      <source type="image/webp"
+              srcset="assets/img/hero-900.webp 900w, assets/img/hero-1400.webp 1400w, assets/img/hero-2000.webp 2000w"
+              sizes="100vw">
+      <img src="assets/img/hero-1400.jpg" alt="" width="2000" height="1200"
+           srcset="assets/img/hero-900.jpg 900w, assets/img/hero-1400.jpg 1400w, assets/img/hero-2000.jpg 2000w"
+           sizes="100vw" fetchpriority="high" decoding="async" id="heroImg">
     </picture>
     <div class="hero-scrim"></div>
     <div class="hero-vignette"></div>
@@ -198,19 +207,19 @@
     <p class="eyebrow reveal" data-delay="0">
       <span class="eyebrow-rule"></span> Bandra West &middot; Mumbai &middot; Est. 2022
     </p>
-    <h1 class="hero-title">
-      <span class="line reveal" data-delay="60">Cooked over fire.</span>
-      <span class="line reveal" data-delay="140"><em>Remembered</em> far longer.</span>
+    <h1 class="hero-title" data-split-reveal data-stagger="62">
+      <span class="line">Cooked over fire.</span>
+      <span class="line"><em>Remembered</em> far longer.</span>
     </h1>
     <p class="hero-lede reveal" data-delay="240">
       A contemporary fire kitchen where nothing touches an induction hob. Ninety-one
       partner farms, four live fires, and forty-four seats that book out three weeks ahead.
     </p>
     <div class="hero-cta reveal" data-delay="320">
-      <a class="btn btn-gold btn-lg" href="#menu" data-scroll>
+      <a class="btn btn-gold btn-lg" href="#menu" data-scroll data-magnetic>
         Order Online <svg class="i"><use href="#i-arrow"/></svg>
       </a>
-      <a class="btn btn-outline btn-lg" href="#reserve" data-scroll>Book a Table</a>
+      <a class="btn btn-outline btn-lg" href="#reserve" data-scroll data-magnetic>Book a Table</a>
     </div>
 
     <ul class="hero-facts reveal" data-delay="400">
@@ -240,7 +249,7 @@
   <div class="shell">
     <header class="section-head">
       <p class="eyebrow reveal"><span class="eyebrow-rule"></span> What we are known for</p>
-      <h2 class="section-title reveal">Signature Dishes</h2>
+      <h2 class="section-title reveal" data-split-reveal>Signature Dishes</h2>
       <p class="section-lede reveal">
         Six plates that account for more than half of everything that leaves this kitchen.
         Each one has been on the menu since the day we opened, and each one has been quietly
@@ -258,13 +267,13 @@
 <section class="section section-story" id="story">
   <div class="shell story-grid">
     <div class="story-media reveal">
-      <div class="story-img story-img-main parallax" data-speed="0.08">
+      <div class="story-img story-img-main parallax" data-speed="0.08" data-reveal-media>
         <picture>
           <source srcset="assets/img/hearth.webp" type="image/webp">
           <img src="assets/img/hearth.jpg" alt="The coal bed under the grill, mid-service" width="900" height="1100" loading="lazy" decoding="async">
         </picture>
       </div>
-      <div class="story-img story-img-inset parallax" data-speed="-0.06">
+      <div class="story-img story-img-inset parallax" data-speed="-0.06" data-reveal-media>
         <picture>
           <source srcset="assets/img/interior-dining.webp" type="image/webp">
           <img src="assets/img/interior-dining.jpg" alt="The main dining room at Aurelia in the evening" width="1500" height="1000" loading="lazy" decoding="async">
@@ -278,7 +287,7 @@
 
     <div class="story-copy">
       <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Our story</p>
-      <h2 class="section-title reveal">A kitchen that only knows one heat source.</h2>
+      <h2 class="section-title reveal" data-split-reveal>A kitchen that only knows one heat source.</h2>
       <p class="reveal">
         Aurelia began as an argument. Ravi Menon had spent six years in a two-star kitchen in
         Copenhagen learning to control temperature to the degree, and came home convinced that
@@ -309,7 +318,7 @@
   <div class="shell">
     <header class="section-head">
       <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Order online or dine in</p>
-      <h2 class="section-title reveal">The Menu</h2>
+      <h2 class="section-title reveal" data-split-reveal>The Menu</h2>
       <p class="section-lede reveal">
         Twenty-four dishes, changing with what the farms send. Search it, filter it,
         and add anything you like straight to your order.
@@ -351,7 +360,7 @@
 </section>
 
 <!-- ===================== 5. why choose us ===================== -->
-<section class="section section-why" id="why">
+<section class="section section-why" id="why" data-spotlight>
   <div class="why-bg parallax" data-speed="0.10" aria-hidden="true">
     <picture>
       <source srcset="assets/img/kitchen-pass.webp" type="image/webp">
@@ -361,7 +370,7 @@
   <div class="shell">
     <header class="section-head">
       <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Why Aurelia</p>
-      <h2 class="section-title reveal">Four things we refuse to compromise on.</h2>
+      <h2 class="section-title reveal" data-split-reveal>Four things we refuse to compromise on.</h2>
     </header>
     <div class="pillar-grid" id="pillarGrid"></div>
   </div>
@@ -372,7 +381,7 @@
   <div class="shell">
     <header class="section-head">
       <p class="eyebrow reveal"><span class="eyebrow-rule"></span> 3,412 reviews &middot; 4.9 average</p>
-      <h2 class="section-title reveal">What the room says</h2>
+      <h2 class="section-title reveal" data-split-reveal>What the room says</h2>
     </header>
 
     <div class="review-stage">
@@ -397,7 +406,7 @@
   <div class="shell">
     <header class="section-head">
       <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Inside Aurelia</p>
-      <h2 class="section-title reveal">The Gallery</h2>
+      <h2 class="section-title reveal" data-split-reveal>The Gallery</h2>
       <p class="section-lede reveal">The room, the pass, and the plates — photographed during service, never staged.</p>
     </header>
     <div class="gallery-filters reveal" id="galleryFilters"></div>
@@ -406,11 +415,11 @@
 </section>
 
 <!-- ===================== 8 + 9. reserve and order ===================== -->
-<section class="section section-reserve" id="reserve">
+<section class="section section-reserve" id="reserve" data-spotlight>
   <div class="shell reserve-grid">
     <div class="reserve-copy">
       <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Reservations</p>
-      <h2 class="section-title reveal">Book a table</h2>
+      <h2 class="section-title reveal" data-split-reveal>Book a table</h2>
       <p class="reveal">
         Forty-four seats, two sittings a night. The 6.30pm is quieter and quicker; the 9pm runs
         long. Tell us what the evening is for and we will build it around that.
@@ -502,7 +511,7 @@
           <textarea id="rNotes" name="notes" rows="3" placeholder="Allergies, a birthday, a seat you like…"></textarea>
         </div>
 
-        <button class="btn btn-gold btn-block btn-lg" type="submit" id="reserveSubmit">
+        <button class="btn btn-gold btn-block btn-lg" type="submit" id="reserveSubmit" data-magnetic>
           Confirm reservation <svg class="i"><use href="#i-arrow"/></svg>
         </button>
         <p class="form-foot">No card needed. We hold the table for fifteen minutes past your time.</p>
@@ -524,7 +533,7 @@
   <div class="shell">
     <header class="section-head">
       <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Find us</p>
-      <h2 class="section-title reveal">Visit Aurelia</h2>
+      <h2 class="section-title reveal" data-split-reveal>Visit Aurelia</h2>
     </header>
 
     <div class="visit-grid">
@@ -603,7 +612,7 @@
   <div class="shell">
     <div class="footer-top">
       <div class="footer-brand">
-        <a class="brand" href="#home" aria-label="Aurelia, home">
+        <a class="brand" href="#home" aria-label="Aurelia Fire Kitchen, home">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 40 40"><path d="M20 3l4.4 11.1L36 18l-11.6 3.9L20 33l-4.4-11.1L4 18l11.6-3.9z" fill="none" stroke="currentColor" stroke-width="1.1"/><circle cx="20" cy="18" r="2.2"/></svg>
           </span>
@@ -852,6 +861,7 @@
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
 <script src="assets/js/data.js" defer></script>
+<script src="assets/js/motion.js" defer></script>
 <script src="assets/js/main.js" defer></script>
 </body>
 </html>
