@@ -4,8 +4,8 @@
   "description": "Book a table or order online from Aurelia, Bandra West, Mumbai.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0D0C0A",
-  "theme_color": "#0D0C0A",
+  "background_color": "#F5F1E8",
+  "theme_color": "#F5F1E8",
   "lang": "en-IN",
   "icons": [
     { "src": "assets/img/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
