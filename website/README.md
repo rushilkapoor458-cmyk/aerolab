@@ -26,6 +26,7 @@ python3 -m http.server 8000    # then visit http://localhost:8000/
 | `tools/fetch_fonts.sh` | Refreshes the self-hosted webfonts |
 | `tools/measure_fallback.js` | Re-measures the metric-matched font fallbacks |
 | `tools/build.py` | Optional production build — see below |
+| `tools/build_artifact.py` | Optional single-file build (everything inlined) |
 
 ## Sections
 
@@ -134,6 +135,21 @@ deferred, so they never block the first paint, and external means cacheable.
 
 `dist/` is generated and not tracked. Develop against `index.html`, deploy
 `dist/`.
+
+### Single-file build
+
+```bash
+python3 tools/build_artifact.py     # writes dist-single/aurelia.html
+```
+
+Folds the stylesheet, the webfonts, the scripts and all 39 images into one
+2.5 MB `.html` that runs with **zero network requests** — useful for emailing a
+copy, opening it from a USB stick, or publishing somewhere that only accepts a
+single file. Three things change out of necessity: webp only (the jpg fallbacks
+would double the payload), one hero width instead of three (srcset cannot pick a
+smaller file when they are all already in the document), and the Google Maps
+embed becomes a link, since a cross-origin iframe cannot load from a `file://`
+document or under a strict CSP.
 
 ## Performance, SEO and accessibility
 

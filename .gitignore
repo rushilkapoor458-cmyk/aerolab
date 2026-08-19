@@ -23,3 +23,4 @@ docs/_build/
 # Website production build — regenerates from source with
 # `python3 website/tools/build.py`, so it is not tracked.
 website/dist/
+website/dist-single/
