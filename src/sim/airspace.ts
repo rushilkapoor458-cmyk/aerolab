@@ -268,6 +268,24 @@ export class Airspace {
     return this.approachIndex.get(ident.toUpperCase());
   }
 
+  star(ident: string): Star | undefined {
+    const wanted = ident.toUpperCase();
+    return this.stars.find((s) => s.ident === wanted);
+  }
+
+  sid(ident: string): Sid | undefined {
+    const wanted = ident.toUpperCase();
+    return this.sids.find((s) => s.ident === wanted);
+  }
+
+  /** The leg of a named SID or STAR that crosses a given fix. */
+  procedureLeg(procedureIdent: string, fixName: string): ProcedureLeg | undefined {
+    const procedure = this.star(procedureIdent) ?? this.sid(procedureIdent);
+    if (procedure === undefined) return undefined;
+    const wanted = fixName.toUpperCase();
+    return procedure.legs.find((leg) => leg.fix.toUpperCase() === wanted);
+  }
+
   hold(fixName: string): Hold | undefined {
     return this.holds.find((h) => h.fix === fixName.toUpperCase());
   }

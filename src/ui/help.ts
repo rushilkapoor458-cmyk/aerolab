@@ -19,6 +19,15 @@ const COMMANDS: readonly Row[] = [
   { keys: 'AIC101 squawk 4271\nAIC101 sq 4271', description: 'Assign a transponder code. Refused while an emergency squawk is set.' },
   { keys: 'AIC101 say fuel remaining\nAIC101 say fuel', description: 'Ask for fuel on board. The crew answer in kilos and minutes.' },
   { keys: 'AIC101 contact tower 118.1\nAIC101 ct 118.1', description: 'Hand the aircraft off. It leaves your frequency and drops off the scope once it is out of the sector.' },
+];
+
+const PROCEDURES: readonly Row[] = [
+  { keys: 'AIC101 cleared ILS runway 29 approach\nAIC101 ils 29', description: 'Clear it for the approach. It stays on your heading until the localiser captures — and only captures inside 18 NM, within 30° of the course, and inside the beam.' },
+  { keys: 'AIC101 cancel approach', description: 'Take it off the approach and back onto vectors. Any heading, direct or hold does the same thing on its own.' },
+  { keys: 'AIC101 go around\nAIC101 ga', description: 'Send it around. It climbs to the missed approach altitude on the runway heading.' },
+  { keys: 'AIC101 hold at GUDUR as published\nAIC101 hold GUDUR', description: 'Enter the published racetrack: published inbound course, turn direction and leg time.' },
+  { keys: 'AIC101 hold at GUDUR expect further clearance 1420\nAIC101 hold GUDUR efc 1420', description: 'The same, with an EFC time the crew read back.' },
+  { keys: 'AIC101 descend via the arrival\nAIC101 dv', description: 'Fly the published STAR restrictions — each fix\u2019s altitude and speed — instead of level-by-level clearances.' },
   { keys: 'AIC101 tl 270 d 50 s 210', description: 'Chain as many instructions as you like onto one callsign.' },
 ];
 
@@ -29,6 +38,13 @@ const KEYS: readonly Row[] = [
   { keys: 'Space', description: 'Pause and resume, when the command line is empty.' },
   { keys: '?', description: 'This overlay, when the command line is empty. Escape or ? closes it.' },
   { keys: 'Escape', description: 'Clear the command line.' },
+];
+
+const APPROACH_NOTES: readonly Row[] = [
+  { keys: 'A good intercept', description: 'Inside the intercept range, within 30° of the localiser course, and inside the beam. Miss any one and the aircraft flies straight through the centreline and tells you so.' },
+  { keys: 'Glideslope from below', description: 'The slope is captured only when it comes down to the aircraft. Hold one high and it will stay high, then go around at the missed approach point.' },
+  { keys: 'The gate at 1000 ft', description: 'Off the centreline, off the slope, too fast, or the runway still occupied, and the crew go around on their own.' },
+  { keys: 'Runway occupancy', description: 'A landing aircraft holds the runway for just under a minute. Sequence tighter than that and the one behind goes around.' },
 ];
 
 const MODEL: readonly Row[] = [
@@ -52,7 +68,8 @@ const BLOCK: readonly Row[] = [
   { keys: 'AIC101 M EMG', description: 'Red: emergency declared, squawking 7700. It wants priority.' },
   { keys: 'AIC101 M HO', description: 'Dimmed: handed off to another frequency and no longer taking your instructions.' },
   { keys: '110↓090', description: 'Present altitude in hundreds of feet, the trend arrow, and the cleared altitude.' },
-  { keys: '287 250 TUMSA', description: 'Groundspeed, assigned speed, and the fix being tracked — or H270 when on a heading.' },
+  { keys: '287 250 TUMSA', description: 'Groundspeed, assigned speed, and what it is steering by: a fix, H270 on a heading, HOLD GUDUR in the pattern, or the approach.' },
+  { keys: '\u2192ILS29 \u2016ILS29 \u25bcILS29', description: 'Cleared for the approach on vectors, established on the localiser, and on the glidepath.' },
 ];
 
 export class HelpOverlay {
@@ -95,14 +112,18 @@ function table(rows: readonly Row[]): string {
 
 function render(): string {
   return [
-    '<h1>Delhi Approach — milestone 2</h1>',
-    '<p>Radar scope, the full flight model with per-type performance and fuel, wind aloft, and the basic command set. Approaches, sequencing, conflict alerting and scenarios arrive in the milestones that follow.</p>',
+    '<h1>VIDP Approach — Delhi Director</h1>',
+    '<p>Radar scope, the full flight model with per-type performance and fuel, wind aloft, published arrivals, holding, and ILS approaches flown to a landing. Conflict alerting, scoring and scenarios arrive in the milestones that follow.</p>',
     '<h2>Instructions</h2>',
     table(COMMANDS),
+    '<h2>Procedures</h2>',
+    table(PROCEDURES),
     '<h2>Keyboard</h2>',
     table(KEYS),
     '<h2>Mouse</h2>',
     table(MOUSE),
+    '<h2>Flying the approach</h2>',
+    table(APPROACH_NOTES),
     '<h2>What the aircraft are doing</h2>',
     table(MODEL),
     '<h2>Reading a data block</h2>',

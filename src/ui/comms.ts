@@ -23,11 +23,15 @@ export class CommsPanel {
       time.className = 'time';
       time.textContent = formatClock(entry.timeSec).slice(0, 5);
 
+      const marker = document.createElement('span');
+      marker.className = 'marker';
+      marker.textContent = entry.source === 'pilot' ? '\u00ab' : entry.source === 'atc' ? '\u00bb' : '\u00b7';
+
       const text = document.createElement('span');
       text.className = 'text';
-      text.textContent = entry.source === 'pilot' ? `« ${entry.text}` : entry.source === 'atc' ? `» ${entry.text}` : entry.text;
+      text.textContent = entry.text;
 
-      row.append(time, text);
+      row.append(time, marker, text);
       this.root.append(row);
       this.lastRenderedId = entry.id;
     }

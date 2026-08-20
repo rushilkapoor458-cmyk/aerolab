@@ -17,10 +17,47 @@ export type FlightPhase = 'cruise' | 'climb' | 'descent' | 'approach';
 export type FuelState = 'normal' | 'minimum' | 'emergency';
 
 /** How the autoflight system is currently steering laterally. */
-export type LateralMode = 'heading' | 'direct';
+export type LateralMode = 'heading' | 'direct' | 'hold' | 'approach';
+
+/** Where an aircraft is in the racetrack. */
+export type HoldLeg = 'toFix' | 'outbound' | 'turnInbound';
+
+export interface HoldState {
+  readonly fix: string;
+  readonly inboundCourseTrueDeg: number;
+  readonly turnDirection: 'left' | 'right';
+  readonly legTimeSec: number;
+  leg: HoldLeg;
+  legTimerSec: number;
+  /** Set once the crew have reported entering the pattern. */
+  established: boolean;
+  /** Expect-further-clearance time, seconds since midnight, or null. */
+  efcTimeSec: number | null;
+}
+
+export interface ApproachState {
+  readonly runway: string;
+  readonly ident: string;
+  localiserCaptured: boolean;
+  glideslopeCaptured: boolean;
+  /** Set once the crew have called that they are going through the localiser. */
+  reportedBlowThrough: boolean;
+  /** Set once the stability gate at 1000 ft has been passed. */
+  stabilityChecked: boolean;
+}
 
 /** Which way a turn was instructed to go. */
 export type TurnInstruction = 'left' | 'right' | 'shortest';
+
+/** What the autoflight has decided the aeroplane should do this step. */
+export interface SteeringCommand {
+  /** Magnetic heading to steer, or null to hold the present heading. */
+  readonly headingDeg: number | null;
+  /** Vertical speed to fly, overriding the cleared altitude. Null to ignore. */
+  readonly verticalSpeedFpm: number | null;
+  /** Indicated airspeed to fly, overriding the assigned speed. Null to ignore. */
+  readonly speedKt: number | null;
+}
 
 export interface Clearance {
   /** Assigned magnetic heading, when the aircraft is on vectors. */
@@ -44,6 +81,8 @@ export interface Clearance {
   speedRestrictionCancelled: boolean;
   /** True while the aircraft has been told to expedite its climb or descent. */
   expedite: boolean;
+  /** True once cleared to descend via the published arrival's restrictions. */
+  descendVia: boolean;
 }
 
 export interface Aircraft {
@@ -79,7 +118,16 @@ export interface Aircraft {
   clearance: Clearance;
   /** Ordered list of fix names still to fly, when following a route. */
   route: string[];
+  /** Published procedure the route came from, for the data block. */
+  procedure: string | null;
   phase: FlightPhase;
+
+  /** Set while established in a published holding pattern. */
+  hold: HoldState | null;
+  /** Set once cleared for an instrument approach. */
+  approach: ApproachState | null;
+  /** Counts the go-arounds this aircraft has flown, for scoring later. */
+  goAroundCount: number;
 
   /** Position trail, oldest first, one entry per radar sweep. */
   history: Point[];

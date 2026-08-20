@@ -27,6 +27,8 @@ interface Placement {
   readonly clearedSpeedKt: number;
   readonly squawk: string;
   readonly route: readonly string[];
+  /** Published STAR the route comes from. */
+  readonly procedure?: string;
   /** When set the aircraft flies this magnetic heading instead of a route. */
   readonly headingDeg?: number;
   /** Fuel on board. Defaults to the profile's typical arrival figure. */
@@ -39,17 +41,17 @@ const PLACEMENTS: readonly Placement[] = [
   {
     callsign: 'AIC101', type: 'A320', atFix: 'GUDUR', beyondNm: 2,
     altitudeFt: 11000, clearedAltitudeFt: 9000, iasKt: 290, clearedSpeedKt: 280,
-    squawk: '4271', route: ['TUMSA', 'SAHIB'],
+    squawk: '4271', route: ['TUMSA', 'SAHIB'], procedure: 'GUDUR1A',
   },
   {
     callsign: 'IGO2145', type: 'B738', atFix: 'NOMAN', beyondNm: 2,
     altitudeFt: 10000, clearedAltitudeFt: 8000, iasKt: 280, clearedSpeedKt: 250,
-    squawk: '4302', route: ['ROHTA', 'DAULA'],
+    squawk: '4302', route: ['ROHTA', 'DAULA'], procedure: 'NOMAN1H',
   },
   {
     callsign: 'VTI872', type: 'B77W', atFix: 'BUXOR', beyondNm: 2,
     altitudeFt: 13000, clearedAltitudeFt: 11000, iasKt: 300, clearedSpeedKt: 280,
-    squawk: '4415', route: ['ALGAN', 'DAULA'],
+    squawk: '4415', route: ['ALGAN', 'DAULA'], procedure: 'BUXOR1J',
   },
   {
     callsign: 'SEJ301', type: 'Q400', atFix: 'SOKAT', beyondNm: 0,
@@ -60,7 +62,7 @@ const PLACEMENTS: readonly Placement[] = [
   {
     callsign: 'QTR578', type: 'A359', atFix: 'RAKMO', beyondNm: 2,
     altitudeFt: 14000, clearedAltitudeFt: 12000, iasKt: 300, clearedSpeedKt: 290,
-    squawk: '4633', route: ['KIRAN', 'DAULA'], massKg: 215000,
+    squawk: '4633', route: ['KIRAN', 'DAULA'], procedure: 'RAKMO1C', massKg: 215000,
   },
   {
     callsign: 'VTABC', type: 'C172', atFix: 'SITAX', beyondNm: -8,
@@ -96,6 +98,7 @@ export function seedInitialTraffic(sim: Simulation): void {
       clearedSpeedKt: p.clearedSpeedKt,
       squawk: p.squawk,
       route,
+      ...(p.procedure === undefined ? {} : { procedure: p.procedure }),
       ...(p.fuelKg === undefined ? {} : { fuelKg: p.fuelKg }),
       ...(p.massKg === undefined ? {} : { massKg: p.massKg }),
       ...(p.headingDeg === undefined && directFix !== undefined ? { directFix } : {}),

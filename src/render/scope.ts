@@ -1,12 +1,16 @@
 /**
  * The radar scope. Canvas only: it reads the simulation and draws it, and
  * never changes it.
+ *
+ * Drawn back to front — ground, map, procedures, traffic, labels — so the
+ * things a controller reads sit on top of the things they only glance at.
  */
 
-import { Airspace } from '../sim/airspace.js';
-import { Point, bearingDeg, distanceNm, movePoint } from '../sim/geo.js';
+import { Airspace, Runway } from '../sim/airspace.js';
+import { Point, bearingDeg, distanceNm, movePoint, normalizeDeg } from '../sim/geo.js';
 import { Aircraft } from '../sim/types.js';
 import { Simulation } from '../sim/world.js';
+import { toRadians } from '../sim/units.js';
 import { Camera, ScreenPoint } from './camera.js';
 import {
   DataBlockRequest,
@@ -31,7 +35,10 @@ export interface ScopeView {
 }
 
 const RANGE_RINGS_NM = [10, 20, 30, 40, 50, 60];
-const CENTRELINE_LENGTH_NM = 10;
+/** Rings drawn a shade brighter, as a coarse scale. */
+const MAJOR_RINGS_NM = new Set([20, 40, 60]);
+const COMPASS_RADIUS_NM = 60;
+const CENTRELINE_LENGTH_NM = 12;
 const SPEED_VECTOR_SEC = 60;
 const TARGET_HALF_PX = 3.5;
 /** How close in pixels a click has to be to pick up a target. */
@@ -86,17 +93,24 @@ export class RadarScope {
     ctx.fillRect(0, 0, camera.widthPx, camera.heightPx);
 
     this.drawRangeRings();
+    this.drawCompassRose();
     this.drawBoundary(airspace);
+    this.drawApproaches(airspace);
     this.drawRunways(airspace);
+    this.drawAerodrome();
     this.drawFixes(airspace);
 
     const selected = this.sim.aircraft.find((a) => a.id === view.selectedId) ?? null;
     if (selected !== null) this.drawRoute(selected, airspace);
+    for (const ac of this.sim.aircraft) {
+      if (ac.approach !== null) this.drawApproachPath(ac, airspace);
+    }
 
     for (const ac of this.sim.aircraft) this.drawTarget(ac, ac.id === view.selectedId);
 
     this.drawDataBlocks(view.selectedId);
     if (view.ruler !== null) this.drawRuler(view.ruler);
+    this.drawScaleBar();
   }
 
   /* --------------------------------------------------------------- layers */
@@ -105,20 +119,64 @@ export class RadarScope {
     const { ctx, camera } = this;
     const centre = camera.toScreen({ x: 0, y: 0 });
     ctx.save();
-    ctx.strokeStyle = THEME.grid;
     ctx.lineWidth = 1;
-    ctx.setLineDash([2, 6]);
     for (const nm of RANGE_RINGS_NM) {
+      ctx.strokeStyle = MAJOR_RINGS_NM.has(nm) ? THEME.rangeRingMajor : THEME.rangeRing;
+      ctx.setLineDash(MAJOR_RINGS_NM.has(nm) ? [] : [2, 7]);
       ctx.beginPath();
       ctx.arc(centre.x, centre.y, nm * camera.pxPerNm, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.setLineDash([]);
+
+    // Range labels, stacked up the north radial so they read like a ruler.
+    ctx.font = THEME.fontSmall;
     ctx.fillStyle = THEME.rangeRingLabel;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    for (const nm of RANGE_RINGS_NM) {
+      const y = centre.y - nm * camera.pxPerNm;
+      if (y < 12 || y > camera.heightPx) continue;
+      ctx.fillText(String(nm), centre.x, y - 3);
+    }
+    ctx.restore();
+  }
+
+  /** Ticks every ten degrees round the outer ring, labelled every thirty. */
+  private drawCompassRose(): void {
+    const { ctx, camera } = this;
+    const radiusPx = COMPASS_RADIUS_NM * camera.pxPerNm;
+    // Below a certain zoom the rose is off screen and just wastes ink.
+    if (radiusPx < 60) return;
+    const centre = camera.toScreen({ x: 0, y: 0 });
+
+    ctx.save();
     ctx.font = THEME.fontSmall;
     ctx.textAlign = 'center';
-    for (const nm of RANGE_RINGS_NM) {
-      ctx.fillText(String(nm), centre.x, centre.y - nm * camera.pxPerNm - 3);
+    ctx.textBaseline = 'middle';
+    for (let magnetic = 0; magnetic < 360; magnetic += 10) {
+      const trueBearing = this.sim.airspace.toTrue(magnetic);
+      const r = toRadians(trueBearing);
+      const major = magnetic % 30 === 0;
+      const length = major ? 10 : 5;
+      const outer = radiusPx;
+      const inner = radiusPx - length;
+      ctx.strokeStyle = major ? THEME.compassTickMajor : THEME.compassTick;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centre.x + Math.sin(r) * inner, centre.y - Math.cos(r) * inner);
+      ctx.lineTo(centre.x + Math.sin(r) * outer, centre.y - Math.cos(r) * outer);
+      ctx.stroke();
+
+      if (major) {
+        const labelRadius = radiusPx + 11;
+        ctx.fillStyle = THEME.compassLabel;
+        ctx.fillText(
+          String(magnetic === 0 ? 36 : magnetic / 10).padStart(2, '0'),
+          centre.x + Math.sin(r) * labelRadius,
+          centre.y - Math.cos(r) * labelRadius,
+        );
+      }
     }
     ctx.restore();
   }
@@ -128,8 +186,6 @@ export class RadarScope {
     const boundary = airspace.sector.boundary;
     if (boundary.length < 2) return;
     ctx.save();
-    ctx.strokeStyle = THEME.boundary;
-    ctx.lineWidth = 1.5;
     ctx.beginPath();
     boundary.forEach((p, i) => {
       const s = camera.toScreen(p);
@@ -137,72 +193,120 @@ export class RadarScope {
       else ctx.lineTo(s.x, s.y);
     });
     ctx.closePath();
+    // A soft halo under the line reads as an area rather than a scratch.
+    ctx.strokeStyle = THEME.boundaryGlow;
+    ctx.lineWidth = 5;
     ctx.stroke();
+    ctx.strokeStyle = THEME.boundary;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Runways in use: the arrival runway plus any an aircraft is cleared to. */
+  private runwaysInUse(airspace: Airspace): Runway[] {
+    const idents = new Set<string>([this.sim.runways.arrival]);
+    for (const ac of this.sim.aircraft) {
+      if (ac.approach !== null) idents.add(ac.approach.runway);
+    }
+    const runways: Runway[] = [];
+    for (const ident of idents) {
+      const runway = airspace.runway(ident);
+      if (runway !== undefined) runways.push(runway);
+    }
+    return runways;
+  }
+
+  /** Extended centreline, mile ticks, localiser splay and the final fix. */
+  private drawApproaches(airspace: Airspace): void {
+    const { ctx, camera } = this;
+    ctx.save();
+    for (const runway of this.runwaysInUse(airspace)) {
+      const approach = airspace.approachForRunway(runway.ident);
+      const outbound = (runway.trueHeadingDeg + 180) % 360;
+      const threshold = camera.toScreen(runway.threshold);
+
+      if (approach !== undefined) {
+        const range = approach.interceptRangeNm;
+        const half = 2.5; // Localiser course sector, degrees either side.
+        const left = camera.toScreen(movePoint(runway.threshold, (outbound - half + 360) % 360, range));
+        const right = camera.toScreen(movePoint(runway.threshold, (outbound + half) % 360, range));
+        ctx.fillStyle = THEME.ilsCone;
+        ctx.beginPath();
+        ctx.moveTo(threshold.x, threshold.y);
+        ctx.lineTo(left.x, left.y);
+        ctx.lineTo(right.x, right.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = THEME.ilsEdge;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+
+      const far = camera.toScreen(movePoint(runway.threshold, outbound, CENTRELINE_LENGTH_NM));
+      ctx.strokeStyle = THEME.centreline;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(threshold.x, threshold.y);
+      ctx.lineTo(far.x, far.y);
+      ctx.stroke();
+
+      // One tick per nautical mile, longer every five.
+      const across = (runway.trueHeadingDeg + 90) % 360;
+      ctx.strokeStyle = THEME.centrelineTick;
+      for (let nm = 1; nm <= CENTRELINE_LENGTH_NM; nm++) {
+        const halfNm = nm % 5 === 0 ? 0.6 : 0.3;
+        const on = movePoint(runway.threshold, outbound, nm);
+        const a = camera.toScreen(movePoint(on, across, halfNm));
+        const b = camera.toScreen(movePoint(on, (across + 180) % 360, halfNm));
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+
+      // The final approach fix, where the descent begins.
+      const faf = approach === undefined ? undefined : airspace.fix(approach.finalApproachFix);
+      if (faf !== undefined) {
+        const s = camera.toScreen(faf.position);
+        ctx.strokeStyle = THEME.fafMark;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 
   private drawRunways(airspace: Airspace): void {
     const { ctx, camera } = this;
     ctx.save();
-
-    // Paved surfaces.
     ctx.strokeStyle = THEME.runway;
-    ctx.lineWidth = 2;
+    ctx.lineCap = 'butt';
     for (const runway of airspace.runways) {
       const a = camera.toScreen(runway.threshold);
       const b = camera.toScreen(runway.stopEnd);
+      // Draw the paved width where the zoom can show it, a hairline otherwise.
+      ctx.lineWidth = Math.max(1.6, (runway.widthFt / 6076.11548556) * camera.pxPerNm);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
     }
+    ctx.restore();
+  }
 
-    // Extended centreline, tick marks and localiser splay for the runway in use.
-    const active = airspace.runway(this.sim.runways.arrival);
-    if (active !== undefined) {
-      const outbound = (active.trueHeadingDeg + 180) % 360;
-      const far = movePoint(active.threshold, outbound, CENTRELINE_LENGTH_NM);
-      const t = camera.toScreen(active.threshold);
-      const f = camera.toScreen(far);
-
-      ctx.strokeStyle = THEME.centreline;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(t.x, t.y);
-      ctx.lineTo(f.x, f.y);
-      ctx.stroke();
-
-      // One tick per nautical mile, drawn across the centreline.
-      ctx.strokeStyle = THEME.centrelineTick;
-      const acrossLeft = (active.trueHeadingDeg + 90) % 360;
-      const tickHalfNm = 0.35;
-      for (let nm = 1; nm <= CENTRELINE_LENGTH_NM; nm++) {
-        const on = movePoint(active.threshold, outbound, nm);
-        const p1 = camera.toScreen(movePoint(on, acrossLeft, tickHalfNm));
-        const p2 = camera.toScreen(movePoint(on, (acrossLeft + 180) % 360, tickHalfNm));
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.stroke();
-      }
-
-      const approach = airspace.approachForRunway(active.ident);
-      if (approach !== undefined) {
-        const range = approach.interceptRangeNm;
-        const half = 3; // Localiser course sector, degrees either side.
-        const left = movePoint(active.threshold, (outbound - half + 360) % 360, range);
-        const right = movePoint(active.threshold, (outbound + half) % 360, range);
-        const l = camera.toScreen(left);
-        const r = camera.toScreen(right);
-        ctx.fillStyle = THEME.ilsCone;
-        ctx.beginPath();
-        ctx.moveTo(t.x, t.y);
-        ctx.lineTo(l.x, l.y);
-        ctx.lineTo(r.x, r.y);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
+  /** The aerodrome reference point, so the field is findable at any zoom. */
+  private drawAerodrome(): void {
+    const { ctx, camera } = this;
+    const s = camera.toScreen({ x: 0, y: 0 });
+    ctx.save();
+    ctx.strokeStyle = THEME.aerodrome;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 3, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -215,23 +319,24 @@ export class RadarScope {
     for (const fix of airspace.fixes) {
       const s = camera.toScreen(fix.position);
       if (s.x < -40 || s.y < -40 || s.x > camera.widthPx + 40 || s.y > camera.heightPx + 40) continue;
-      ctx.strokeStyle = THEME.fix;
+      const boundary = fix.type === 'boundary';
+      ctx.strokeStyle = boundary ? THEME.fixBoundary : THEME.fix;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      if (fix.type === 'boundary') {
-        // Boundary fixes get a larger triangle so entry points stand out.
+      if (boundary) {
+        // Entry points get a larger triangle so they stand out at a glance.
         ctx.moveTo(s.x, s.y - 5);
         ctx.lineTo(s.x + 4.5, s.y + 3);
         ctx.lineTo(s.x - 4.5, s.y + 3);
       } else {
-        ctx.moveTo(s.x, s.y - 3.5);
-        ctx.lineTo(s.x + 3.5, s.y);
-        ctx.lineTo(s.x, s.y + 3.5);
-        ctx.lineTo(s.x - 3.5, s.y);
+        ctx.moveTo(s.x, s.y - 3.2);
+        ctx.lineTo(s.x + 3.2, s.y);
+        ctx.lineTo(s.x, s.y + 3.2);
+        ctx.lineTo(s.x - 3.2, s.y);
       }
       ctx.closePath();
       ctx.stroke();
-      ctx.fillStyle = THEME.fixLabel;
+      ctx.fillStyle = boundary ? THEME.fixBoundary : THEME.fixLabel;
       ctx.fillText(fix.name, s.x + 7, s.y + 1);
     }
     ctx.restore();
@@ -265,6 +370,25 @@ export class RadarScope {
     ctx.restore();
   }
 
+  /** A line from an aircraft cleared for an approach to its threshold. */
+  private drawApproachPath(ac: Aircraft, airspace: Airspace): void {
+    const runway = ac.approach === null ? undefined : airspace.runway(ac.approach.runway);
+    if (runway === undefined) return;
+    const { ctx, camera } = this;
+    const a = camera.toScreen(ac.position);
+    const b = camera.toScreen(runway.threshold);
+    ctx.save();
+    ctx.strokeStyle = THEME.approachPath;
+    ctx.globalAlpha = ac.approach?.localiserCaptured === true ? 0.75 : 0.35;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   private drawTarget(ac: Aircraft, selected: boolean): void {
     const { ctx, camera } = this;
     const s = camera.toScreen(ac.position);
@@ -275,7 +399,7 @@ export class RadarScope {
       const p = ac.history[i];
       if (p === undefined) continue;
       const hs = camera.toScreen(p);
-      ctx.globalAlpha = 0.18 + (0.5 * i) / Math.max(1, ac.history.length - 1);
+      ctx.globalAlpha = 0.15 + (0.5 * i) / Math.max(1, ac.history.length - 1);
       ctx.fillStyle = THEME.history;
       ctx.fillRect(hs.x - 1, hs.y - 1, 2, 2);
     }
@@ -291,16 +415,20 @@ export class RadarScope {
     ctx.lineTo(a.x, a.y);
     ctx.stroke();
 
-    // Target symbol.
-    ctx.strokeStyle = selected
+    // Target symbol, with just enough bloom to read as a returned signal.
+    const colour = selected
       ? THEME.targetSelected
       : ac.fuelState === 'emergency'
         ? THEME.dataBlockAlert
         : ac.handedOff
           ? THEME.dataBlockDim
           : THEME.target;
+    ctx.strokeStyle = colour;
+    ctx.shadowColor = THEME.targetGlow;
+    ctx.shadowBlur = selected ? 8 : 4;
     ctx.lineWidth = selected ? 2 : 1.4;
     ctx.strokeRect(s.x - TARGET_HALF_PX, s.y - TARGET_HALF_PX, TARGET_HALF_PX * 2, TARGET_HALF_PX * 2);
+    ctx.shadowBlur = 0;
     if (selected) {
       ctx.beginPath();
       ctx.arc(s.x, s.y, TARGET_HALF_PX + 5, 0, Math.PI * 2);
@@ -312,7 +440,7 @@ export class RadarScope {
   private drawDataBlocks(selectedId: string | null): void {
     const { ctx, camera } = this;
     ctx.save();
-    ctx.font = THEME.fontMono;
+    ctx.font = THEME.fontBlock;
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
 
@@ -324,8 +452,8 @@ export class RadarScope {
       severity: dataBlockSeverity(ac),
     }));
     const measure = (text: string): number => ctx.measureText(text).width;
-
     const viewport = { width: camera.widthPx, height: camera.heightPx };
+
     for (const block of layoutDataBlocks(requests, measure, viewport)) {
       const colour = block.selected ? THEME.dataBlockSelected : severityColour(block.severity);
       // The leader stops where it meets the block, so it never strikes through
@@ -373,8 +501,36 @@ export class RadarScope {
     ctx.font = THEME.fontLabel;
     ctx.textBaseline = 'bottom';
     ctx.textAlign = 'left';
-    const label = `${range.toFixed(1)} NM / ${Math.round(bearing).toString().padStart(3, '0')}°M`;
+    const label = `${range.toFixed(1)} NM  ${Math.round(normalizeDeg(bearing)).toString().padStart(3, '0')}°M`;
     ctx.fillText(label, b.x + 8, b.y - 4);
+    ctx.restore();
+  }
+
+  /** A bar in the corner giving the current scale, as a chart would. */
+  private drawScaleBar(): void {
+    const { ctx, camera } = this;
+    const target = 110; // Aim for a bar about this many pixels long.
+    const candidates = [1, 2, 5, 10, 20, 50];
+    const nm =
+      candidates.find((c) => c * camera.pxPerNm >= target) ?? candidates[candidates.length - 1] ?? 10;
+    const lengthPx = nm * camera.pxPerNm;
+    const x = 16;
+    const y = camera.heightPx - 18;
+
+    ctx.save();
+    ctx.strokeStyle = THEME.scaleBar;
+    ctx.fillStyle = THEME.scaleBar;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 4);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + lengthPx, y);
+    ctx.lineTo(x + lengthPx, y - 4);
+    ctx.stroke();
+    ctx.font = THEME.fontSmall;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${nm} NM`, x, y - 6);
     ctx.restore();
   }
 }
@@ -391,4 +547,3 @@ function severityColour(severity: DataBlockSeverity): string {
       return THEME.dataBlock;
   }
 }
-

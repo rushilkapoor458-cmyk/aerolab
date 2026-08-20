@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import airspaceData from '../data/airspace.json';
 import aircraftData from '../data/aircraft.json';
 import { Airspace, RawAirspace } from './airspace.js';
+import { crossTrackNm, distanceNm, movePoint } from './geo.js';
 import { seedInitialTraffic } from './initialTraffic.js';
 import { PerformanceCatalogue, RawPerformance } from './performance.js';
 import { Simulation } from './world.js';
@@ -287,5 +288,308 @@ describe('emergency squawk', () => {
     const last = sim.comms[sim.comms.length - 1];
     expect(last?.rejected).toBe(true);
     expect(ac.squawk).toBe('7700');
+  });
+});
+
+/* --------------------------------------------------------------- approach */
+
+/** Put an aircraft on the extended centreline of a runway. */
+function placeOnFinal(
+  sim: Simulation,
+  callsign: string,
+  distanceNm: number,
+  offsetNm: number,
+  altitudeFt: number,
+  trackOffsetDeg = 0,
+  iasKt = 190,
+): void {
+  const runway = sim.airspace.runway('29');
+  if (runway === undefined) throw new Error('runway 29 missing');
+  const reciprocal = (runway.trueHeadingDeg + 180) % 360;
+  const centreline = movePoint(runway.threshold, reciprocal, distanceNm);
+  const right = (runway.trueHeadingDeg + 90) % 360;
+  const position = movePoint(centreline, right, offsetNm);
+  sim.add({
+    callsign,
+    type: 'A320',
+    role: 'arrival',
+    position,
+    altitudeFt,
+    headingDeg: sim.airspace.toMagnetic(runway.trueHeadingDeg + trackOffsetDeg),
+    iasKt,
+    clearedAltitudeFt: altitudeFt,
+    clearedSpeedKt: iasKt,
+    squawk: '5001',
+  });
+}
+
+describe('the ILS', () => {
+  it('captures, flies the slope and lands', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST1', 13, 0.1, 3000, -10);
+    expect(sim.transmit('TEST1 ils 29')).toBeNull();
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/cleared ILS runway 29 approach/);
+
+    for (let i = 0; i < 60 && sim.find('TEST1') !== undefined; i++) sim.step(10);
+
+    expect(sim.find('TEST1')).toBeUndefined();
+    expect(sim.arrivals).toBe(1);
+    expect(sim.comms.some((c) => /localiser established/.test(c.text))).toBe(true);
+    expect(sim.comms.some((c) => /glideslope established/.test(c.text))).toBe(true);
+    expect(sim.comms.some((c) => /landed runway 29/.test(c.text))).toBe(true);
+  });
+
+  it('blows through the localiser on a bad intercept', () => {
+    const sim = build();
+    sim.aircraft = [];
+    // Crossing the centreline at ninety degrees, well outside the capture angle.
+    placeOnFinal(sim, 'TEST2', 12, -3, 3000, 90);
+    sim.transmit('TEST2 ils 29');
+    sim.step(180);
+
+    const ac = sim.find('TEST2');
+    expect(ac).toBeDefined();
+    expect(ac?.approach?.localiserCaptured).toBe(false);
+    // It started left of course and is now right of it: straight through.
+    const runway = sim.airspace.runway('29');
+    if (ac === undefined || runway === undefined) throw new Error('missing');
+    expect(crossTrackNm(ac.position, runway.threshold, runway.trueHeadingDeg)).toBeGreaterThan(0);
+    expect(sim.comms.some((c) => /going through the localiser/.test(c.text))).toBe(true);
+  });
+
+  it('does not capture the glideslope from above', () => {
+    const sim = build();
+    sim.aircraft = [];
+    // On the centreline but two thousand feet above the path at 8 NM.
+    placeOnFinal(sim, 'TEST3', 9, 0.05, 5500);
+    sim.transmit('TEST3 ils 29');
+    sim.step(60);
+    const ac = sim.find('TEST3');
+    expect(ac?.approach?.localiserCaptured).toBe(true);
+    expect(ac?.approach?.glideslopeCaptured).toBe(false);
+  });
+
+  it('goes around at the missed approach point if it never got the slope', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST4', 9, 0.05, 5500); // High, so the slope stays below it.
+    sim.transmit('TEST4 ils 29');
+    for (let i = 0; i < 90 && (sim.find('TEST4')?.goAroundCount ?? 0) === 0; i++) sim.step(5);
+    const ac = sim.find('TEST4');
+    expect(ac?.goAroundCount).toBe(1);
+    expect(ac?.approach).toBeNull();
+    expect(sim.arrivals).toBe(0);
+    expect(sim.goArounds).toBe(1);
+    expect(sim.comms.some((c) => /going around/.test(c.text))).toBe(true);
+  });
+
+  it('goes around when it is too fast at the gate', () => {
+    const sim = build();
+    sim.aircraft = [];
+    // On the slope at three miles but still doing 200 kt: not stable.
+    placeOnFinal(sim, 'TEST7', 3.2, 0, 827 + 3.2 * 318.4, 0, 200);
+    sim.transmit('TEST7 ils 29');
+    sim.step(15); // Long enough to sink through the gate at a thousand feet.
+    expect(sim.find('TEST7')?.goAroundCount).toBe(1);
+    expect(sim.comms.some((c) => /too fast to be stable/.test(c.text))).toBe(true);
+  });
+
+  it('goes around when the runway is still occupied', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'LEAD', 2, 0, 827 + 2 * 318.4, 0, 140);
+    sim.transmit('LEAD ils 29');
+    for (let i = 0; i < 60 && sim.arrivals === 0; i++) sim.step(5);
+    expect(sim.arrivals).toBe(1);
+    expect(sim.isRunwayOccupied('29')).toBe(true);
+
+    // The next one arrives at the gate while the runway is still blocked.
+    placeOnFinal(sim, 'TRAIL', 4, 0, 827 + 4 * 318.4, 0, 140);
+    sim.transmit('TRAIL ils 29');
+    for (let i = 0; i < 20 && sim.goArounds === 0; i++) sim.step(5);
+    expect(sim.goArounds).toBe(1);
+    expect(sim.comms.some((c) => /runway is still occupied/.test(c.text))).toBe(true);
+  });
+
+  it('takes a go-around on instruction', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST5', 10, 0, 3000);
+    sim.transmit('TEST5 ils 29');
+    sim.step(60);
+    expect(sim.transmit('TEST5 go around')).toBeNull();
+    const ac = sim.find('TEST5');
+    expect(ac?.approach).toBeNull();
+    expect(ac?.clearance.altitudeFt).toBe(4000);
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/going around/);
+  });
+
+  it('refuses a go-around from an aircraft that is not on one', () => {
+    const sim = build();
+    sim.transmit('AIC101 go around');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(true);
+    expect(last?.text).toMatch(/not on an approach/);
+  });
+
+  it('refuses a runway with no published approach', () => {
+    const sim = build();
+    sim.transmit('AIC101 ils 33');
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/33 is not a runway here/);
+  });
+
+  it('a vector cancels the approach', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST6', 12, 0, 3000);
+    sim.transmit('TEST6 ils 29');
+    expect(sim.find('TEST6')?.approach).not.toBeNull();
+    sim.transmit('TEST6 tl 180');
+    expect(sim.find('TEST6')?.approach).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------- hold */
+
+describe('holding', () => {
+  it('flies a racetrack that stays near the fix', () => {
+    const sim = build();
+    expect(sim.transmit('AIC101 hold at GUDUR as published')).toBeNull();
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/hold at GUDUR as published/);
+
+    const gudur = sim.airspace.fix('GUDUR');
+    if (gudur === undefined) throw new Error('GUDUR missing');
+    let worst = 0;
+    for (let i = 0; i < 120; i++) {
+      sim.step(10);
+      const ac = sim.find('AIC101');
+      if (ac === undefined) break;
+      worst = Math.max(worst, distanceNm(ac.position, gudur.position));
+    }
+    expect(worst).toBeLessThan(22);
+    expect(sim.find('AIC101')?.hold?.leg).toBeDefined();
+    expect(sim.comms.some((c) => /established in the hold at GUDUR/.test(c.text))).toBe(true);
+  });
+
+  it('takes an expect further clearance time', () => {
+    const sim = build();
+    sim.transmit('AIC101 hold at GUDUR as published expect further clearance 1420');
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/expect further clearance 1420/);
+    expect(sim.find('AIC101')?.hold?.efcTimeSec).toBe(14 * 3600 + 20 * 60);
+  });
+
+  it('refuses a fix with no published hold', () => {
+    const sim = build();
+    sim.transmit('AIC101 hold at PARAS');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(true);
+    expect(last?.text).toMatch(/no published hold at PARAS/);
+  });
+
+  it('leaves the hold when given a vector', () => {
+    const sim = build();
+    sim.transmit('AIC101 hold at GUDUR');
+    sim.step(60);
+    sim.transmit('AIC101 fh 270');
+    expect(sim.find('AIC101')?.hold).toBeNull();
+    expect(sim.find('AIC101')?.clearance.lateralMode).toBe('heading');
+  });
+});
+
+/* --------------------------------------------------------- descend via */
+
+describe('descend via the arrival', () => {
+  it('applies the published restrictions as it sequences', () => {
+    const sim = build();
+    expect(sim.transmit('AIC101 descend via the arrival')).toBeNull();
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/descend via the GUDUR1A arrival/);
+    // TUMSA is published at or below 10,000 and 250 kt.
+    const ac = sim.find('AIC101');
+    expect(ac?.clearance.altitudeFt).toBe(10000);
+    expect(ac?.clearance.speedKt).toBe(250);
+
+    sim.step(60 * 8);
+    const later = sim.find('AIC101');
+    expect(later?.clearance.directFix).toBe('SAHIB');
+    expect(later?.clearance.altitudeFt).toBe(7000);
+  });
+
+  it('refuses when the aircraft is on vectors', () => {
+    const sim = build();
+    sim.transmit('AIC101 fh 270');
+    sim.transmit('AIC101 descend via the arrival');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(true);
+    expect(last?.text).toMatch(/not on the arrival any more/);
+  });
+});
+
+describe('proceeding direct', () => {
+  it('cuts the corner and keeps the rest of the route', () => {
+    const sim = build();
+    const ac = sim.find('VTI872');
+    expect(ac?.clearance.directFix).toBe('ALGAN');
+    expect(ac?.route).toEqual(['DAULA']);
+    sim.transmit('VTI872 dct DAULA');
+    expect(sim.find('VTI872')?.clearance.directFix).toBe('DAULA');
+    expect(sim.find('VTI872')?.route).toEqual([]);
+    expect(sim.find('VTI872')?.procedure).toBe('BUXOR1J');
+  });
+
+  it('does not leave the same fix sitting in the route', () => {
+    const sim = build();
+    sim.transmit('AIC101 dct SAHIB');
+    const ac = sim.find('AIC101');
+    expect(ac?.route).not.toContain('SAHIB');
+    sim.step(60 * 20);
+    const passes = sim.comms.filter((c) => /SAHIB passed/.test(c.text));
+    expect(passes.length).toBeLessThanOrEqual(1);
+  });
+
+  it('takes the aircraft off the procedure when the fix is not on it', () => {
+    const sim = build();
+    sim.transmit('AIC101 dct KIRAN');
+    const ac = sim.find('AIC101');
+    expect(ac?.procedure).toBeNull();
+    expect(ac?.route).toEqual([]);
+  });
+});
+
+describe('holding, reported once', () => {
+  it('calls established on entry and not on every circuit', () => {
+    const sim = build();
+    sim.transmit('AIC101 hold at GUDUR as published');
+    sim.step(60 * 25);
+    const calls = sim.comms.filter((c) => /established in the hold/.test(c.text));
+    expect(calls).toHaveLength(1);
+    expect(sim.find('AIC101')?.hold?.established).toBe(true);
+  });
+});
+
+describe('speed on the approach', () => {
+  it('accepts a speed below the clean minimum once cleared for the approach', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST8', 10, 0, 3000);
+    sim.transmit('TEST8 s 180');
+    expect(sim.comms[sim.comms.length - 1]?.rejected).toBe(true);
+
+    sim.transmit('TEST8 ils 29');
+    sim.transmit('TEST8 s 180');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(false);
+    expect(sim.find('TEST8')?.clearance.speedKt).toBe(180);
+  });
+
+  it('still refuses a speed below the final approach speed', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST9', 10, 0, 3000);
+    sim.transmit('TEST9 ils 29');
+    sim.transmit('TEST9 s 120');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(true);
+    expect(last?.text).toMatch(/below our approach speed of 138/);
   });
 });

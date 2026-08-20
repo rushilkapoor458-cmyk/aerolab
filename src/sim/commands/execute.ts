@@ -9,11 +9,20 @@
 
 import { Airspace } from '../airspace.js';
 import { formatBearing } from '../geo.js';
+import { createHoldState } from '../hold.js';
 import { SPEED_LIMIT_ALTITUDE_FT, SPEED_LIMIT_KT, signedTurn } from '../flight.js';
 import { fuelReport } from '../fuel.js';
 import { Aircraft } from '../types.js';
-import { formatFlightLevel } from '../units.js';
+import { formatFlightLevel, formatHhmm } from '../units.js';
 import { Command } from './types.js';
+
+export interface ExecutionContext {
+  readonly airspace: Airspace;
+  /** Simulation clock, for expect-further-clearance times. */
+  readonly timeSec: number;
+  /** Send the aircraft around; returns the crew's answer, or null if it is not on one. */
+  readonly goAround: (ac: Aircraft, reason: string) => string | null;
+}
 
 export interface ExecutionOutcome {
   /** What the pilot says back, already including the callsign. */
@@ -33,13 +42,13 @@ const MSA_BUFFER_FT = 0;
 export function executeCommands(
   ac: Aircraft,
   commands: readonly Command[],
-  airspace: Airspace,
+  ctx: ExecutionContext,
 ): ExecutionOutcome {
   const accepted: string[] = [];
   const refused: string[] = [];
 
   for (const command of commands) {
-    const outcome = executeOne(ac, command, airspace);
+    const outcome = executeOne(ac, command, ctx);
     if (outcome.accepted) accepted.push(outcome.text);
     else refused.push(outcome.text);
   }
@@ -50,9 +59,11 @@ export function executeCommands(
   return { readback: `${parts.join(', ')}, ${ac.callsign}`, rejected: refused.length > 0 };
 }
 
-function executeOne(ac: Aircraft, command: Command, airspace: Airspace): SingleOutcome {
+function executeOne(ac: Aircraft, command: Command, ctx: ExecutionContext): SingleOutcome {
+  const airspace = ctx.airspace;
   switch (command.kind) {
     case 'heading': {
+      leaveProcedures(ac);
       ac.clearance.lateralMode = 'heading';
       ac.clearance.directFix = null;
       ac.clearance.headingDeg = command.headingDeg;
@@ -70,9 +81,14 @@ function executeOne(ac: Aircraft, command: Command, airspace: Airspace): SingleO
 
     case 'speed': {
       const envelope = ac.profile.speeds;
-      if (command.speedKt < envelope.minCleanIasKt) {
+      // An aircraft on an approach is configuring, so it can fly slower than
+      // its clean minimum — down to its final approach speed.
+      const floor = ac.approach === null ? envelope.minCleanIasKt : envelope.approachIasKt;
+      if (command.speedKt < floor) {
         return no(
-          `${command.speedKt} knots is below our minimum clean speed of ${envelope.minCleanIasKt}`,
+          ac.approach === null
+            ? `${command.speedKt} knots is below our minimum clean speed of ${envelope.minCleanIasKt}`
+            : `${command.speedKt} knots is below our approach speed of ${envelope.approachIasKt}`,
         );
       }
       if (command.speedKt > envelope.maxIasKt) {
@@ -97,6 +113,17 @@ function executeOne(ac: Aircraft, command: Command, airspace: Airspace): SingleO
       if (fix === undefined) {
         return no(`we don't have ${command.fix} in the database`);
       }
+      leaveProcedures(ac);
+      // Going direct to a fix that is already on the route cuts the corner:
+      // everything before it is dropped and the rest still follows. A fix
+      // that is not on the route takes the aircraft off the procedure.
+      const index = ac.route.indexOf(fix.name);
+      if (index >= 0) {
+        ac.route = ac.route.slice(index + 1);
+      } else {
+        ac.route = [];
+        ac.procedure = null;
+      }
       ac.clearance.lateralMode = 'direct';
       ac.clearance.directFix = fix.name;
       ac.clearance.turn = 'shortest';
@@ -114,6 +141,81 @@ function executeOne(ac: Aircraft, command: Command, airspace: Airspace): SingleO
 
     case 'sayFuel':
       return ok(fuelReport(ac));
+
+    case 'approach': {
+      const runway = airspace.runway(command.runway);
+      if (runway === undefined) {
+        return no(`${command.runway} is not a runway here`);
+      }
+      const approach = airspace.approachForRunway(runway.ident);
+      if (approach === undefined) {
+        return no(`there is no instrument approach published for runway ${runway.ident}`);
+      }
+      if (ac.altitudeFt > airspace.sector.ceilingFt) {
+        return no('we are far too high to start an approach from here');
+      }
+      leaveProcedures(ac);
+      ac.approach = {
+        runway: runway.ident,
+        ident: approach.ident,
+        localiserCaptured: false,
+        glideslopeCaptured: false,
+        reportedBlowThrough: false,
+        stabilityChecked: false,
+      };
+      ac.clearance.descendVia = false;
+      return ok(`cleared ILS runway ${runway.ident} approach`);
+    }
+
+    case 'cancelApproach': {
+      if (ac.approach === null) return no('we are not on an approach');
+      const runway = ac.approach.runway;
+      ac.approach = null;
+      ac.phase = 'cruise';
+      ac.clearance.lateralMode = 'heading';
+      return ok(`cancelling the approach to runway ${runway}, maintaining present heading`);
+    }
+
+    case 'goAround': {
+      const report = ctx.goAround(ac, 'on instruction');
+      if (report === null) return no('we are not on an approach');
+      return ok(report);
+    }
+
+    case 'descendVia': {
+      if (ac.procedure === null) return no('we have no published arrival loaded');
+      if (ac.clearance.lateralMode !== 'direct') {
+        return no('we are on vectors, we are not on the arrival any more');
+      }
+      ac.clearance.descendVia = true;
+      const leg =
+        ac.clearance.directFix === null
+          ? undefined
+          : airspace.procedureLeg(ac.procedure, ac.clearance.directFix);
+      if (leg?.altitudeConstraint != null) ac.clearance.altitudeFt = leg.altitudeConstraint.altitudeFt;
+      if (leg?.speedConstraint != null) ac.clearance.speedKt = leg.speedConstraint.speedKt;
+      return ok(`descend via the ${ac.procedure} arrival`);
+    }
+
+    case 'hold': {
+      const fix = airspace.fix(command.fix);
+      if (fix === undefined) return no(`we don't have ${command.fix} in the database`);
+      const published = airspace.hold(fix.name);
+      if (published === undefined) {
+        return no(`there is no published hold at ${fix.name}`);
+      }
+      if (ac.altitudeFt < published.minAltitudeFt - 100) {
+        return no(`the hold at ${fix.name} is not published below ${published.minAltitudeFt} feet`);
+      }
+      leaveProcedures(ac);
+      ac.hold = createHoldState(published, command.efcTimeSec);
+      ac.clearance.lateralMode = 'hold';
+      ac.clearance.directFix = fix.name;
+      ac.clearance.turnRemainingDeg = null;
+      const efc =
+        command.efcTimeSec === null ? '' : `, expect further clearance ${formatHhmm(command.efcTimeSec)}`;
+      return ok(`hold at ${fix.name} as published${efc}`);
+    }
 
     case 'contact': {
       ac.handedOff = true;
@@ -166,6 +268,18 @@ function executeAltitude(
       : `${target} feet`;
   const prefix = command.expedite ? 'expedite ' : '';
   return ok(verb === 'maintain' ? `${prefix}maintain ${spoken}` : `${prefix}${verb} and maintain ${spoken}`);
+}
+
+/**
+ * Any instruction that puts the aircraft back on vectors takes it off an
+ * approach, out of a hold and off the published descent, exactly as it would
+ * in life.
+ */
+function leaveProcedures(ac: Aircraft): void {
+  ac.approach = null;
+  ac.hold = null;
+  ac.clearance.descendVia = false;
+  if (ac.phase === 'approach') ac.phase = 'cruise';
 }
 
 function ok(text: string): SingleOutcome {

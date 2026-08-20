@@ -13,7 +13,7 @@ import {
   climbRateFpm,
   descentRateFpm,
 } from './performance.js';
-import { Aircraft } from './types.js';
+import { Aircraft, SteeringCommand } from './types.js';
 import { approach, clamp, iasToTas, toDegrees, toRadians } from './units.js';
 
 /** Maximum bank the autoflight system will use. */
@@ -143,11 +143,9 @@ export function headingForTrack(
 /** The speed the aircraft will actually fly, after its envelope and the rules. */
 export function effectiveTargetSpeedKt(ac: Aircraft): number {
   const profile = ac.profile;
-  const requested = clamp(
-    ac.clearance.speedKt,
-    profile.speeds.minCleanIasKt,
-    profile.speeds.maxIasKt,
-  );
+  // Configured for an approach, the aircraft may fly below its clean minimum.
+  const floor = ac.approach === null ? profile.speeds.minCleanIasKt : profile.speeds.approachIasKt;
+  const requested = clamp(ac.clearance.speedKt, floor, profile.speeds.maxIasKt);
   if (ac.clearance.speedRestrictionCancelled) return requested;
   if (ac.altitudeFt < SPEED_LIMIT_ALTITUDE_FT) return Math.min(requested, SPEED_LIMIT_KT);
   return requested;
@@ -175,18 +173,18 @@ export interface StepContext {
 }
 
 /**
- * Advance one aircraft by `dtSec`. The caller has already resolved the
- * autoflight targets into `ac.clearance`.
- *
- * `targetHeadingDeg` is magnetic; passing null holds the current heading.
+ * Advance one aircraft by `dtSec`, flying the steering command the autoflight
+ * produced. Where the command leaves a field null the aircraft falls back to
+ * its clearance — a heading and a cleared level.
  */
 export function stepAircraft(
   ac: Aircraft,
-  targetHeadingDeg: number | null,
+  command: SteeringCommand,
   dtSec: number,
   ctx: StepContext,
 ): void {
   const profile = ac.profile;
+  const targetHeadingDeg = command.headingDeg;
   const tas = iasToTas(ac.iasKt, ac.altitudeFt);
 
   // ---- lateral: roll, turn, roll out -------------------------------------
@@ -221,27 +219,40 @@ export function stepAircraft(
     ac.bankDeg = approach(ac.bankDeg, 0, ROLL_RATE_DEG_PER_SEC * dtSec);
   }
 
-  // ---- vertical ----------------------------------------------------------
-  const targetIas = effectiveTargetSpeedKt(ac);
+  // ---- speed target ------------------------------------------------------
+  const targetIas =
+    command.speedKt === null
+      ? effectiveTargetSpeedKt(ac)
+      : clamp(command.speedKt, profile.speeds.approachIasKt, profile.speeds.maxIasKt);
   const decelerationDemand = Math.max(0, ac.iasKt - targetIas);
-  const altError = ac.clearance.altitudeFt - ac.altitudeFt;
-  const climbing = altError > 0;
-  const nominal = availableVerticalRateFpm(
-    profile,
-    ac.altitudeFt,
-    ac.massKg,
-    climbing,
-    ac.clearance.expedite,
-    decelerationDemand,
-  );
-  // Ease off approaching the cleared level so the capture is not a corner.
-  const captureLimit = Math.abs(altError) * 6;
-  const targetVs = Math.sign(altError) * Math.min(nominal, captureLimit);
-  ac.verticalSpeedFpm = approach(ac.verticalSpeedFpm, targetVs, VERTICAL_ACCEL_FPM_PER_SEC * dtSec);
-  ac.altitudeFt += (ac.verticalSpeedFpm / 60) * dtSec;
-  if (Math.abs(ac.clearance.altitudeFt - ac.altitudeFt) < 5 && Math.abs(ac.verticalSpeedFpm) < 150) {
-    ac.altitudeFt = ac.clearance.altitudeFt;
-    ac.verticalSpeedFpm = 0;
+
+  // ---- vertical ----------------------------------------------------------
+  if (command.verticalSpeedFpm === null) {
+    const altError = ac.clearance.altitudeFt - ac.altitudeFt;
+    const climbing = altError > 0;
+    const nominal = availableVerticalRateFpm(
+      profile,
+      ac.altitudeFt,
+      ac.massKg,
+      climbing,
+      ac.clearance.expedite,
+      decelerationDemand,
+    );
+    // Ease off approaching the cleared level so the capture is not a corner.
+    const captureLimit = Math.abs(altError) * 6;
+    const targetVs = Math.sign(altError) * Math.min(nominal, captureLimit);
+    ac.verticalSpeedFpm = approach(ac.verticalSpeedFpm, targetVs, VERTICAL_ACCEL_FPM_PER_SEC * dtSec);
+    ac.altitudeFt += (ac.verticalSpeedFpm / 60) * dtSec;
+    if (Math.abs(ac.clearance.altitudeFt - ac.altitudeFt) < 5 && Math.abs(ac.verticalSpeedFpm) < 150) {
+      ac.altitudeFt = ac.clearance.altitudeFt;
+      ac.verticalSpeedFpm = 0;
+    }
+  } else {
+    // Flying a profile — the glideslope — rather than levelling off.
+    const maximum = availableVerticalRateFpm(profile, ac.altitudeFt, ac.massKg, false, false, 0);
+    const wanted = clamp(command.verticalSpeedFpm, -maximum, maximum);
+    ac.verticalSpeedFpm = approach(ac.verticalSpeedFpm, wanted, VERTICAL_ACCEL_FPM_PER_SEC * dtSec);
+    ac.altitudeFt += (ac.verticalSpeedFpm / 60) * dtSec;
   }
 
   // The approach phase is set by the approach logic, not by the trend arrow.

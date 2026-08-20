@@ -29,6 +29,7 @@ const INSTRUCTION_WORDS = new Set([
   'EXPEDITE', 'EX', 'REDUCE', 'INCREASE', 'SPEED', 'SPD', 'S',
   'CANCEL', 'RESUME', 'PROCEED', 'DIRECT', 'DCT', 'PD',
   'SQUAWK', 'SQ', 'SAY', 'CONTACT', 'CT',
+  'CLEARED', 'ILS', 'HOLD', 'GO', 'GA', 'DV',
 ]);
 
 class TokenCursor {
@@ -135,8 +136,19 @@ function parseOne(cursor: TokenCursor): OneResult {
       return parseAltitude(cursor, 'climb', false);
     case 'DESCEND':
     case 'DESCENT':
-    case 'D':
+    case 'D': {
+      // "descend via the arrival" is a different instruction from "descend to".
+      if (cursor.accept('VIA')) {
+        cursor.accept('THE');
+        cursor.accept('ARRIVAL', 'STAR');
+        return { ok: true, command: { kind: 'descendVia' } };
+      }
       return parseAltitude(cursor, 'descend', false);
+    }
+    case 'DV':
+      cursor.accept('THE');
+      cursor.accept('ARRIVAL', 'STAR');
+      return { ok: true, command: { kind: 'descendVia' } };
     case 'MAINTAIN':
     case 'ALT':
     case 'M':
@@ -165,7 +177,8 @@ function parseOne(cursor: TokenCursor): OneResult {
         cursor.accept('RESTRICTION', 'RESTRICTIONS');
         return { ok: true, command: { kind: 'speedCancel' } };
       }
-      return fail('Cancel what? The only cancellation available is "cancel speed restriction".');
+      if (cursor.accept('APPROACH')) return { ok: true, command: { kind: 'cancelApproach' } };
+      return fail('Cancel what? Try "cancel speed restriction" or "cancel approach".');
     }
     case 'RESUME': {
       cursor.accept('NORMAL');
@@ -205,11 +218,30 @@ function parseOne(cursor: TokenCursor): OneResult {
     case 'CT':
       return parseContact(cursor);
 
+    case 'CLEARED':
+      cursor.accept('FOR');
+      if (!cursor.accept('ILS')) {
+        return fail('Cleared for what? The only approach available is the ILS, e.g. "cleared ILS runway 29 approach".');
+      }
+      return parseApproach(cursor);
+    case 'ILS':
+      return parseApproach(cursor);
+
+    case 'HOLD':
+      return parseHold(cursor);
+
+    case 'GO': {
+      if (cursor.accept('AROUND')) return { ok: true, command: { kind: 'goAround' } };
+      return fail('Go where? The instruction is "go around".');
+    }
+    case 'GA':
+      return { ok: true, command: { kind: 'goAround' } };
+
     default:
       return fail(
         `I do not recognise "${word.toLowerCase()}". The simulator understands: turn left/right heading, fly heading, ` +
-          `climb, descend, maintain, expedite, speed, cancel speed restriction, proceed direct, squawk, say fuel ` +
-          `and contact. Press ? for the full reference.`,
+          `climb, descend, descend via, maintain, expedite, speed, cancel speed restriction, proceed direct, ` +
+          `cleared ILS, hold, go around, squawk, say fuel and contact. Press ? for the full reference.`,
       );
   }
 }
@@ -272,6 +304,55 @@ function parseDirect(cursor: TokenCursor): OneResult {
     return fail('Expected a fix name after direct, for example "dct GUDUR".');
   }
   return { ok: true, command: { kind: 'direct', fix: token } };
+}
+
+const RUNWAY_RE = /^\d{1,2}[LCR]?$/;
+
+/** `cleared ILS runway 29 approach`, `cleared ils 29`, `ils 29`. */
+function parseApproach(cursor: TokenCursor): OneResult {
+  cursor.accept('RUNWAY', 'RWY');
+  const token = cursor.next();
+  if (token === undefined || !RUNWAY_RE.test(token)) {
+    return fail('Which runway? For example "cleared ILS runway 29 approach" or "ils 29".');
+  }
+  cursor.accept('APPROACH');
+  const ident = token.length === 1 ? `0${token}` : token;
+  return { ok: true, command: { kind: 'approach', runway: ident } };
+}
+
+/** A four figure clock time, `1420`, as seconds since midnight. */
+export function parseClockTime(token: string): number | null {
+  if (!/^\d{4}$/.test(token)) return null;
+  const hours = Number(token.slice(0, 2));
+  const minutes = Number(token.slice(2));
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 3600 + minutes * 60;
+}
+
+/** `hold at GUDUR as published, expect further clearance 1420`. */
+function parseHold(cursor: TokenCursor): OneResult {
+  cursor.accept('AT', 'OVER');
+  const fix = cursor.next();
+  if (fix === undefined || !/^[A-Z]{2,5}$/.test(fix)) {
+    return fail('Hold where? For example "hold at GUDUR as published".');
+  }
+  cursor.accept('AS');
+  cursor.accept('PUBLISHED');
+
+  let efcTimeSec: number | null = null;
+  if (cursor.accept('EXPECT', 'EFC')) {
+    cursor.accept('FURTHER');
+    cursor.accept('CLEARANCE');
+    const token = cursor.next();
+    if (token === undefined) {
+      return fail('Expect further clearance at what time? For example "expect further clearance 1420".');
+    }
+    efcTimeSec = parseClockTime(token);
+    if (efcTimeSec === null) {
+      return fail(`"${token}" is not a time. Give it as four figures, for example 1420.`);
+    }
+  }
+  return { ok: true, command: { kind: 'hold', fix, efcTimeSec } };
 }
 
 /** The civil VHF air band, in megahertz. */

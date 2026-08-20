@@ -4,13 +4,14 @@ An approach/terminal radar sector for **VIDP (Indira Gandhi International, Delhi
 roughly 60 NM radius, surface to FL150. Vite + TypeScript, HTML5 canvas, no backend,
 no database, no game engine.
 
-> **Milestone 2 of 5.** The radar scope, the full flight model — per-type
-> performance profiles, mass, fuel and wind aloft — and the basic command set.
-> Enough to vector real traffic around the sector, watch a 777 struggle where a
-> Q400 does not, and have an aircraft run itself short of fuel. The build order
-> and what each later milestone adds are at the bottom of this file. Nothing here
-> is a stub: every command listed below is implemented, and every feature not yet
-> implemented is absent rather than faked.
+> **Milestone 3 of 5.** The radar scope, the full flight model — per-type
+> performance profiles, mass, fuel and wind aloft — the basic command set, and
+> the procedures: published arrivals, holding, and ILS approaches flown to a
+> landing, with blown intercepts and go-arounds. Enough to run a sector: take
+> traffic off the boundary fixes, sequence it, turn it onto final, and land it.
+> The build order and what each later milestone adds are at the bottom of this
+> file. Nothing here is a stub: every command listed below is implemented, and
+> every feature not yet implemented is absent rather than faked.
 
 ---
 
@@ -95,6 +96,17 @@ AIC101 tl 270 d 50 s 210
 | `AIC101 say fuel remaining` | `AIC101 say fuel` | Ask for fuel on board. The crew answer in kilos and minutes at the current burn rate. |
 | `AIC101 contact tower 118.1` | `AIC101 ct 118.1` | Hand the aircraft off. It acknowledges, stops taking your instructions, and drops off the scope once it is outside the sector. |
 
+### Procedures
+
+| Instruction | Abbreviated | Effect |
+| --- | --- | --- |
+| `AIC101 cleared ILS runway 29 approach` | `AIC101 ils 29` | Clear it for the approach. It keeps flying your heading until the localiser captures — and it only captures on a good intercept. |
+| `AIC101 cancel approach` | — | Back onto vectors. Any heading, direct or hold does the same on its own. |
+| `AIC101 go around` | `AIC101 ga` | Send it around: missed approach altitude, runway heading. |
+| `AIC101 hold at GUDUR as published` | `AIC101 hold GUDUR` | Enter the published racetrack — published inbound course, turn direction, leg time and maximum speed. |
+| `AIC101 hold at GUDUR expect further clearance 1420` | `AIC101 hold GUDUR efc 1420` | The same, with an EFC time the crew read back. |
+| `AIC101 descend via the arrival` | `AIC101 dv` | Fly the published STAR restrictions — each fix's altitude and speed — rather than level-by-level clearances. |
+
 Altitudes take either form: anything **600 or less is read as hundreds of feet**, so
 `50` and `5000` both mean five thousand, and `FL150` means 15,000 ft. Headings are
 **magnetic**, and because the aircraft points at the heading rather than tracking it,
@@ -150,6 +162,49 @@ must not forget:
 | `EMG` | red | Emergency declared: under 15 minutes, squawking 7700, wants priority. |
 | `HO` | dimmed | Handed off to another frequency; no longer taking your instructions. |
 
+The third field of the bottom line says what the aircraft is steering by:
+
+| Field | Meaning |
+| --- | --- |
+| `TUMSA` | Tracking that fix, then the rest of its route. |
+| `H270` | On a vector. |
+| `HOLD GUDUR` | In the published pattern at that fix. |
+| `→ILS29` | Cleared for the approach, still on your heading for it. |
+| `‖ILS29` | Established on the localiser. |
+| `▼ILS29` | On the glidepath. The cleared level changes to the runway elevation, because that is where it is going now. |
+
+## Flying an approach
+
+The whole point of the ILS here is that it can be flown badly.
+
+- **The localiser captures on three conditions at once**: inside the published
+  intercept range (18 NM), within 30° of the localiser course, and inside the beam
+  — which narrows as you get closer to the runway. Miss any one of them and the
+  aircraft flies straight through the centreline and tells you so. It is still
+  cleared for the approach; it just needs another vector.
+- **The glideslope is only ever captured from below**, when the path comes down to
+  within about a dot of the aircraft. Hold one high and it will stay high, fly over
+  the field, and go around at the missed approach point.
+- **The gate at 1000 ft above the threshold**: off the centreline, off the slope,
+  more than 25 kt above its final approach speed, or the runway still occupied, and
+  the crew go around without being asked.
+- **A landing aircraft holds the runway for 55 seconds.** Sequence tighter than that
+  and the one behind goes around. Wake turbulence minima arrive in milestone 4.
+- Speed is managed for you inside 10 NM: back to minimum clean by 5 NM, then to the
+  type's final approach speed. Once an aircraft is cleared for the approach you can
+  also assign speeds below its clean minimum, because it is configuring.
+
+Holding is a published racetrack — inbound course, turn direction, one minute legs,
+maximum speed — flown as: track to the fix, turn outbound, run the leg, turn back
+inbound. **Entry is simplified to a direct entry**; the parallel and teardrop entries
+are not modelled.
+
+The **arrival sequence** panel on the right lists everything inbound, nearest the
+field first, with what each aircraft is steering by and its range and level. Click a
+row to select that aircraft. It is a read-only view of the order traffic will
+actually arrive in; the flight strip bay you drag to set your *intended* sequence is
+milestone 5.
+
 ### The `WX` button
 
 Opens a debug panel that edits the weather live: surface wind direction and speed,
@@ -197,8 +252,8 @@ wind to 60 kt and watch the high traffic's groundspeeds separate from the low.
 `SEJ301` starts with about thirty-five minutes of fuel, so if you leave it alone it
 will work through both stages on its own.
 
-Milestone 3 adds the procedures: SIDs, STARs, holding, and ILS approaches flown to a
-landing — including blowing through the localiser on a bad intercept.
+Milestone 4 adds separation standards, the wake turbulence matrix, STCA and MSAW
+alerting, and the session score.
 
 ---
 
@@ -251,6 +306,11 @@ Three further approximations are in code rather than data:
   thumb, which is worth a couple of knots at the top of this sector.
 - Wind is interpolated linearly between the surface report and a single wind aloft.
   A real forecast has a wind at every few thousand feet and a shear layer or two.
+- Holding entries are always direct entries. The parallel and teardrop entries are
+  not modelled, so an aircraft entering from an awkward angle flies a slightly
+  larger first circuit than it would in life.
+- Runway occupancy is a flat 55 seconds rather than a vacation time that depends on
+  the aircraft, the exit taken and the surface.
 
 ---
 
@@ -337,9 +397,11 @@ rather than quietly flying a default.
 
 Tests sit next to what they test, as `*.test.ts`. They cover the command parser, turn
 geometry and the wind triangle, performance interpolation and mass effects, fuel burn
-and the emergency escalation, wind aloft and METAR generation, the airspace loader,
-data block layout and leader lines, and the simulation's determinism, handoff and
-refusal behaviour — 156 tests in eight files.
+and the emergency escalation, wind aloft and METAR generation, ILS geometry and every
+capture rule, the holding pattern state machine, the airspace loader, data block
+layout and leader lines, and the simulation's determinism, handoff and refusal
+behaviour — including flying a complete approach to a landing, blowing through the
+localiser, and both kinds of go-around — 224 tests in ten files.
 
 ```bash
 npm test
@@ -363,12 +425,11 @@ piece rather than many small ones. Both properties are asserted in
 | Milestone | Scope | State |
 | --- | --- | --- |
 | 1 | Radar scope, turn geometry, wind, command bar | done |
-| 2 | Per-type performance profiles, mass, fuel, wind aloft, the rest of the basic commands | **this build** |
-| 3 | SIDs, STARs, holding and ILS flown: localiser and glideslope capture, go-arounds, arrivals sequenced to landing | next |
-| 4 | Separation standards, wake matrix, STCA, MSAW, sector exit alerts, scoring and the violation log | |
+| 2 | Per-type performance profiles, mass, fuel, wind aloft, the rest of the basic commands | done |
+| 3 | Published arrivals, holding and ILS flown: localiser and glideslope capture, go-arounds, arrivals sequenced to landing | **this build** |
+| 4 | Separation standards, wake matrix, STCA, MSAW, sector exit alerts, scoring and the violation log | next |
 | 5 | Scenario files, generated weather, emergencies, flight strip bay, polish | |
 
-The airspace data for milestone 3 — SIDs, STARs, ILS approaches, holds — is already in
-`airspace.json` and validated on load, and each profile already carries the approach
-speed the aircraft will fly on final; milestone 3 is the flying of it, not the
-authoring of it.
+Departures are milestone 5, with the scenario files: the runway queue, `line up and
+wait`, `cleared for takeoff`, and SIDs flown outbound. The SID data is already in
+`airspace.json` and validated on load.

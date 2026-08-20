@@ -15,6 +15,16 @@ export type Command =
   | { readonly kind: 'direct'; readonly fix: string }
   | { readonly kind: 'squawk'; readonly code: string }
   | { readonly kind: 'sayFuel' }
+  | { readonly kind: 'approach'; readonly runway: string }
+  | { readonly kind: 'cancelApproach' }
+  | { readonly kind: 'goAround' }
+  | { readonly kind: 'descendVia' }
+  | {
+      readonly kind: 'hold';
+      readonly fix: string;
+      /** Expect-further-clearance time, seconds since midnight, or null. */
+      readonly efcTimeSec: number | null;
+    }
   | {
       readonly kind: 'contact';
       /** Facility as spoken, e.g. "tower". Null when only a frequency was given. */

@@ -17,13 +17,18 @@ import {
   windTriangle,
 } from './flight.js';
 import { PerformanceCatalogue, RawPerformance } from './performance.js';
-import { Aircraft } from './types.js';
+import { Aircraft, SteeringCommand } from './types.js';
 
 const CATALOGUE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
 const CALM: Wind = { fromTrueDeg: 0, speedKt: 0 };
 
 function context(wind: Wind = CALM): StepContext {
   return { windAt: () => wind, magneticVariationDeg: 0 };
+}
+
+/** Steer a heading and leave the vertical and speed to the clearance. */
+function toHeading(headingDeg: number | null): SteeringCommand {
+  return { headingDeg, verticalSpeedFpm: null, speedKt: null };
 }
 
 function makeAircraft(overrides: Partial<Aircraft> = {}, type = 'A320'): Aircraft {
@@ -57,9 +62,14 @@ function makeAircraft(overrides: Partial<Aircraft> = {}, type = 'A320'): Aircraf
       lateralMode: 'heading',
       speedRestrictionCancelled: false,
       expedite: false,
+      descendVia: false,
     },
     route: [],
+    procedure: null,
     phase: 'cruise',
+    hold: null,
+    approach: null,
+    goAroundCount: 0,
     history: [],
     sweepTimerSec: 4,
     handedOff: false,
@@ -73,7 +83,7 @@ function makeAircraft(overrides: Partial<Aircraft> = {}, type = 'A320'): Aircraf
 function fly(ac: Aircraft, targetHeading: number | null, seconds: number, wind: Wind = CALM): void {
   const ctx = context(wind);
   const steps = Math.round(seconds / 0.25);
-  for (let i = 0; i < steps; i++) stepAircraft(ac, targetHeading, 0.25, ctx);
+  for (let i = 0; i < steps; i++) stepAircraft(ac, toHeading(targetHeading), 0.25, ctx);
 }
 
 describe('turn geometry', () => {
@@ -138,7 +148,7 @@ describe('flying a turn', () => {
     const ctx = context();
     let worst = 0;
     for (let i = 0; i < 400; i++) {
-      stepAircraft(ac, 200, 0.25, ctx);
+      stepAircraft(ac, toHeading(200), 0.25, ctx);
       worst = Math.max(worst, Math.abs(ac.bankDeg));
     }
     expect(worst).toBeLessThanOrEqual(MAX_BANK_DEG + 1e-9);
@@ -152,7 +162,7 @@ describe('flying a turn', () => {
     const ctx = context();
     let sawWest = false;
     for (let i = 0; i < 1200; i++) {
-      stepAircraft(ac, 30, 0.25, ctx);
+      stepAircraft(ac, toHeading(30), 0.25, ctx);
       if (Math.abs(angleDiff(ac.headingDeg, 270)) < 15) sawWest = true;
     }
     expect(sawWest).toBe(true);
@@ -220,8 +230,8 @@ describe('wind triangle', () => {
     const low = makeAircraft({ altitudeFt: 4000, headingDeg: 0, iasKt: 250 });
     low.clearance.altitudeFt = 4000;
     for (let i = 0; i < 240; i++) {
-      stepAircraft(high, 0, 0.25, ctx);
-      stepAircraft(low, 0, 0.25, ctx);
+      stepAircraft(high, toHeading(0), 0.25, ctx);
+      stepAircraft(low, toHeading(0), 0.25, ctx);
     }
     expect(high.position.x).toBeGreaterThan(0.8);
     expect(low.position.x).toBeCloseTo(0, 6);
@@ -235,7 +245,7 @@ describe('vertical performance', () => {
     const ctx = context();
     let highest = 0;
     for (let i = 0; i < 2000; i++) {
-      stepAircraft(ac, null, 0.25, ctx);
+      stepAircraft(ac, toHeading(null), 0.25, ctx);
       highest = Math.max(highest, ac.altitudeFt);
     }
     expect(ac.altitudeFt).toBe(9000);

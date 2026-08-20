@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAltitudeToken, parseCommandLine, tokenize } from './parser.js';
+import { parseAltitudeToken, parseClockTime, parseCommandLine, tokenize } from './parser.js';
 import { Command } from './types.js';
 
 function commands(line: string): readonly Command[] {
@@ -212,12 +212,85 @@ describe('contact', () => {
   });
 });
 
+describe('approaches', () => {
+  it('accepts the full clearance and the shorthand', () => {
+    const expected = [{ kind: 'approach', runway: '29' }];
+    expect(commands('AIC101 cleared ILS runway 29 approach')).toEqual(expected);
+    expect(commands('AIC101 cleared ils 29')).toEqual(expected);
+    expect(commands('AIC101 ils 29')).toEqual(expected);
+    expect(commands('AIC101 ils rwy 29')).toEqual(expected);
+  });
+
+  it('pads a single digit runway', () => {
+    expect(commands('AIC101 ils 9')).toEqual([{ kind: 'approach', runway: '09' }]);
+  });
+
+  it('takes a parallel runway designator', () => {
+    expect(commands('AIC101 ils 29L')).toEqual([{ kind: 'approach', runway: '29L' }]);
+  });
+
+  it('explains a missing runway', () => {
+    expect(error('AIC101 ils')).toMatch(/Which runway/);
+    expect(error('AIC101 cleared visual 29')).toMatch(/only approach available is the ILS/);
+  });
+
+  it('cancels an approach and goes around', () => {
+    expect(commands('AIC101 cancel approach')).toEqual([{ kind: 'cancelApproach' }]);
+    expect(commands('AIC101 go around')).toEqual([{ kind: 'goAround' }]);
+    expect(commands('AIC101 ga')).toEqual([{ kind: 'goAround' }]);
+    expect(error('AIC101 go home')).toMatch(/instruction is "go around"/);
+  });
+});
+
+describe('holding', () => {
+  it('accepts the published hold in every form', () => {
+    const expected = [{ kind: 'hold', fix: 'GUDUR', efcTimeSec: null }];
+    expect(commands('AIC101 hold at GUDUR as published')).toEqual(expected);
+    expect(commands('AIC101 hold at GUDUR')).toEqual(expected);
+    expect(commands('AIC101 hold GUDUR')).toEqual(expected);
+  });
+
+  it('takes an expect further clearance time', () => {
+    expect(commands('AIC101 hold at GUDUR as published expect further clearance 1420')).toEqual([
+      { kind: 'hold', fix: 'GUDUR', efcTimeSec: 14 * 3600 + 20 * 60 },
+    ]);
+    expect(commands('AIC101 hold GUDUR efc 0905')).toEqual([
+      { kind: 'hold', fix: 'GUDUR', efcTimeSec: 9 * 3600 + 5 * 60 },
+    ]);
+  });
+
+  it('rejects a time that is not a time', () => {
+    expect(parseClockTime('1420')).toBe(14 * 3600 + 20 * 60);
+    expect(parseClockTime('2500')).toBeNull();
+    expect(parseClockTime('1265')).toBeNull();
+    expect(parseClockTime('142')).toBeNull();
+    expect(error('AIC101 hold GUDUR efc 9999')).toMatch(/is not a time/);
+    expect(error('AIC101 hold GUDUR efc')).toMatch(/at what time/);
+  });
+
+  it('explains a missing fix', () => {
+    expect(error('AIC101 hold')).toMatch(/Hold where/);
+  });
+});
+
+describe('descend via', () => {
+  it('is not confused with a descent to a level', () => {
+    expect(commands('AIC101 descend via the arrival')).toEqual([{ kind: 'descendVia' }]);
+    expect(commands('AIC101 descend via')).toEqual([{ kind: 'descendVia' }]);
+    expect(commands('AIC101 dv')).toEqual([{ kind: 'descendVia' }]);
+    expect(commands('AIC101 d 50')).toEqual([
+      { kind: 'altitude', altitudeFt: 5000, sense: 'descend', expedite: false },
+    ]);
+  });
+});
+
 describe('unknown syntax', () => {
   it('names the offending word and lists what is understood', () => {
     const message = error('AIC101 wibble 270');
     expect(message).toMatch(/do not recognise "wibble"/);
     expect(message).toMatch(/turn left\/right heading/);
     expect(message).toMatch(/say fuel/);
+    expect(message).toMatch(/cleared ILS, hold, go around/);
     expect(message).toMatch(/Press \? for the full reference/);
   });
 

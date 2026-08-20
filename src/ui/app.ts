@@ -13,6 +13,7 @@ import { CommandBar } from './commandBar.js';
 import { CommsPanel } from './comms.js';
 import { DebugPanel } from './debugPanel.js';
 import { HelpOverlay } from './help.js';
+import { SequencePanel } from './sequence.js';
 import { StatusBar, requireElement, requireInput } from './statusBar.js';
 
 /** Simulated seconds may never advance by more than this in one frame. */
@@ -27,6 +28,7 @@ export class App {
   private readonly scope: RadarScope;
   private readonly statusBar: StatusBar;
   private readonly comms: CommsPanel;
+  private readonly sequence: SequencePanel;
   private readonly commandBar: CommandBar;
   private readonly help: HelpOverlay;
 
@@ -50,6 +52,9 @@ export class App {
     this.scope = new RadarScope(canvas, sim);
     this.statusBar = new StatusBar(sim, (rate) => this.setRate(rate));
     this.comms = new CommsPanel(requireElement('comms-log'));
+    this.sequence = new SequencePanel(requireElement('sequence-list'), sim, (id) => {
+      this.select(this.sim.aircraft.find((a) => a.id === id) ?? null);
+    });
     this.help = new HelpOverlay(requireElement('help-overlay'));
     new DebugPanel(sim);
 
@@ -74,6 +79,7 @@ export class App {
     this.lastFrameMs = performance.now();
     this.statusBar.update(this.rate);
     this.comms.update(this.sim.comms);
+    this.sequence.update(this.selectedId);
     const frame = (nowMs: number): void => {
       this.tick(nowMs);
       requestAnimationFrame(frame);
@@ -96,6 +102,7 @@ export class App {
       this.panelTimerSec = 0;
       this.statusBar.update(this.rate);
       this.comms.update(this.sim.comms);
+      this.sequence.update(this.selectedId);
     }
 
     this.scope.render({ selectedId: this.selectedId, ruler: this.currentRuler() });

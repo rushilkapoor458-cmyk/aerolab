@@ -7,7 +7,7 @@ import { Airspace } from './airspace.js';
 import { Point, angleDiff, distanceNm, normalizeDeg, pointInPolygon } from './geo.js';
 import { RADAR_SWEEP_SEC, Wind } from './flight.js';
 import { stepAircraft } from './flight.js';
-import { updateAutoflight } from './autoflight.js';
+import { NavContext, goAround, updateAutoflight } from './autoflight.js';
 import { updateFuel } from './fuel.js';
 import { PerformanceCatalogue } from './performance.js';
 import { Rng } from './rng.js';
@@ -33,6 +33,8 @@ export interface AircraftSeed {
   readonly squawk: string;
   readonly route?: readonly string[];
   readonly directFix?: string;
+  /** Published SID or STAR the route came from. */
+  readonly procedure?: string;
   /** All-up mass. Defaults to the profile's reference mass. */
   readonly massKg?: number;
   /** Fuel on board. Defaults to the profile's typical arrival fuel. */
@@ -54,6 +56,13 @@ export class Simulation {
   timeSec: number;
   comms: CommsEntry[] = [];
   runways: RunwayConfiguration;
+
+  /** Runways occupied by a landing roll, keyed by ident, value is the clock. */
+  private readonly runwayClearAtSec = new Map<string, number>();
+  private readonly landedIds = new Set<string>();
+  /** Session counters; milestone 4 turns these into a score. */
+  arrivals = 0;
+  goArounds = 0;
 
   private nextCommsId = 1;
   private nextAircraftId = 1;
@@ -120,6 +129,7 @@ export class Simulation {
       lateralMode: seed.directFix === undefined ? 'heading' : 'direct',
       speedRestrictionCancelled: false,
       expedite: false,
+      descendVia: false,
     };
     const aircraft: Aircraft = {
       id: `ac${this.nextAircraftId++}`,
@@ -142,7 +152,11 @@ export class Simulation {
       fuelState: 'normal',
       clearance,
       route: seed.route === undefined ? [] : [...seed.route],
+      procedure: seed.procedure ?? null,
       phase: 'cruise',
+      hold: null,
+      approach: null,
+      goAroundCount: 0,
       history: [seed.position],
       sweepTimerSec: RADAR_SWEEP_SEC,
       handedOff: false,
@@ -172,15 +186,76 @@ export class Simulation {
       remaining -= dt;
       this.timeSec += dt;
       for (const ac of this.aircraft) {
-        const auto = updateAutoflight(ac, this.airspace, this.windAt(ac.altitudeFt));
-        for (const report of auto.reports) this.say('pilot', ac.callsign, report, false);
-        stepAircraft(ac, auto.targetHeadingDeg, dt, ctx);
+        const nav: NavContext = {
+          airspace: this.airspace,
+          wind: this.windAt(ac.altitudeFt),
+          dtSec: dt,
+          timeSec: this.timeSec,
+          isRunwayOccupied: (ident) => this.isRunwayOccupied(ident),
+        };
+        const auto = updateAutoflight(ac, nav);
+        for (const report of auto.reports) {
+          this.say('pilot', ac.callsign, report, auto.wentAround);
+        }
+        if (auto.wentAround) this.goArounds += 1;
+        if (auto.landed) {
+          this.recordLanding(ac);
+          continue;
+        }
+        stepAircraft(ac, auto.command, dt, ctx);
         for (const call of updateFuel(ac, dt, elevation)) {
           this.say('pilot', ac.callsign, call, ac.fuelState === 'emergency');
         }
       }
+      this.removeLandedAircraft();
       this.retireDepartedAircraft();
     }
+  }
+
+  /** True while a landing roll is still on the runway. */
+  isRunwayOccupied(ident: string): boolean {
+    const clearAt = this.runwayClearAtSec.get(ident.toUpperCase());
+    return clearAt !== undefined && this.timeSec < clearAt;
+  }
+
+  /** How long a landing aircraft keeps the runway, in seconds. */
+  static readonly RUNWAY_OCCUPANCY_SEC = 55;
+
+  private recordLanding(ac: Aircraft): void {
+    const runway = ac.approach?.runway ?? this.runways.arrival;
+    this.runwayClearAtSec.set(
+      runway.toUpperCase(),
+      this.timeSec + Simulation.RUNWAY_OCCUPANCY_SEC,
+    );
+    this.landedIds.add(ac.id);
+    this.arrivals += 1;
+    this.say('system', ac.callsign, `${ac.callsign} landed runway ${runway}.`, false);
+  }
+
+  private removeLandedAircraft(): void {
+    if (this.landedIds.size === 0) return;
+    this.aircraft = this.aircraft.filter((ac) => !this.landedIds.has(ac.id));
+    this.landedIds.clear();
+  }
+
+  /**
+   * Send an aircraft around on instruction. Returns what the crew say back,
+   * or null if it was not on an approach in the first place.
+   */
+  requestGoAround(ac: Aircraft, reason: string): string | null {
+    const runway = ac.approach?.runway;
+    if (runway === undefined) return null;
+    const nav: NavContext = {
+      airspace: this.airspace,
+      wind: this.windAt(ac.altitudeFt),
+      dtSec: 0,
+      timeSec: this.timeSec,
+      isRunwayOccupied: (ident) => this.isRunwayOccupied(ident),
+    };
+    const reports: string[] = [];
+    goAround(ac, nav, runway, reason, reports);
+    this.goArounds += 1;
+    return reports.join(', ');
   }
 
   /**
@@ -219,7 +294,11 @@ export class Simulation {
       return error;
     }
     this.say('atc', ac.callsign, `${ac.callsign}, ${describe(line)}`, false);
-    const outcome = executeCommands(ac, parsed.value.commands, this.airspace);
+    const outcome = executeCommands(ac, parsed.value.commands, {
+      airspace: this.airspace,
+      timeSec: this.timeSec,
+      goAround: (target, reason) => this.requestGoAround(target, reason),
+    });
     this.say('pilot', ac.callsign, outcome.readback, outcome.rejected);
     return null;
   }

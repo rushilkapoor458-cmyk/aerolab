@@ -13,6 +13,8 @@ export class StatusBar {
   private readonly wind: HTMLElement;
   private readonly qnh: HTMLElement;
   private readonly atisText: HTMLElement;
+  private readonly arrivals: HTMLElement;
+  private readonly goArounds: HTMLElement;
   private readonly rateButtons: HTMLButtonElement[];
 
   constructor(
@@ -26,6 +28,8 @@ export class StatusBar {
     this.wind = requireElement('status-wind');
     this.qnh = requireElement('status-qnh');
     this.atisText = requireElement('atis-text');
+    this.arrivals = requireElement('status-arrivals');
+    this.goArounds = requireElement('status-goarounds');
 
     const group = requireElement('rate-buttons');
     this.rateButtons = Array.from(group.querySelectorAll<HTMLButtonElement>('button.rate'));
@@ -45,6 +49,8 @@ export class StatusBar {
     const gust = w.windGustKt === null ? '' : `G${pad2(Math.round(w.windGustKt))}`;
     this.wind.textContent = `${formatBearing(w.windDirectionDeg)}/${pad2(Math.round(w.windSpeedKt))}${gust}`;
     this.qnh.textContent = String(Math.round(w.qnhHpa));
+    this.arrivals.textContent = String(this.sim.arrivals);
+    this.goArounds.textContent = String(this.sim.goArounds);
 
     const metar = formatMetar(this.sim.airspace.airport.icao, this.sim.timeSec, w);
     const runway = this.sim.airspace.runway(this.sim.runways.arrival);

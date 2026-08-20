@@ -53,6 +53,26 @@ const LEADER_DIRECTIONS: readonly ScreenPoint[] = [
   { x: 0, y: 1 },
 ];
 
+/**
+ * The third field of the bottom line: what the aircraft is steering by.
+ * A fix name on a route, the hold, the approach, or the assigned heading.
+ */
+export function navigationField(ac: Aircraft): string {
+  if (ac.approach !== null) {
+    const stage = ac.approach.glideslopeCaptured
+      ? '\u25bc' // On the glidepath.
+      : ac.approach.localiserCaptured
+        ? '\u2016' // Established on the localiser.
+        : '\u2192'; // Cleared, but still on vectors for it.
+  return `${stage}ILS${ac.approach.runway}`;
+  }
+  if (ac.hold !== null) return `HOLD ${ac.hold.fix}`;
+  if (ac.clearance.lateralMode === 'direct' && ac.clearance.directFix !== null) {
+    return ac.clearance.directFix;
+  }
+  return `H${Math.round(ac.clearance.headingDeg).toString().padStart(3, '0')}`;
+}
+
 /** How this aircraft's block should be coloured. */
 export function dataBlockSeverity(ac: Aircraft): DataBlockSeverity {
   if (ac.fuelState === 'emergency') return 'alert';
@@ -65,10 +85,7 @@ export function dataBlockSeverity(ac: Aircraft): DataBlockSeverity {
 export function dataBlockLines(ac: Aircraft, airspace: Airspace): string[] {
   const arrow =
     ac.verticalSpeedFpm > 200 ? '↑' : ac.verticalSpeedFpm < -200 ? '↓' : '→';
-  const nextFix =
-    ac.clearance.lateralMode === 'direct' && ac.clearance.directFix !== null
-      ? ac.clearance.directFix
-      : `H${Math.round(ac.clearance.headingDeg).toString().padStart(3, '0')}`;
+  const nextFix = navigationField(ac);
   // A tag after the wake category: the state the controller must not forget.
   const tag =
     ac.fuelState === 'emergency'

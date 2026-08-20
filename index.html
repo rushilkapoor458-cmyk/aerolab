@@ -5,38 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2304120b'/%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%236dffb0'/%3E%3Cpath d='M8 8 L13 4' stroke='%236dffb0'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2303110a'/%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%2378ffb8'/%3E%3Cpath d='M8 8 L13 4' stroke='%2378ffb8'/%3E%3C/svg%3E"
     />
     <title>VIDP Approach — radar simulation</title>
   </head>
   <body>
     <div id="app">
       <header id="status-bar">
-        <div class="status-group">
-          <span class="status-label">UTC</span><span id="status-clock" class="status-value">--:--:--</span>
+        <div class="identity">
+          <span class="identity-icao">VIDP</span>
+          <span class="identity-role">Approach</span>
         </div>
-        <div class="status-group">
-          <span class="status-label">ATIS</span><span id="status-atis" class="status-value">-</span>
+
+        <div class="field field-wide">
+          <span class="field-label">UTC</span>
+          <span class="field-value" id="status-clock">--:--:--</span>
         </div>
-        <div class="status-group">
-          <span class="status-label">ARR</span><span id="status-arr" class="status-value">--</span>
-          <span class="status-label">DEP</span><span id="status-dep" class="status-value">--</span>
+        <div class="field">
+          <span class="field-label">ATIS</span>
+          <span class="field-value" id="status-atis">-</span>
         </div>
-        <div class="status-group">
-          <span class="status-label">WIND</span><span id="status-wind" class="status-value">-----</span>
+        <div class="field">
+          <span class="field-label">ARR</span>
+          <span class="field-value" id="status-arr">--</span>
         </div>
-        <div class="status-group">
-          <span class="status-label">QNH</span><span id="status-qnh" class="status-value">----</span>
+        <div class="field">
+          <span class="field-label">DEP</span>
+          <span class="field-value" id="status-dep">--</span>
         </div>
+        <div class="field field-wide">
+          <span class="field-label">Wind</span>
+          <span class="field-value" id="status-wind">-----</span>
+        </div>
+        <div class="field">
+          <span class="field-label">QNH</span>
+          <span class="field-value" id="status-qnh">----</span>
+        </div>
+
+        <div class="field-divider"></div>
+
+        <div class="field">
+          <span class="field-label">Landed</span>
+          <span class="field-value" id="status-arrivals">0</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Go-ar</span>
+          <span class="field-value" id="status-goarounds">0</span>
+        </div>
+
         <div class="status-spacer"></div>
-        <div class="status-group rate-group" id="rate-buttons">
-          <button type="button" data-rate="0" class="rate">II</button>
+
+        <div class="rate-group" id="rate-buttons">
+          <button type="button" data-rate="0" class="rate" title="Pause (space)">&#10073;&#10073;</button>
           <button type="button" data-rate="1" class="rate">1&times;</button>
           <button type="button" data-rate="2" class="rate">2&times;</button>
           <button type="button" data-rate="4" class="rate">4&times;</button>
         </div>
-        <button type="button" id="debug-toggle" class="flat">WX</button>
-        <button type="button" id="help-toggle" class="flat">?</button>
+        <button type="button" id="debug-toggle" class="flat" title="Weather">WX</button>
+        <button type="button" id="help-toggle" class="flat" title="Help (?)">?</button>
       </header>
 
       <main id="main">
@@ -44,9 +70,15 @@
 
         <aside id="side-panel">
           <section class="panel">
-            <h2>ATIS</h2>
+            <h2>Automatic terminal information</h2>
             <pre id="atis-text"></pre>
           </section>
+
+          <section class="panel panel-sequence">
+            <h2>Arrival sequence</h2>
+            <div id="sequence-list"></div>
+          </section>
+
           <section class="panel panel-grow">
             <h2>Communications</h2>
             <div id="comms-log"></div>
@@ -62,19 +94,19 @@
           autocomplete="off"
           autocapitalize="off"
           spellcheck="false"
-          placeholder="AIC101 tl 270 d 50 s 210   —   ? for help"
+          placeholder="AIC101 tl 270 d 50 s 210          Tab completes · ↑ recalls · ? for help"
         />
       </footer>
       <div id="command-error" hidden></div>
 
       <div id="debug-panel" hidden>
         <h2>Weather</h2>
-        <label>Wind direction (°M)<input id="wx-dir" type="number" min="0" max="360" step="10" /></label>
-        <label>Wind speed (kt)<input id="wx-speed" type="number" min="0" max="80" step="1" /></label>
-        <label>Gusting to (kt, blank for none)<input id="wx-gust" type="number" min="0" max="99" step="1" /></label>
-        <label>Wind aloft direction (°M)<input id="wx-aloft-dir" type="number" min="0" max="360" step="10" /></label>
-        <label>Wind aloft speed (kt)<input id="wx-aloft-speed" type="number" min="0" max="150" step="1" /></label>
-        <label>Wind aloft altitude (ft)<input id="wx-aloft-alt" type="number" min="1000" max="45000" step="1000" /></label>
+        <label>Surface wind (°M)<input id="wx-dir" type="number" min="0" max="360" step="10" /></label>
+        <label>Surface speed (kt)<input id="wx-speed" type="number" min="0" max="80" step="1" /></label>
+        <label>Gusting to (kt)<input id="wx-gust" type="number" min="0" max="99" step="1" /></label>
+        <label>Wind aloft (°M)<input id="wx-aloft-dir" type="number" min="0" max="360" step="10" /></label>
+        <label>Aloft speed (kt)<input id="wx-aloft-speed" type="number" min="0" max="150" step="1" /></label>
+        <label>Aloft altitude (ft)<input id="wx-aloft-alt" type="number" min="1000" max="45000" step="1000" /></label>
         <label>Visibility (m)<input id="wx-vis" type="number" min="50" max="9999" step="50" /></label>
         <label>Cloud base (ft)<input id="wx-cloud" type="number" min="100" max="20000" step="100" /></label>
         <label>Cloud cover
