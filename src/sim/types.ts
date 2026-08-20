@@ -1,12 +1,20 @@
 /** Core simulation types shared across the pure-logic layer. */
 
 import { Point } from './geo.js';
+import { AircraftProfile } from './performance.js';
 
 export type WakeCategory = 'L' | 'M' | 'H' | 'J';
 
 export type FlightRole = 'arrival' | 'departure' | 'overflight';
 
 export type FlightPhase = 'cruise' | 'climb' | 'descent' | 'approach';
+
+/**
+ * How the fuel state escalates. `minimum` is an advisory — the aircraft can
+ * accept no undue delay; `emergency` is a declaration, squawking 7700, and
+ * the aircraft expects priority.
+ */
+export type FuelState = 'normal' | 'minimum' | 'emergency';
 
 /** How the autoflight system is currently steering laterally. */
 export type LateralMode = 'heading' | 'direct';
@@ -43,6 +51,8 @@ export interface Aircraft {
   readonly callsign: string;
   /** ICAO type designator, e.g. `A320`. */
   readonly type: string;
+  /** Performance profile for this type, from `src/data/aircraft.json`. */
+  readonly profile: AircraftProfile;
   readonly wake: WakeCategory;
   readonly role: FlightRole;
 
@@ -62,6 +72,10 @@ export interface Aircraft {
   verticalSpeedFpm: number;
 
   squawk: string;
+  /** All-up mass in kilograms. Falls as fuel burns, and drives performance. */
+  massKg: number;
+  fuelKg: number;
+  fuelState: FuelState;
   clearance: Clearance;
   /** Ordered list of fix names still to fly, when following a route. */
   route: string[];
@@ -74,6 +88,9 @@ export interface Aircraft {
 
   /** Set once the aircraft has left the controller's responsibility. */
   handedOff: boolean;
+  /** Who it was sent to, and on what frequency. Null until handed off. */
+  handedOffTo: string | null;
+  handedOffFrequencyMhz: number | null;
 }
 
 export type CommsSource = 'atc' | 'pilot' | 'system';

@@ -53,6 +53,7 @@ export class StatusBar {
       `${metar}\n` +
       `Runway in use ${this.sim.runways.arrival}` +
       (runway === undefined ? '' : ` (${runway.category}, ILS ${runway.ilsFrequencyMhz.toFixed(2)})`) +
+      `\nWind aloft ${formatBearing(w.windAloftDirectionDeg)}/${pad2(Math.round(w.windAloftSpeedKt))} at ${Math.round(w.windAloftAltitudeFt).toLocaleString('en-GB')} ft` +
       `\nTransition altitude ${this.sim.airspace.airport.transitionAltitudeFt} ft`;
 
     for (const button of this.rateButtons) {

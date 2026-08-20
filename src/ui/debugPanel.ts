@@ -18,6 +18,9 @@ export class DebugPanel {
   private readonly dir: HTMLInputElement;
   private readonly speed: HTMLInputElement;
   private readonly gust: HTMLInputElement;
+  private readonly aloftDir: HTMLInputElement;
+  private readonly aloftSpeed: HTMLInputElement;
+  private readonly aloftAlt: HTMLInputElement;
   private readonly vis: HTMLInputElement;
   private readonly cloud: HTMLInputElement;
   private readonly cover: HTMLSelectElement;
@@ -32,6 +35,9 @@ export class DebugPanel {
     this.dir = requireInput('wx-dir');
     this.speed = requireInput('wx-speed');
     this.gust = requireInput('wx-gust');
+    this.aloftDir = requireInput('wx-aloft-dir');
+    this.aloftSpeed = requireInput('wx-aloft-speed');
+    this.aloftAlt = requireInput('wx-aloft-alt');
     this.vis = requireInput('wx-vis');
     this.cloud = requireInput('wx-cloud');
     this.cover = requireSelect('wx-cover');
@@ -42,7 +48,12 @@ export class DebugPanel {
     this.suggestion = requireElement('wx-suggestion');
 
     this.load();
-    for (const field of [this.dir, this.speed, this.gust, this.vis, this.cloud, this.qnh, this.temp, this.dew, this.atis]) {
+    const fields = [
+      this.dir, this.speed, this.gust,
+      this.aloftDir, this.aloftSpeed, this.aloftAlt,
+      this.vis, this.cloud, this.qnh, this.temp, this.dew, this.atis,
+    ];
+    for (const field of fields) {
       field.addEventListener('input', () => this.apply());
     }
     this.cover.addEventListener('change', () => this.apply());
@@ -66,6 +77,9 @@ export class DebugPanel {
     this.dir.value = String(Math.round(w.windDirectionDeg));
     this.speed.value = String(Math.round(w.windSpeedKt));
     this.gust.value = w.windGustKt === null ? '' : String(Math.round(w.windGustKt));
+    this.aloftDir.value = String(Math.round(w.windAloftDirectionDeg));
+    this.aloftSpeed.value = String(Math.round(w.windAloftSpeedKt));
+    this.aloftAlt.value = String(Math.round(w.windAloftAltitudeFt));
     this.vis.value = String(Math.round(w.visibilityM));
     this.cloud.value = String(Math.round(w.cloudBaseFt));
     this.cover.value = w.cloudCover;
@@ -82,6 +96,9 @@ export class DebugPanel {
     w.windDirectionDeg = numberOr(this.dir.value, w.windDirectionDeg, 0, 360);
     w.windSpeedKt = numberOr(this.speed.value, w.windSpeedKt, 0, 99);
     w.windGustKt = this.gust.value.trim() === '' ? null : numberOr(this.gust.value, 0, 0, 99);
+    w.windAloftDirectionDeg = numberOr(this.aloftDir.value, w.windAloftDirectionDeg, 0, 360);
+    w.windAloftSpeedKt = numberOr(this.aloftSpeed.value, w.windAloftSpeedKt, 0, 150);
+    w.windAloftAltitudeFt = numberOr(this.aloftAlt.value, w.windAloftAltitudeFt, 1000, 45000);
     w.visibilityM = numberOr(this.vis.value, w.visibilityM, 50, 9999);
     w.cloudBaseFt = numberOr(this.cloud.value, w.cloudBaseFt, 100, 20000);
     const cover = COVERS.find((c) => c === this.cover.value);

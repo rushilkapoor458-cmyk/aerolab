@@ -13,7 +13,14 @@ export type Command =
   | { readonly kind: 'speed'; readonly speedKt: number }
   | { readonly kind: 'speedCancel' }
   | { readonly kind: 'direct'; readonly fix: string }
-  | { readonly kind: 'squawk'; readonly code: string };
+  | { readonly kind: 'squawk'; readonly code: string }
+  | { readonly kind: 'sayFuel' }
+  | {
+      readonly kind: 'contact';
+      /** Facility as spoken, e.g. "tower". Null when only a frequency was given. */
+      readonly facility: string | null;
+      readonly frequencyMhz: number;
+    };
 
 export interface ParsedLine {
   readonly callsign: string;

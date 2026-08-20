@@ -171,11 +171,53 @@ describe('chaining', () => {
   });
 });
 
+describe('say fuel remaining', () => {
+  it('accepts both forms', () => {
+    expect(commands('AIC101 say fuel remaining')).toEqual([{ kind: 'sayFuel' }]);
+    expect(commands('AIC101 say fuel')).toEqual([{ kind: 'sayFuel' }]);
+  });
+
+  it('explains anything else said after "say"', () => {
+    expect(error('AIC101 say again')).toMatch(/say fuel remaining/);
+  });
+});
+
+describe('contact', () => {
+  it('takes a facility and a frequency', () => {
+    expect(commands('AIC101 contact tower 118.1')).toEqual([
+      { kind: 'contact', facility: 'tower', frequencyMhz: 118.1 },
+    ]);
+    expect(commands('AIC101 contact delhi control 127.9')).toEqual([
+      { kind: 'contact', facility: 'delhi control', frequencyMhz: 127.9 },
+    ]);
+  });
+
+  it('takes a bare frequency', () => {
+    expect(commands('AIC101 ct 118.1')).toEqual([
+      { kind: 'contact', facility: null, frequencyMhz: 118.1 },
+    ]);
+  });
+
+  it('rejects a frequency outside the air band', () => {
+    expect(error('AIC101 contact tower 108.1')).toMatch(/outside the air band/);
+    expect(error('AIC101 contact tower 140.0')).toMatch(/outside the air band/);
+  });
+
+  it('says what is missing when there is no frequency', () => {
+    expect(error('AIC101 contact tower')).toMatch(/Contact whom, and on what frequency/);
+  });
+
+  it('does not swallow the next instruction into the facility name', () => {
+    expect(error('AIC101 contact tl 270')).toMatch(/Contact whom/);
+  });
+});
+
 describe('unknown syntax', () => {
   it('names the offending word and lists what is understood', () => {
     const message = error('AIC101 wibble 270');
     expect(message).toMatch(/do not recognise "wibble"/);
     expect(message).toMatch(/turn left\/right heading/);
+    expect(message).toMatch(/say fuel/);
     expect(message).toMatch(/Press \? for the full reference/);
   });
 

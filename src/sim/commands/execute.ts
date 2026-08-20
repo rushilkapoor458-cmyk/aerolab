@@ -9,7 +9,8 @@
 
 import { Airspace } from '../airspace.js';
 import { formatBearing } from '../geo.js';
-import { GENERIC, SPEED_LIMIT_ALTITUDE_FT, SPEED_LIMIT_KT, signedTurn } from '../flight.js';
+import { SPEED_LIMIT_ALTITUDE_FT, SPEED_LIMIT_KT, signedTurn } from '../flight.js';
+import { fuelReport } from '../fuel.js';
 import { Aircraft } from '../types.js';
 import { formatFlightLevel } from '../units.js';
 import { Command } from './types.js';
@@ -68,11 +69,14 @@ function executeOne(ac: Aircraft, command: Command, airspace: Airspace): SingleO
       return executeAltitude(ac, command, airspace);
 
     case 'speed': {
-      if (command.speedKt < GENERIC.minSpeedKt) {
-        return no(`${command.speedKt} knots is below our minimum clean speed of ${GENERIC.minSpeedKt}`);
+      const envelope = ac.profile.speeds;
+      if (command.speedKt < envelope.minCleanIasKt) {
+        return no(
+          `${command.speedKt} knots is below our minimum clean speed of ${envelope.minCleanIasKt}`,
+        );
       }
-      if (command.speedKt > GENERIC.maxSpeedKt) {
-        return no(`we can't do more than ${GENERIC.maxSpeedKt} knots`);
+      if (command.speedKt > envelope.maxIasKt) {
+        return no(`we can't do more than ${envelope.maxIasKt} knots`);
       }
       ac.clearance.speedKt = command.speedKt;
       const restricted =
@@ -101,8 +105,22 @@ function executeOne(ac: Aircraft, command: Command, airspace: Airspace): SingleO
     }
 
     case 'squawk': {
+      if (ac.fuelState === 'emergency') {
+        return no(`we are squawking ${ac.squawk} — we have an emergency in progress`);
+      }
       ac.squawk = command.code;
       return ok(`squawk ${command.code}`);
+    }
+
+    case 'sayFuel':
+      return ok(fuelReport(ac));
+
+    case 'contact': {
+      ac.handedOff = true;
+      ac.handedOffTo = command.facility;
+      ac.handedOffFrequencyMhz = command.frequencyMhz;
+      const where = command.facility === null ? '' : `${command.facility} on `;
+      return ok(`over to ${where}${command.frequencyMhz.toFixed(3).replace(/0+$/, '').replace(/\.$/, '.0')}, good day`);
     }
 
     default: {

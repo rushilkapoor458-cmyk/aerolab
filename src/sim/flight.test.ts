@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import aircraftData from '../data/aircraft.json';
 import { angleDiff, normalizeDeg } from './geo.js';
 import {
-  GENERIC,
   MAX_BANK_DEG,
+  StepContext,
   Wind,
   bankForTurnRate,
   commandedBankDeg,
@@ -15,16 +16,24 @@ import {
   turnRateForBank,
   windTriangle,
 } from './flight.js';
+import { PerformanceCatalogue, RawPerformance } from './performance.js';
 import { Aircraft } from './types.js';
 
+const CATALOGUE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
 const CALM: Wind = { fromTrueDeg: 0, speedKt: 0 };
 
-function makeAircraft(overrides: Partial<Aircraft> = {}): Aircraft {
+function context(wind: Wind = CALM): StepContext {
+  return { windAt: () => wind, magneticVariationDeg: 0 };
+}
+
+function makeAircraft(overrides: Partial<Aircraft> = {}, type = 'A320'): Aircraft {
+  const profile = CATALOGUE.require(type);
   const base: Aircraft = {
     id: 'ac1',
     callsign: 'AIC101',
-    type: 'A320',
-    wake: 'M',
+    type: profile.icao,
+    profile,
+    wake: profile.wake,
     role: 'arrival',
     position: { x: 0, y: 0 },
     altitudeFt: 6000,
@@ -35,6 +44,9 @@ function makeAircraft(overrides: Partial<Aircraft> = {}): Aircraft {
     bankDeg: 0,
     verticalSpeedFpm: 0,
     squawk: '4271',
+    massKg: profile.mass.referenceKg,
+    fuelKg: profile.typicalArrivalFuelKg,
+    fuelState: 'normal',
     clearance: {
       headingDeg: 90,
       turn: 'shortest',
@@ -51,16 +63,17 @@ function makeAircraft(overrides: Partial<Aircraft> = {}): Aircraft {
     history: [],
     sweepTimerSec: 4,
     handedOff: false,
+    handedOffTo: null,
+    handedOffFrequencyMhz: null,
   };
   return { ...base, ...overrides };
 }
 
-/** Fly the aircraft until it settles, returning the track it flew. */
+/** Fly the aircraft for a while at the simulation's own substep. */
 function fly(ac: Aircraft, targetHeading: number | null, seconds: number, wind: Wind = CALM): void {
+  const ctx = context(wind);
   const steps = Math.round(seconds / 0.25);
-  for (let i = 0; i < steps; i++) {
-    stepAircraft(ac, targetHeading, 0.25, { wind, magneticVariationDeg: 0 });
-  }
+  for (let i = 0; i < steps; i++) stepAircraft(ac, targetHeading, 0.25, ctx);
 }
 
 describe('turn geometry', () => {
@@ -88,7 +101,6 @@ describe('turn geometry', () => {
   });
 
   it('anticipates the roll out by half the turn rate times the roll out time', () => {
-    // 25 degrees of bank at 250 kt: 2.03 deg/s, rolling out over 8.3 s.
     const anticipation = rollOutAnticipationDeg(25, 250);
     expect(anticipation).toBeCloseTo((turnRateForBank(25, 250) / 2) * (25 / 3), 6);
     expect(anticipation).toBeGreaterThan(5);
@@ -123,9 +135,10 @@ describe('flying a turn', () => {
 
   it('never banks past the limit on the way round', () => {
     const ac = makeAircraft({ headingDeg: 0, iasKt: 280 });
+    const ctx = context();
     let worst = 0;
     for (let i = 0; i < 400; i++) {
-      stepAircraft(ac, 200, 0.25, { wind: CALM, magneticVariationDeg: 0 });
+      stepAircraft(ac, 200, 0.25, ctx);
       worst = Math.max(worst, Math.abs(ac.bankDeg));
     }
     expect(worst).toBeLessThanOrEqual(MAX_BANK_DEG + 1e-9);
@@ -133,16 +146,24 @@ describe('flying a turn', () => {
   });
 
   it('turns the long way when told to turn left through north', () => {
-    const ac = makeAircraft({ headingDeg: 10, iasKt: 200 });
+    const ac = makeAircraft({ headingDeg: 10, iasKt: 220 });
     ac.clearance.turn = 'left';
     ac.clearance.turnRemainingDeg = signedTurn(10, 30, 'left');
+    const ctx = context();
     let sawWest = false;
     for (let i = 0; i < 1200; i++) {
-      stepAircraft(ac, 30, 0.25, { wind: CALM, magneticVariationDeg: 0 });
+      stepAircraft(ac, 30, 0.25, ctx);
       if (Math.abs(angleDiff(ac.headingDeg, 270)) < 15) sawWest = true;
     }
     expect(sawWest).toBe(true);
     expect(ac.headingDeg).toBeCloseTo(30, 1);
+  });
+
+  it('a heavy turns through a bigger radius than a light aircraft at the same bank', () => {
+    // Not a mass effect: the 777 simply flies faster, and radius follows speed.
+    const heavy = turnRadiusNm(MAX_BANK_DEG, 300);
+    const light = turnRadiusNm(MAX_BANK_DEG, 110);
+    expect(heavy).toBeGreaterThan(light * 5);
   });
 });
 
@@ -178,7 +199,7 @@ describe('wind triangle', () => {
   });
 
   it('drifts an aircraft off its assigned heading, which is why vectors need allowance', () => {
-    const ac = makeAircraft({ headingDeg: 0, iasKt: 200, altitudeFt: 0 });
+    const ac = makeAircraft({ headingDeg: 0, iasKt: 220, altitudeFt: 0 });
     ac.clearance.headingDeg = 0;
     ac.clearance.altitudeFt = 0;
     fly(ac, 0, 60, { fromTrueDeg: 270, speedKt: 40 });
@@ -186,36 +207,107 @@ describe('wind triangle', () => {
     expect(ac.trueTrackDeg).toBeGreaterThan(5); // Blown east of the heading.
     expect(ac.position.x).toBeGreaterThan(0);
   });
+
+  it('uses the wind at the aircraft, not one wind for the whole sector', () => {
+    // A stiff wind above 10,000 ft and calm below it.
+    const ctx: StepContext = {
+      windAt: (altitudeFt) =>
+        altitudeFt > 10000 ? { fromTrueDeg: 270, speedKt: 60 } : { fromTrueDeg: 270, speedKt: 0 },
+      magneticVariationDeg: 0,
+    };
+    const high = makeAircraft({ altitudeFt: 14000, headingDeg: 0, iasKt: 250 });
+    high.clearance.altitudeFt = 14000;
+    const low = makeAircraft({ altitudeFt: 4000, headingDeg: 0, iasKt: 250 });
+    low.clearance.altitudeFt = 4000;
+    for (let i = 0; i < 240; i++) {
+      stepAircraft(high, 0, 0.25, ctx);
+      stepAircraft(low, 0, 0.25, ctx);
+    }
+    expect(high.position.x).toBeGreaterThan(0.8);
+    expect(low.position.x).toBeCloseTo(0, 6);
+  });
 });
 
-describe('vertical and speed behaviour', () => {
+describe('vertical performance', () => {
   it('captures a cleared level from below without busting it', () => {
     const ac = makeAircraft({ altitudeFt: 6000 });
     ac.clearance.altitudeFt = 9000;
+    const ctx = context();
     let highest = 0;
     for (let i = 0; i < 2000; i++) {
-      stepAircraft(ac, null, 0.25, { wind: CALM, magneticVariationDeg: 0 });
+      stepAircraft(ac, null, 0.25, ctx);
       highest = Math.max(highest, ac.altitudeFt);
     }
     expect(ac.altitudeFt).toBe(9000);
     expect(highest).toBeLessThanOrEqual(9000 + 1e-6);
   });
 
-  it('climbs no faster than the profile allows', () => {
-    const ac = makeAircraft({ altitudeFt: 3000 });
+  it('climbs more slowly the higher it gets', () => {
+    const ac = makeAircraft({ altitudeFt: 1000 });
     ac.clearance.altitudeFt = 15000;
-    fly(ac, null, 60);
-    expect(ac.verticalSpeedFpm).toBeCloseTo(GENERIC.climbRateFpm, 6);
+    fly(ac, null, 40);
+    const low = ac.verticalSpeedFpm;
+    while (ac.altitudeFt < 12000) fly(ac, null, 10);
+    const high = ac.verticalSpeedFpm;
+    expect(low).toBeGreaterThan(2000);
+    expect(high).toBeLessThan(low - 300);
   });
 
-  it('expedite uses the higher rate', () => {
-    const ac = makeAircraft({ altitudeFt: 3000 });
-    ac.clearance.altitudeFt = 15000;
-    ac.clearance.expedite = true;
-    fly(ac, null, 60);
-    expect(ac.verticalSpeedFpm).toBeCloseTo(GENERIC.expediteClimbRateFpm, 6);
+  it('climbs more slowly when it is heavy', () => {
+    const light = makeAircraft({ altitudeFt: 3000, massKg: 52000 });
+    const heavy = makeAircraft({ altitudeFt: 3000, massKg: 75000 });
+    light.clearance.altitudeFt = 15000;
+    heavy.clearance.altitudeFt = 15000;
+    fly(light, null, 40);
+    fly(heavy, null, 40);
+    expect(light.verticalSpeedFpm).toBeGreaterThan(heavy.verticalSpeedFpm + 300);
   });
 
+  it('a Cessna and a 777 do not climb at the same rate', () => {
+    const cessna = makeAircraft({ altitudeFt: 2000, iasKt: 100 }, 'C172');
+    const boeing = makeAircraft({ altitudeFt: 2000, iasKt: 250 }, 'B77W');
+    cessna.clearance.altitudeFt = 10000;
+    cessna.clearance.speedKt = 100;
+    boeing.clearance.altitudeFt = 10000;
+    boeing.clearance.speedKt = 250;
+    fly(cessna, null, 40);
+    fly(boeing, null, 40);
+    expect(cessna.verticalSpeedFpm).toBeLessThan(900);
+    expect(boeing.verticalSpeedFpm).toBeGreaterThan(1500);
+  });
+
+  it('expedite uses the profile factor', () => {
+    const normal = makeAircraft({ altitudeFt: 3000 });
+    const quick = makeAircraft({ altitudeFt: 3000 });
+    normal.clearance.altitudeFt = 15000;
+    quick.clearance.altitudeFt = 15000;
+    quick.clearance.expedite = true;
+    fly(normal, null, 30);
+    fly(quick, null, 30);
+    expect(quick.verticalSpeedFpm / normal.verticalSpeedFpm).toBeCloseTo(
+      normal.profile.expediteFactor,
+      1,
+    );
+  });
+
+  it('cannot go down and slow down at the same time', () => {
+    const justDescending = makeAircraft({ altitudeFt: 12000, iasKt: 280 });
+    justDescending.clearance.altitudeFt = 5000;
+    justDescending.clearance.speedKt = 280;
+    justDescending.clearance.speedRestrictionCancelled = true;
+
+    const both = makeAircraft({ altitudeFt: 12000, iasKt: 280 });
+    both.clearance.altitudeFt = 5000;
+    both.clearance.speedKt = 210;
+    both.clearance.speedRestrictionCancelled = true;
+
+    fly(justDescending, null, 20);
+    fly(both, null, 20);
+    expect(Math.abs(both.verticalSpeedFpm)).toBeLessThan(Math.abs(justDescending.verticalSpeedFpm));
+  });
+});
+
+describe('speed behaviour', () => {
   it('holds 250 knots below ten thousand feet until the restriction is cancelled', () => {
     const ac = makeAircraft({ altitudeFt: 8000, iasKt: 250 });
     ac.clearance.speedKt = 300;
@@ -230,14 +322,22 @@ describe('vertical and speed behaviour', () => {
     expect(effectiveTargetSpeedKt(ac)).toBe(300);
   });
 
+  it('clamps a request to the type envelope', () => {
+    const dash = makeAircraft({ altitudeFt: 12000, iasKt: 250 }, 'Q400');
+    dash.clearance.speedKt = 400;
+    expect(effectiveTargetSpeedKt(dash)).toBe(dash.profile.speeds.maxIasKt);
+    dash.clearance.speedKt = 90;
+    expect(effectiveTargetSpeedKt(dash)).toBe(dash.profile.speeds.minCleanIasKt);
+  });
+
   it('slows more sluggishly in the descent than in the level', () => {
-    const descending = makeAircraft({ altitudeFt: 10000, iasKt: 280 });
+    const descending = makeAircraft({ altitudeFt: 12000, iasKt: 280 });
     descending.clearance.altitudeFt = 4000;
     descending.clearance.speedKt = 210;
     descending.clearance.speedRestrictionCancelled = true;
 
-    const level = makeAircraft({ altitudeFt: 10000, iasKt: 280 });
-    level.clearance.altitudeFt = 10000;
+    const level = makeAircraft({ altitudeFt: 12000, iasKt: 280 });
+    level.clearance.altitudeFt = 12000;
     level.clearance.speedKt = 210;
     level.clearance.speedRestrictionCancelled = true;
 
@@ -245,16 +345,30 @@ describe('vertical and speed behaviour', () => {
     fly(level, null, 30);
     expect(descending.iasKt).toBeGreaterThan(level.iasKt);
   });
+
+  it('accelerates less readily in a steep turn', () => {
+    const straight = makeAircraft({ altitudeFt: 12000, iasKt: 240 });
+    straight.clearance.speedKt = 300;
+    straight.clearance.speedRestrictionCancelled = true;
+
+    const turning = makeAircraft({ altitudeFt: 12000, iasKt: 240, headingDeg: 90 });
+    turning.clearance.speedKt = 300;
+    turning.clearance.speedRestrictionCancelled = true;
+
+    fly(straight, 90, 40);
+    fly(turning, 270, 40);
+    expect(Math.abs(turning.bankDeg)).toBeGreaterThan(15);
+    expect(turning.iasKt).toBeLessThan(straight.iasKt);
+  });
 });
 
 describe('position integration', () => {
   it('covers groundspeed times time along the track', () => {
-    const ac = makeAircraft({ headingDeg: 90, iasKt: 180, altitudeFt: 0 });
-    ac.clearance.speedKt = 180;
+    const ac = makeAircraft({ headingDeg: 90, iasKt: 220, altitudeFt: 0 });
+    ac.clearance.speedKt = 220;
     ac.clearance.altitudeFt = 0; // Level, so true airspeed does not creep up.
     fly(ac, 90, 60);
-    // 180 kt for one minute is three nautical miles, due east.
-    expect(ac.position.x).toBeCloseTo(3, 2);
+    expect(ac.position.x).toBeCloseTo(220 / 60, 2);
     expect(ac.position.y).toBeCloseTo(0, 6);
     expect(normalizeDeg(ac.trueTrackDeg)).toBeCloseTo(90, 6);
   });

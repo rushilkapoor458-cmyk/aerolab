@@ -22,6 +22,15 @@ const VERTICAL_FILLER = new Set(['AND', 'TO', 'MAINTAIN', 'THROUGH', 'LEVEL']);
 
 const CALLSIGN_RE = /^[A-Z][A-Z0-9]{1,7}$/;
 
+/** Words that begin an instruction, so a facility name cannot swallow them. */
+const INSTRUCTION_WORDS = new Set([
+  'TURN', 'TL', 'TR', 'FLY', 'FH', 'HEADING', 'HDG', 'H',
+  'CLIMB', 'C', 'DESCEND', 'DESCENT', 'D', 'MAINTAIN', 'ALT', 'M',
+  'EXPEDITE', 'EX', 'REDUCE', 'INCREASE', 'SPEED', 'SPD', 'S',
+  'CANCEL', 'RESUME', 'PROCEED', 'DIRECT', 'DCT', 'PD',
+  'SQUAWK', 'SQ', 'SAY', 'CONTACT', 'CT',
+]);
+
 class TokenCursor {
   private index = 0;
 
@@ -184,11 +193,23 @@ function parseOne(cursor: TokenCursor): OneResult {
       return { ok: true, command: { kind: 'squawk', code } };
     }
 
+    case 'SAY': {
+      if (cursor.accept('FUEL')) {
+        cursor.accept('REMAINING');
+        return { ok: true, command: { kind: 'sayFuel' } };
+      }
+      return fail('Say what? The only request available is "say fuel remaining".');
+    }
+
+    case 'CONTACT':
+    case 'CT':
+      return parseContact(cursor);
+
     default:
       return fail(
-        `I do not recognise "${word.toLowerCase()}". Milestone 1 understands: turn left/right heading, fly heading, ` +
-          `climb, descend, maintain, expedite, speed, cancel speed restriction, proceed direct and squawk. ` +
-          `Press ? for the full reference.`,
+        `I do not recognise "${word.toLowerCase()}". The simulator understands: turn left/right heading, fly heading, ` +
+          `climb, descend, maintain, expedite, speed, cancel speed restriction, proceed direct, squawk, say fuel ` +
+          `and contact. Press ? for the full reference.`,
       );
   }
 }
@@ -251,6 +272,55 @@ function parseDirect(cursor: TokenCursor): OneResult {
     return fail('Expected a fix name after direct, for example "dct GUDUR".');
   }
   return { ok: true, command: { kind: 'direct', fix: token } };
+}
+
+/** The civil VHF air band, in megahertz. */
+export const VHF_MIN_MHZ = 118.0;
+export const VHF_MAX_MHZ = 136.975;
+
+function isFrequency(token: string): boolean {
+  return /^\d{3}(\.\d{1,3})?$/.test(token);
+}
+
+/**
+ * `contact tower 118.1`, `contact delhi control 127.9`, `ct 118.1`. Anything
+ * before the frequency is the facility name, spoken back as given.
+ */
+function parseContact(cursor: TokenCursor): OneResult {
+  const words: string[] = [];
+  let frequency: number | null = null;
+
+  while (!cursor.done) {
+    const token = cursor.peek();
+    if (token === undefined) break;
+    if (isFrequency(token)) {
+      cursor.next();
+      frequency = Number(token);
+      break;
+    }
+    if (!/^[A-Z]+$/.test(token)) break;
+    // Stop before a word that starts the next instruction in a chained line.
+    if (INSTRUCTION_WORDS.has(token)) break;
+    cursor.next();
+    words.push(token);
+  }
+
+  if (frequency === null) {
+    return fail('Contact whom, and on what frequency? For example "contact tower 118.1".');
+  }
+  if (frequency < VHF_MIN_MHZ || frequency > VHF_MAX_MHZ) {
+    return fail(
+      `${frequency.toFixed(3)} is outside the air band (${VHF_MIN_MHZ.toFixed(1)} to ${VHF_MAX_MHZ.toFixed(3)} MHz).`,
+    );
+  }
+  return {
+    ok: true,
+    command: {
+      kind: 'contact',
+      facility: words.length === 0 ? null : words.join(' ').toLowerCase(),
+      frequencyMhz: frequency,
+    },
+  };
 }
 
 function fail(error: string): { ok: false; error: string } {

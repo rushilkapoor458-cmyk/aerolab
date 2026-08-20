@@ -2,13 +2,18 @@
  * Flight dynamics: turn geometry, the wind triangle, vertical and speed
  * behaviour. Pure functions plus one integrator, no DOM, no globals.
  *
- * Milestone 1 uses one generic transport-category envelope. Milestone 2
- * replaces the constants marked GENERIC below with per-type performance
- * profiles; nothing else in this file changes shape.
+ * Every rate comes from the aircraft's own performance profile and its
+ * current mass — see `performance.ts` and `src/data/aircraft.json`.
  */
 
 import { Point, angleDiff, movePoint, normalizeDeg } from './geo.js';
-import { Aircraft, FlightPhase } from './types.js';
+import {
+  AircraftProfile,
+  accelerationKtPerSec,
+  climbRateFpm,
+  descentRateFpm,
+} from './performance.js';
+import { Aircraft } from './types.js';
 import { approach, clamp, iasToTas, toDegrees, toRadians } from './units.js';
 
 /** Maximum bank the autoflight system will use. */
@@ -20,18 +25,8 @@ export const STANDARD_TURN_RATE_DEG_PER_SEC = 3;
 /** Radar sweep period; one history dot is laid down per sweep. */
 export const RADAR_SWEEP_SEC = 4;
 export const HISTORY_DOTS = 5;
-
-/** GENERIC envelope, replaced per type in milestone 2. */
-export const GENERIC = {
-  minSpeedKt: 140,
-  maxSpeedKt: 320,
-  climbRateFpm: 2000,
-  descentRateFpm: 1800,
-  expediteClimbRateFpm: 2800,
-  expediteDescentRateFpm: 2600,
-  /** How fast vertical speed itself may change, fpm per second. */
-  verticalAccelFpmPerSec: 400,
-} as const;
+/** How fast vertical speed itself may change, feet per minute per second. */
+export const VERTICAL_ACCEL_FPM_PER_SEC = 400;
 
 /** The 250 kt below 10,000 ft rule. */
 export const SPEED_LIMIT_KT = 250;
@@ -145,41 +140,43 @@ export function headingForTrack(
   return normalizeDeg(desiredTrackTrueDeg + toDegrees(Math.asin(sinDrift)));
 }
 
-/** The speed the aircraft will actually fly, after the 250/10,000 rule. */
+/** The speed the aircraft will actually fly, after its envelope and the rules. */
 export function effectiveTargetSpeedKt(ac: Aircraft): number {
-  const requested = clamp(ac.clearance.speedKt, GENERIC.minSpeedKt, GENERIC.maxSpeedKt);
+  const profile = ac.profile;
+  const requested = clamp(
+    ac.clearance.speedKt,
+    profile.speeds.minCleanIasKt,
+    profile.speeds.maxIasKt,
+  );
   if (ac.clearance.speedRestrictionCancelled) return requested;
   if (ac.altitudeFt < SPEED_LIMIT_ALTITUDE_FT) return Math.min(requested, SPEED_LIMIT_KT);
   return requested;
 }
 
-/** Longitudinal acceleration available, knots per second, signed. */
-export function accelerationLimitKtPerSec(
-  accelerating: boolean,
-  phase: FlightPhase,
-  bankDeg: number,
+/** Vertical rate the aircraft can make right now, signed, feet per minute. */
+export function availableVerticalRateFpm(
+  profile: AircraftProfile,
+  altitudeFt: number,
+  massKg: number,
+  climbing: boolean,
+  expedite: boolean,
+  decelerationDemandKt: number,
 ): number {
-  let limit: number;
-  if (accelerating) {
-    limit = phase === 'climb' ? 0.5 : phase === 'descent' ? 1.4 : 1.0;
-    // Induced drag in a turn eats into whatever thrust is spare.
-    if (Math.abs(bankDeg) > 15) limit = Math.max(0.1, limit - 0.4);
-  } else {
-    // Slowing down in a descent is the hard case: idle thrust is already set.
-    limit = phase === 'climb' ? 1.8 : phase === 'descent' ? 1.0 : 1.5;
-  }
-  return limit;
+  return climbing
+    ? climbRateFpm(profile, altitudeFt, massKg, expedite)
+    : descentRateFpm(profile, altitudeFt, massKg, expedite, decelerationDemandKt);
 }
 
 export interface StepContext {
-  readonly wind: Wind;
+  /** The wind at a given altitude, direction FROM in true degrees. */
+  readonly windAt: (altitudeFt: number) => Wind;
   /** Magnetic variation, positive east, used to turn headings into tracks. */
   readonly magneticVariationDeg: number;
 }
 
 /**
  * Advance one aircraft by `dtSec`. The caller has already resolved the
- * autoflight targets into `ac.clearance` and `ac.headingDeg`'s target.
+ * autoflight targets into `ac.clearance`.
  *
  * `targetHeadingDeg` is magnetic; passing null holds the current heading.
  */
@@ -189,6 +186,7 @@ export function stepAircraft(
   dtSec: number,
   ctx: StepContext,
 ): void {
+  const profile = ac.profile;
   const tas = iasToTas(ac.iasKt, ac.altitudeFt);
 
   // ---- lateral: roll, turn, roll out -------------------------------------
@@ -224,42 +222,43 @@ export function stepAircraft(
   }
 
   // ---- vertical ----------------------------------------------------------
+  const targetIas = effectiveTargetSpeedKt(ac);
+  const decelerationDemand = Math.max(0, ac.iasKt - targetIas);
   const altError = ac.clearance.altitudeFt - ac.altitudeFt;
   const climbing = altError > 0;
-  const nominal = climbing
-    ? ac.clearance.expedite
-      ? GENERIC.expediteClimbRateFpm
-      : GENERIC.climbRateFpm
-    : ac.clearance.expedite
-      ? GENERIC.expediteDescentRateFpm
-      : GENERIC.descentRateFpm;
+  const nominal = availableVerticalRateFpm(
+    profile,
+    ac.altitudeFt,
+    ac.massKg,
+    climbing,
+    ac.clearance.expedite,
+    decelerationDemand,
+  );
   // Ease off approaching the cleared level so the capture is not a corner.
   const captureLimit = Math.abs(altError) * 6;
   const targetVs = Math.sign(altError) * Math.min(nominal, captureLimit);
-  ac.verticalSpeedFpm = approach(
-    ac.verticalSpeedFpm,
-    targetVs,
-    GENERIC.verticalAccelFpmPerSec * dtSec,
-  );
+  ac.verticalSpeedFpm = approach(ac.verticalSpeedFpm, targetVs, VERTICAL_ACCEL_FPM_PER_SEC * dtSec);
   ac.altitudeFt += (ac.verticalSpeedFpm / 60) * dtSec;
   if (Math.abs(ac.clearance.altitudeFt - ac.altitudeFt) < 5 && Math.abs(ac.verticalSpeedFpm) < 150) {
     ac.altitudeFt = ac.clearance.altitudeFt;
     ac.verticalSpeedFpm = 0;
   }
 
-  ac.phase =
-    ac.verticalSpeedFpm > 200 ? 'climb' : ac.verticalSpeedFpm < -200 ? 'descent' : 'cruise';
+  // The approach phase is set by the approach logic, not by the trend arrow.
+  if (ac.phase !== 'approach') {
+    ac.phase =
+      ac.verticalSpeedFpm > 200 ? 'climb' : ac.verticalSpeedFpm < -200 ? 'descent' : 'cruise';
+  }
 
   // ---- speed -------------------------------------------------------------
-  const targetIas = effectiveTargetSpeedKt(ac);
   const accelerating = targetIas > ac.iasKt;
-  const limit = accelerationLimitKtPerSec(accelerating, ac.phase, ac.bankDeg);
+  const limit = accelerationKtPerSec(profile, ac.phase, accelerating, ac.bankDeg);
   ac.iasKt = approach(ac.iasKt, targetIas, limit * dtSec);
 
   // ---- move --------------------------------------------------------------
   const tasNow = iasToTas(ac.iasKt, ac.altitudeFt);
   const headingTrue = normalizeDeg(ac.headingDeg + ctx.magneticVariationDeg);
-  const triangle = windTriangle(headingTrue, tasNow, ctx.wind);
+  const triangle = windTriangle(headingTrue, tasNow, ctx.windAt(ac.altitudeFt));
   ac.trueTrackDeg = triangle.trackTrueDeg;
   ac.groundspeedKt = triangle.groundspeedKt;
   ac.position = movePoint(ac.position, ac.trueTrackDeg, (ac.groundspeedKt / 3600) * dtSec);

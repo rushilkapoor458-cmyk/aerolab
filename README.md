@@ -4,11 +4,13 @@ An approach/terminal radar sector for **VIDP (Indira Gandhi International, Delhi
 roughly 60 NM radius, surface to FL150. Vite + TypeScript, HTML5 canvas, no backend,
 no database, no game engine.
 
-> **Milestone 1 of 5.** This is the radar scope, the flight model and the command
-> line — enough to vector traffic around the sector and watch it fly properly. The
-> build order and what each later milestone adds are at the bottom of this file.
-> Nothing here is a stub: every command listed below is implemented, and every
-> feature not yet implemented is absent rather than faked.
+> **Milestone 2 of 5.** The radar scope, the full flight model — per-type
+> performance profiles, mass, fuel and wind aloft — and the basic command set.
+> Enough to vector real traffic around the sector, watch a 777 struggle where a
+> Q400 does not, and have an aircraft run itself short of fuel. The build order
+> and what each later milestone adds are at the bottom of this file. Nothing here
+> is a stub: every command listed below is implemented, and every feature not yet
+> implemented is absent rather than faked.
 
 ---
 
@@ -89,7 +91,9 @@ AIC101 tl 270 d 50 s 210
 | `AIC101 reduce speed to 210` | `AIC101 s 210`, `AIC101 spd 210` | Assign an indicated airspeed. `increase speed to` also works. |
 | `AIC101 cancel speed restriction` | `AIC101 resume normal speed` | Release the 250 kt below 10,000 ft rule for that aircraft. |
 | `AIC101 proceed direct GUDUR` | `AIC101 dct GUDUR`, `AIC101 pd GUDUR` | Track to a published fix, then continue along the rest of its route. |
-| `AIC101 squawk 4271` | `AIC101 sq 4271` | Assign a transponder code. |
+| `AIC101 squawk 4271` | `AIC101 sq 4271` | Assign a transponder code. Refused while an emergency squawk is set. |
+| `AIC101 say fuel remaining` | `AIC101 say fuel` | Ask for fuel on board. The crew answer in kilos and minutes at the current burn rate. |
+| `AIC101 contact tower 118.1` | `AIC101 ct 118.1` | Hand the aircraft off. It acknowledges, stops taking your instructions, and drops off the scope once it is outside the sector. |
 
 Altitudes take either form: anything **600 or less is read as hundreds of feet**, so
 `50` and `5000` both mean five thousand, and `FL150` means 15,000 ft. Headings are
@@ -134,15 +138,30 @@ AIC101 M          callsign and wake turbulence category (L, M, H, J)
 
 The third field shows `H270` instead of a fix name when the aircraft is on a vector.
 Blocks offset themselves automatically so they do not sit on top of each other or run
-off the edge of the scope.
+off the edge of the scope, and the leader line stops at the edge of the block rather
+than striking through it.
+
+A tag after the wake category, with the whole block recoloured, flags a state you
+must not forget:
+
+| Tag | Colour | Meaning |
+| --- | --- | --- |
+| `MIN` | amber | Minimum fuel advised: under 30 minutes' endurance, no undue delay. |
+| `EMG` | red | Emergency declared: under 15 minutes, squawking 7700, wants priority. |
+| `HO` | dimmed | Handed off to another frequency; no longer taking your instructions. |
 
 ### The `WX` button
 
-Opens a debug panel that edits the weather live: wind direction and speed, gusts,
-visibility, cloud, QNH, temperature, dewpoint and the ATIS letter. The METAR in the
-ATIS panel regenerates as you type and **the wind is felt by the aircraft on the very
-next step** — turn it round and watch the ground tracks change. The panel also says
-which runway the wind now favours, with a button to change the configuration.
+Opens a debug panel that edits the weather live: surface wind direction and speed,
+gusts, **the wind aloft and the altitude it applies at**, visibility, cloud, QNH,
+temperature, dewpoint and the ATIS letter. The METAR in the ATIS panel regenerates as
+you type and **the wind is felt by the aircraft on the very next step** — turn it
+round and watch the ground tracks change. The panel also says which runway the wind
+now favours, with a button to change the configuration.
+
+The wind between the surface and the aloft altitude is interpolated, so an aircraft
+at 13,000 ft is genuinely in a different airmass from one on base leg. Set the aloft
+wind to 60 kt and watch the high traffic's groundspeeds separate from the low.
 
 ---
 
@@ -153,26 +172,57 @@ which runway the wind now favours, with a button to change the configuration.
   out at 3°/sec, and the roll-out is anticipated so the aircraft settles on the
   heading instead of overshooting. A turn you name a direction for commits to that
   direction, including the long way round.
-- **Wind.** A proper wind triangle. On a vector the aircraft points at the assigned
-  magnetic heading and drifts; tracking a fix, it computes its own crab angle. True
-  airspeed rises with altitude, so groundspeeds are not indicated airspeeds.
-- **Vertical.** Rate-limited vertical acceleration and an eased capture, so cleared
-  levels are captured rather than bounced off. `expedite` uses a higher rate.
-- **Speed.** Acceleration limits that depend on the phase of flight — slowing down in
-  the descent is deliberately the hard case — plus extra drag in a steep turn. The
-  250 kt below 10,000 ft rule is enforced until you cancel it per aircraft.
+- **Wind.** A proper wind triangle, using the wind *at the aircraft's altitude*. On a
+  vector the aircraft points at the assigned magnetic heading and drifts; tracking a
+  fix, it computes its own crab angle. True airspeed rises with altitude, so
+  groundspeeds are not indicated airspeeds.
+- **Performance, per type.** Seven profiles — A320, B738, B77W, A359, ATR72, Q400,
+  C172 — each with its own climb and descent tables, speed envelope, acceleration
+  limits, fuel burn and wake category. Nothing uses a flat rate:
+  - climb rate falls off with altitude and falls further the heavier the aircraft is;
+  - descent rate *rises* with altitude and is better when heavy, not worse;
+  - an aircraft asked to descend and slow at the same time gets neither at full rate —
+    the down-and-slow problem, modelled rather than described;
+  - acceleration depends on the phase of flight (slowing in the descent is the hard
+    case) and a steep turn eats into whatever thrust was spare;
+  - a speed outside the type's envelope is refused, by that type's numbers.
+- **Mass.** Each aircraft has an all-up mass that falls as it burns fuel, and the mass
+  feeds straight back into the climb and descent rates.
+- **Fuel.** Burn is per phase of flight. Under 30 minutes' endurance the crew advise
+  minimum fuel; under 15 they declare an emergency, squawk 7700 and ask for priority,
+  and the controller can no longer change their squawk. Dry tanks mean the aircraft
+  cannot hold its level, whatever it is cleared to. `say fuel remaining` asks.
+- **The 250 kt rule** below 10,000 ft is enforced until you cancel it per aircraft.
 
-Milestone 2 replaces the single generic performance envelope with per-type profiles
-(A320, B738, B77W, A359, ATR72, Q400, C172), weight- and altitude-dependent climb and
-descent rates, fuel burn and wake categories used for more than a label.
+`SEJ301` starts with about thirty-five minutes of fuel, so if you leave it alone it
+will work through both stages on its own.
+
+Milestone 3 adds the procedures: SIDs, STARs, holding, and ILS approaches flown to a
+landing — including blowing through the localiser on a bad intercept.
 
 ---
 
-## Approximated airspace values
+## Approximated data
 
-Everything lives in **`src/data/airspace.json`**, and every object in it invented for
-the simulation carries `"approximated": true`. **Nothing in that file is published
-chart data.** It is geometrically self-consistent — fixes really do sit where their
+There are two data files, and **everything invented for the simulation in either of
+them carries `"approximated": true`**.
+
+### Aircraft performance — `src/data/aircraft.json`
+
+All seven profiles are approximated in full. The *shapes* are right — climb rate
+falling with altitude, descent rate rising with it, jets accelerating better than
+turboprops, burn highest in the climb — and they are internally consistent, but none
+of the figures is manufacturer data. To correct a profile, replace these fields from
+the aircraft's own performance manual or FCOM: `mass` (reference, minimum, maximum),
+`speeds` (minimum clean, approach, maximum, typical cruise), `ceilingFt`, the
+`climbRateFpm` and `descentRateFpm` tables, `acceleration` and `deceleration`,
+`expediteFactor`, `fuelBurnKgPerHour` per phase, `fuelCapacityKg` and
+`typicalArrivalFuelKg`. Wake categories are the one thing here taken from the real
+world: L, M, H and J as ICAO defines them.
+
+### Airspace — `src/data/airspace.json`
+
+Everything lives in this one file. **Nothing in it is published chart data.** It is geometrically self-consistent — fixes really do sit where their
 bearings and distances say, final approach fixes really are 8.0 NM out on the
 localiser course — but the numbers themselves need correcting from real charts before
 you would call this VIDP.
@@ -192,15 +242,26 @@ Here is everything to check, by category:
 | `holds` | 7 | All of them: inbound courses, turn directions, 60-second legs, 230 kt maximum, altitude bands. | Holding pattern data on the STAR and approach charts. |
 | `msaGrid` | 625 cells | The entire terrain grid: 2,500 ft over the plain, 3,300 ft and 4,300 ft to the south-west for the Aravalli ridge, 3,000 ft outside 55 NM. | Area minimum altitude charts. |
 
-Two further approximations are in code rather than data:
+Three further approximations are in code rather than data:
 
 - Levels are spoken as flight levels at or above the transition altitude and as feet
   below it, but the simulation treats altitude as feet AMSL throughout — it does not
   model the QNH offset between an altitude and a flight level.
 - True airspeed is derived from indicated airspeed by the 2%-per-1,000 ft rule of
   thumb, which is worth a couple of knots at the top of this sector.
+- Wind is interpolated linearly between the surface report and a single wind aloft.
+  A real forecast has a wind at every few thousand feet and a shear layer or two.
 
 ---
+
+## Adding an aircraft type
+
+Add an object to `types` in `src/data/aircraft.json` following the shape of the ones
+already there — the loader validates that both rate tables are in ascending altitude
+order and fails on boot if not. Then use its ICAO designator anywhere a type is named;
+the wake category, speed envelope and every rate come from the profile, so nothing
+else needs changing. A scenario naming a type with no profile is refused at once
+rather than quietly flying a default.
 
 ## Adding another airport
 
@@ -243,7 +304,8 @@ Two further approximations are in code rather than data:
     ├── main.ts                  entry point: load airspace, build world, start loop
     ├── style.css                scope-dark theme for the surrounding panels
     ├── data/
-    │   └── airspace.json        the whole of VIDP — the only airport-specific file
+    │   ├── airspace.json        the whole of VIDP — the only airport-specific file
+    │   └── aircraft.json        performance profiles for the seven types
     ├── sim/                     pure logic, no DOM, fully testable
     │   ├── units.ts             unit constants, rate limiting, formatting
     │   ├── geo.ts               local projection, bearings, distances, cross-track
@@ -273,9 +335,11 @@ Two further approximations are in code rather than data:
         └── help.ts              the ? overlay
 ```
 
-Tests sit next to what they test, as `*.test.ts`. Milestone 1 covers the command
-parser, turn geometry and the wind triangle, the airspace loader, data block layout,
-and the simulation's determinism and refusal behaviour — 86 tests in five files.
+Tests sit next to what they test, as `*.test.ts`. They cover the command parser, turn
+geometry and the wind triangle, performance interpolation and mass effects, fuel burn
+and the emergency escalation, wind aloft and METAR generation, the airspace loader,
+data block layout and leader lines, and the simulation's determinism, handoff and
+refusal behaviour — 156 tests in eight files.
 
 ```bash
 npm test
@@ -298,12 +362,13 @@ piece rather than many small ones. Both properties are asserted in
 
 | Milestone | Scope | State |
 | --- | --- | --- |
-| 1 | Radar scope, flight model, wind, command bar | **this build** |
-| 2 | Per-type performance profiles, fuel burn, the rest of the basic commands | next |
-| 3 | SIDs, STARs and ILS flown: localiser and glideslope capture, go-arounds, arrivals sequenced to landing | |
+| 1 | Radar scope, turn geometry, wind, command bar | done |
+| 2 | Per-type performance profiles, mass, fuel, wind aloft, the rest of the basic commands | **this build** |
+| 3 | SIDs, STARs, holding and ILS flown: localiser and glideslope capture, go-arounds, arrivals sequenced to landing | next |
 | 4 | Separation standards, wake matrix, STCA, MSAW, sector exit alerts, scoring and the violation log | |
 | 5 | Scenario files, generated weather, emergencies, flight strip bay, polish | |
 
 The airspace data for milestone 3 — SIDs, STARs, ILS approaches, holds — is already in
-`airspace.json` and validated on load; milestone 3 is the flying of it, not the
+`airspace.json` and validated on load, and each profile already carries the approach
+speed the aircraft will fly on final; milestone 3 is the flying of it, not the
 authoring of it.

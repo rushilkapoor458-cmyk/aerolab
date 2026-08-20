@@ -16,7 +16,9 @@ const COMMANDS: readonly Row[] = [
   { keys: 'AIC101 reduce speed to 210\nAIC101 s 210  ·  spd 210', description: 'Assign an indicated airspeed.' },
   { keys: 'AIC101 cancel speed restriction\nAIC101 resume normal speed', description: 'Release the 250 kt below 10,000 ft rule for that aircraft.' },
   { keys: 'AIC101 proceed direct GUDUR\nAIC101 dct GUDUR  ·  pd GUDUR', description: 'Track to a published fix, then continue on the rest of its route.' },
-  { keys: 'AIC101 squawk 4271\nAIC101 sq 4271', description: 'Assign a transponder code.' },
+  { keys: 'AIC101 squawk 4271\nAIC101 sq 4271', description: 'Assign a transponder code. Refused while an emergency squawk is set.' },
+  { keys: 'AIC101 say fuel remaining\nAIC101 say fuel', description: 'Ask for fuel on board. The crew answer in kilos and minutes.' },
+  { keys: 'AIC101 contact tower 118.1\nAIC101 ct 118.1', description: 'Hand the aircraft off. It leaves your frequency and drops off the scope once it is out of the sector.' },
   { keys: 'AIC101 tl 270 d 50 s 210', description: 'Chain as many instructions as you like onto one callsign.' },
 ];
 
@@ -29,6 +31,13 @@ const KEYS: readonly Row[] = [
   { keys: 'Escape', description: 'Clear the command line.' },
 ];
 
+const MODEL: readonly Row[] = [
+  { keys: 'Performance', description: 'Every type flies its own profile: climb and descent rates fall off with altitude and change with mass, and each has its own speed envelope and acceleration limits.' },
+  { keys: 'Wind aloft', description: 'The wind veers and strengthens with height. An aircraft at 13,000 ft feels a different wind from one on base leg — press WX to change either end of the profile live.' },
+  { keys: 'Down and slow', description: 'An aircraft asked to descend and slow at the same time will do neither at full rate, and will say so through its rate of descent.' },
+  { keys: 'Fuel', description: 'Burn is per phase of flight. Under 30 minutes the crew advise minimum fuel; under 15 they declare an emergency and squawk 7700.' },
+];
+
 const MOUSE: readonly Row[] = [
   { keys: 'Click a target', description: 'Select it, draw its route, and put its callsign in the command line.' },
   { keys: 'Click empty scope', description: 'Deselect.' },
@@ -39,6 +48,9 @@ const MOUSE: readonly Row[] = [
 
 const BLOCK: readonly Row[] = [
   { keys: 'AIC101 M', description: 'Callsign and wake turbulence category (L, M, H, J).' },
+  { keys: 'AIC101 M MIN', description: 'Amber: minimum fuel advised. The crew can accept no undue delay.' },
+  { keys: 'AIC101 M EMG', description: 'Red: emergency declared, squawking 7700. It wants priority.' },
+  { keys: 'AIC101 M HO', description: 'Dimmed: handed off to another frequency and no longer taking your instructions.' },
   { keys: '110↓090', description: 'Present altitude in hundreds of feet, the trend arrow, and the cleared altitude.' },
   { keys: '287 250 TUMSA', description: 'Groundspeed, assigned speed, and the fix being tracked — or H270 when on a heading.' },
 ];
@@ -83,14 +95,16 @@ function table(rows: readonly Row[]): string {
 
 function render(): string {
   return [
-    '<h1>Delhi Approach — milestone 1</h1>',
-    '<p>Radar scope, flight model, and the command line. Approaches, sequencing, conflict alerting and scenarios arrive in the milestones that follow.</p>',
+    '<h1>Delhi Approach — milestone 2</h1>',
+    '<p>Radar scope, the full flight model with per-type performance and fuel, wind aloft, and the basic command set. Approaches, sequencing, conflict alerting and scenarios arrive in the milestones that follow.</p>',
     '<h2>Instructions</h2>',
     table(COMMANDS),
     '<h2>Keyboard</h2>',
     table(KEYS),
     '<h2>Mouse</h2>',
     table(MOUSE),
+    '<h2>What the aircraft are doing</h2>',
+    table(MODEL),
     '<h2>Reading a data block</h2>',
     table(BLOCK),
     '<p class="close">Click anywhere, or press ? or Escape, to close.</p>',

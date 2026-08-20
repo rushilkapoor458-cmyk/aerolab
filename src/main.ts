@@ -2,8 +2,10 @@
 
 import './style.css';
 import airspaceData from './data/airspace.json';
+import aircraftData from './data/aircraft.json';
 import { Airspace, RawAirspace } from './sim/airspace.js';
-import { seedMilestoneOneTraffic } from './sim/initialTraffic.js';
+import { PerformanceCatalogue, RawPerformance } from './sim/performance.js';
+import { seedInitialTraffic } from './sim/initialTraffic.js';
 import { Simulation } from './sim/world.js';
 import { App } from './ui/app.js';
 
@@ -12,15 +14,16 @@ const SEED = 20260820;
 
 function boot(): void {
   const airspace = new Airspace(airspaceData as unknown as RawAirspace);
-  const sim = new Simulation(airspace, SEED);
-  seedMilestoneOneTraffic(sim);
+  const performance = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
+  const sim = new Simulation(airspace, performance, SEED);
+  seedInitialTraffic(sim);
   new App(sim).start();
 }
 
 try {
   boot();
 } catch (error) {
-  // A broken airspace.json is the likeliest cause; say so on the page rather
+  // A broken data file is the likeliest cause; say so on the page rather
   // than leaving a black screen and a console message nobody opened.
   const message = error instanceof Error ? error.message : String(error);
   document.body.innerHTML =

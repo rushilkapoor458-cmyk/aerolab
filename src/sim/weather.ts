@@ -5,8 +5,8 @@
  * it live, and the wind genuinely drives the wind triangle in `flight.ts`.
  */
 
-import { formatBearing } from './geo.js';
-import { pad2 } from './units.js';
+import { angleDiff, formatBearing, normalizeDeg } from './geo.js';
+import { clamp, pad2 } from './units.js';
 
 export interface Weather {
   /** Direction the wind blows FROM, in magnetic degrees. */
@@ -21,6 +21,41 @@ export interface Weather {
   dewpointC: number;
   /** ATIS identification letter. */
   atisLetter: string;
+
+  /**
+   * Wind aloft. Between the surface and this altitude the wind is
+   * interpolated, so an aircraft at 12,000 ft feels a different wind from one
+   * on final. In the northern hemisphere it usually veers and strengthens
+   * with height, which is what the defaults do.
+   */
+  windAloftDirectionDeg: number;
+  windAloftSpeedKt: number;
+  windAloftAltitudeFt: number;
+}
+
+export interface WindVector {
+  /** Direction the wind blows FROM, in magnetic degrees. */
+  readonly directionDeg: number;
+  readonly speedKt: number;
+}
+
+/**
+ * The wind at an altitude, interpolated between the surface report and the
+ * wind aloft. Direction takes the short way round, so a surface wind of 350
+ * and an aloft wind of 010 blend through north rather than through south.
+ */
+export function windAtAltitude(
+  weather: Weather,
+  altitudeFt: number,
+  surfaceElevationFt: number,
+): WindVector {
+  const span = weather.windAloftAltitudeFt - surfaceElevationFt;
+  const t = span <= 0 ? 1 : clamp((altitudeFt - surfaceElevationFt) / span, 0, 1);
+  const turn = angleDiff(weather.windDirectionDeg, weather.windAloftDirectionDeg);
+  return {
+    directionDeg: normalizeDeg(weather.windDirectionDeg + turn * t),
+    speedKt: weather.windSpeedKt + (weather.windAloftSpeedKt - weather.windSpeedKt) * t,
+  };
 }
 
 export function defaultWeather(): Weather {
@@ -35,6 +70,9 @@ export function defaultWeather(): Weather {
     temperatureC: 31,
     dewpointC: 18,
     atisLetter: 'C',
+    windAloftDirectionDeg: 305,
+    windAloftSpeedKt: 42,
+    windAloftAltitudeFt: 15000,
   };
 }
 

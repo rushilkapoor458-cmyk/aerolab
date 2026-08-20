@@ -19,11 +19,18 @@ export interface Box {
   readonly h: number;
 }
 
+/**
+ * How the block should be drawn. `caution` is a minimum fuel advisory, `alert`
+ * a declared emergency, and `dim` an aircraft already handed to someone else.
+ */
+export type DataBlockSeverity = 'normal' | 'caution' | 'alert' | 'dim';
+
 export interface DataBlockRequest {
   readonly id: string;
   readonly anchor: ScreenPoint;
   readonly lines: readonly string[];
   readonly selected: boolean;
+  readonly severity: DataBlockSeverity;
 }
 
 export interface PlacedDataBlock extends DataBlockRequest {
@@ -46,6 +53,14 @@ const LEADER_DIRECTIONS: readonly ScreenPoint[] = [
   { x: 0, y: 1 },
 ];
 
+/** How this aircraft's block should be coloured. */
+export function dataBlockSeverity(ac: Aircraft): DataBlockSeverity {
+  if (ac.fuelState === 'emergency') return 'alert';
+  if (ac.handedOff) return 'dim';
+  if (ac.fuelState === 'minimum') return 'caution';
+  return 'normal';
+}
+
 /** The three lines of a full data block. */
 export function dataBlockLines(ac: Aircraft, airspace: Airspace): string[] {
   const arrow =
@@ -54,12 +69,48 @@ export function dataBlockLines(ac: Aircraft, airspace: Airspace): string[] {
     ac.clearance.lateralMode === 'direct' && ac.clearance.directFix !== null
       ? ac.clearance.directFix
       : `H${Math.round(ac.clearance.headingDeg).toString().padStart(3, '0')}`;
+  // A tag after the wake category: the state the controller must not forget.
+  const tag =
+    ac.fuelState === 'emergency'
+      ? ' EMG'
+      : ac.handedOff
+        ? ' HO'
+        : ac.fuelState === 'minimum'
+          ? ' MIN'
+          : '';
   void airspace;
   return [
-    `${ac.callsign} ${ac.wake}`,
+    `${ac.callsign} ${ac.wake}${tag}`,
     `${formatFlightLevel(ac.altitudeFt)}${arrow}${formatFlightLevel(ac.clearance.altitudeFt)}`,
     `${Math.round(ac.groundspeedKt).toString().padStart(3, '0')} ${Math.round(ac.clearance.speedKt)} ${nextFix}`,
   ];
+}
+
+/**
+ * Where a leader line drawn from the target towards a block should stop: the
+ * point at which it first meets the block's edge. Returns null when the
+ * target is inside the block, where no leader should be drawn at all.
+ */
+export function leaderEndPoint(anchor: ScreenPoint, box: Box): ScreenPoint | null {
+  const centre = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
+  const dx = centre.x - anchor.x;
+  const dy = centre.y - anchor.y;
+  if (dx === 0 && dy === 0) return null;
+
+  // Slab method: the ray enters the box at the largest of the per-axis entries.
+  const entry = (min: number, max: number, origin: number, direction: number): [number, number] => {
+    if (direction === 0) return origin >= min && origin <= max ? [-Infinity, Infinity] : [Infinity, -Infinity];
+    const a = (min - origin) / direction;
+    const b = (max - origin) / direction;
+    return a <= b ? [a, b] : [b, a];
+  };
+
+  const [xEnter, xExit] = entry(box.x, box.x + box.w, anchor.x, dx);
+  const [yEnter, yExit] = entry(box.y, box.y + box.h, anchor.y, dy);
+  const tEnter = Math.max(xEnter, yEnter);
+  const tExit = Math.min(xExit, yExit);
+  if (tEnter > tExit || tEnter <= 0 || tEnter > 1) return null;
+  return { x: anchor.x + dx * tEnter, y: anchor.y + dy * tEnter };
 }
 
 function overlaps(a: Box, b: Box, margin: number): boolean {

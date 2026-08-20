@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import airspaceData from '../data/airspace.json';
+import aircraftData from '../data/aircraft.json';
 import { Airspace, RawAirspace } from './airspace.js';
-import { seedMilestoneOneTraffic } from './initialTraffic.js';
+import { seedInitialTraffic } from './initialTraffic.js';
+import { PerformanceCatalogue, RawPerformance } from './performance.js';
 import { Simulation } from './world.js';
+
+const PERFORMANCE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
 
 function build(seed = 1): Simulation {
   const airspace = new Airspace(airspaceData as unknown as RawAirspace);
-  const sim = new Simulation(airspace, seed);
-  seedMilestoneOneTraffic(sim);
+  const sim = new Simulation(airspace, PERFORMANCE, seed);
+  seedInitialTraffic(sim);
   return sim;
 }
 
@@ -139,7 +143,7 @@ describe('transmitting', () => {
   it('warns that the speed restriction still applies below ten thousand', () => {
     const sim = build();
     // SEJ301 is level at 7000 ft, so the rule bites.
-    sim.transmit('SEJ301 s 300');
+    sim.transmit('SEJ301 s 280');
     expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/restricted to 250 below ten thousand/);
     sim.transmit('SEJ301 cancel speed restriction');
     expect(sim.comms[sim.comms.length - 1]?.rejected).toBe(false);
@@ -175,5 +179,113 @@ describe('runway selection', () => {
     expect(sim.suggestedRunways().arrival).toBe('29');
     sim.weather.windDirectionDeg = 100;
     expect(sim.suggestedRunways().arrival).toBe('10');
+  });
+});
+
+describe('performance in the world', () => {
+  it('gives every aircraft the profile for its type', () => {
+    const sim = build();
+    expect(sim.find('AIC101')?.profile.icao).toBe('A320');
+    expect(sim.find('VTI872')?.wake).toBe('H');
+    expect(sim.find('VTABC')?.wake).toBe('L');
+    expect(sim.find('QTR578')?.profile.name).toMatch(/A350/);
+  });
+
+  it('refuses a type with no profile rather than inventing one', () => {
+    const sim = build();
+    expect(() =>
+      sim.add({
+        callsign: 'ZZZ1', type: 'B744', role: 'arrival',
+        position: { x: 0, y: 0 }, altitudeFt: 5000, headingDeg: 90, iasKt: 250,
+        clearedAltitudeFt: 5000, clearedSpeedKt: 250, squawk: '1000',
+      }),
+    ).toThrow(/no performance profile for B744/);
+  });
+
+  it('burns fuel and gets lighter as it flies', () => {
+    const sim = build();
+    const before = sim.find('AIC101');
+    const fuelBefore = before?.fuelKg ?? 0;
+    const massBefore = before?.massKg ?? 0;
+    sim.step(600);
+    const after = sim.find('AIC101');
+    expect(after?.fuelKg).toBeLessThan(fuelBefore);
+    expect(after?.massKg).toBeLessThan(massBefore);
+  });
+
+  it('lets a short-fuelled aircraft escalate on its own', () => {
+    const sim = build();
+    sim.step(60 * 25);
+    const ac = sim.find('SEJ301');
+    expect(ac?.fuelState).not.toBe('normal');
+    expect(sim.comms.some((c) => /minimum fuel/.test(c.text))).toBe(true);
+  });
+
+  it('answers say fuel remaining', () => {
+    const sim = build();
+    sim.transmit('AIC101 say fuel');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(false);
+    expect(last?.text).toMatch(/kilos remaining/);
+  });
+
+  it('feels a different wind at different levels', () => {
+    const sim = build();
+    const low = sim.windAt(sim.airspace.airport.elevationFt);
+    const high = sim.windAt(15000);
+    expect(high.speedKt).toBeGreaterThan(low.speedKt + 20);
+  });
+});
+
+describe('handing off', () => {
+  it('acknowledges and leaves the frequency', () => {
+    const sim = build();
+    expect(sim.transmit('AIC101 contact tower 118.1')).toBeNull();
+    const ac = sim.find('AIC101');
+    expect(ac?.handedOff).toBe(true);
+    expect(ac?.handedOffTo).toBe('tower');
+    expect(ac?.handedOffFrequencyMhz).toBe(118.1);
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/over to tower on 118.1, good day/);
+  });
+
+  it('takes no further instructions once handed off', () => {
+    const sim = build();
+    sim.transmit('AIC101 contact tower 118.1');
+    const error = sim.transmit('AIC101 tl 090');
+    expect(error).toMatch(/no longer on this frequency/);
+    expect(sim.find('AIC101')?.clearance.headingDeg).not.toBe(90);
+  });
+
+  it('drops off the scope once it is out of the sector', () => {
+    const sim = build();
+    // Turn it round and send it back out the way it came.
+    sim.transmit('AIC101 fh 112');
+    sim.step(120);
+    sim.transmit('AIC101 contact delhi control 127.9');
+    expect(sim.find('AIC101')).toBeDefined();
+    sim.step(60 * 10);
+    expect(sim.find('AIC101')).toBeUndefined();
+    expect(sim.comms.some((c) => /AIC101 has left the sector/.test(c.text))).toBe(true);
+  });
+
+  it('keeps an aircraft that has not been handed off, wherever it goes', () => {
+    const sim = build();
+    sim.transmit('AIC101 fh 112');
+    sim.step(60 * 15);
+    expect(sim.find('AIC101')).toBeDefined();
+  });
+});
+
+describe('emergency squawk', () => {
+  it('will not let the controller overwrite it', () => {
+    const sim = build();
+    const ac = sim.find('SEJ301');
+    if (ac === undefined) throw new Error('SEJ301 missing');
+    ac.fuelState = 'emergency';
+    ac.squawk = '7700';
+    sim.transmit('SEJ301 squawk 4520');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(true);
+    expect(ac.squawk).toBe('7700');
   });
 });

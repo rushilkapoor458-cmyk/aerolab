@@ -10,10 +10,13 @@ import { Simulation } from '../sim/world.js';
 import { Camera, ScreenPoint } from './camera.js';
 import {
   DataBlockRequest,
+  DataBlockSeverity,
   LINE_HEIGHT_PX,
   BLOCK_PADDING_PX,
   dataBlockLines,
+  dataBlockSeverity,
   layoutDataBlocks,
+  leaderEndPoint,
 } from './datablock.js';
 import { THEME } from './theme.js';
 
@@ -289,7 +292,13 @@ export class RadarScope {
     ctx.stroke();
 
     // Target symbol.
-    ctx.strokeStyle = selected ? THEME.targetSelected : THEME.target;
+    ctx.strokeStyle = selected
+      ? THEME.targetSelected
+      : ac.fuelState === 'emergency'
+        ? THEME.dataBlockAlert
+        : ac.handedOff
+          ? THEME.dataBlockDim
+          : THEME.target;
     ctx.lineWidth = selected ? 2 : 1.4;
     ctx.strokeRect(s.x - TARGET_HALF_PX, s.y - TARGET_HALF_PX, TARGET_HALF_PX * 2, TARGET_HALF_PX * 2);
     if (selected) {
@@ -312,21 +321,24 @@ export class RadarScope {
       anchor: camera.toScreen(ac.position),
       lines: dataBlockLines(ac, this.sim.airspace),
       selected: ac.id === selectedId,
+      severity: dataBlockSeverity(ac),
     }));
     const measure = (text: string): number => ctx.measureText(text).width;
 
     const viewport = { width: camera.widthPx, height: camera.heightPx };
     for (const block of layoutDataBlocks(requests, measure, viewport)) {
-      const colour = block.selected ? THEME.dataBlockSelected : THEME.dataBlock;
-      // Leader from the target to the nearest corner of the block.
-      const targetX = clampTo(block.anchor.x, block.box.x, block.box.x + block.box.w);
-      const targetY = clampTo(block.anchor.y, block.box.y, block.box.y + block.box.h);
-      ctx.strokeStyle = THEME.leader;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(block.anchor.x, block.anchor.y);
-      ctx.lineTo(targetX, targetY);
-      ctx.stroke();
+      const colour = block.selected ? THEME.dataBlockSelected : severityColour(block.severity);
+      // The leader stops where it meets the block, so it never strikes through
+      // the text — which matters most for a block pushed against the edge.
+      const end = leaderEndPoint(block.anchor, block.box);
+      if (end !== null) {
+        ctx.strokeStyle = THEME.leader;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(block.anchor.x, block.anchor.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
 
       ctx.fillStyle = colour;
       block.lines.forEach((line, i) => {
@@ -367,6 +379,16 @@ export class RadarScope {
   }
 }
 
-function clampTo(value: number, min: number, max: number): number {
-  return value < min ? min : value > max ? max : value;
+function severityColour(severity: DataBlockSeverity): string {
+  switch (severity) {
+    case 'alert':
+      return THEME.dataBlockAlert;
+    case 'caution':
+      return THEME.dataBlockCaution;
+    case 'dim':
+      return THEME.dataBlockDim;
+    default:
+      return THEME.dataBlock;
+  }
 }
+

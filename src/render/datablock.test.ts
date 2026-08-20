@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DataBlockRequest, layoutDataBlocks } from './datablock.js';
+import { DataBlockRequest, layoutDataBlocks, leaderEndPoint } from './datablock.js';
 
 /** A stand-in for canvas text measurement: seven pixels per character. */
 const measure = (text: string): number => text.length * 7;
@@ -10,6 +10,7 @@ function request(id: string, x: number, y: number, selected = false): DataBlockR
     anchor: { x, y },
     lines: [`${id} M`, '110↓090', '287 250 TUMSA'],
     selected,
+    severity: 'normal',
   };
 }
 
@@ -120,5 +121,41 @@ describe('viewport clamping', () => {
     const withViewport = layoutDataBlocks([request('AIC101', 500, 400)], measure, viewport);
     const without = layoutDataBlocks([request('AIC101', 500, 400)], measure);
     expect(withViewport[0]?.box).toEqual(without[0]?.box);
+  });
+});
+
+describe('leader lines', () => {
+  const box = { x: 100, y: 100, w: 100, h: 40 };
+
+  it('stops on the near edge of the block', () => {
+    const end = leaderEndPoint({ x: 60, y: 120 }, box);
+    expect(end).not.toBeNull();
+    expect(end?.x).toBeCloseTo(100, 6);
+    expect(end?.y).toBeCloseTo(120, 6);
+  });
+
+  it('stops on the top edge when the target is below', () => {
+    const end = leaderEndPoint({ x: 150, y: 200 }, box);
+    expect(end).not.toBeNull();
+    expect(end?.y).toBeCloseTo(140, 6);
+  });
+
+  it('never lands inside the block', () => {
+    for (let angle = 0; angle < 360; angle += 7) {
+      const r = 120;
+      const anchor = {
+        x: 150 + Math.cos((angle * Math.PI) / 180) * r,
+        y: 120 + Math.sin((angle * Math.PI) / 180) * r,
+      };
+      const end = leaderEndPoint(anchor, box);
+      if (end === null) continue;
+      const insideX = end.x > box.x + 1e-6 && end.x < box.x + box.w - 1e-6;
+      const insideY = end.y > box.y + 1e-6 && end.y < box.y + box.h - 1e-6;
+      expect(insideX && insideY).toBe(false);
+    }
+  });
+
+  it('draws nothing when the target sits inside the block', () => {
+    expect(leaderEndPoint({ x: 150, y: 120 }, box)).toBeNull();
   });
 });

@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "notes": "Performance profiles. Climb and descent rates are tabulated against pressure altitude and scaled by mass at run time, so no aircraft uses a flat rate. Fuel burn is per phase of flight. Every profile carries \"approximated\": true — the shapes of the curves are right, the exact figures are not manufacturer data.",
+  "types": [
+    {
+      "icao": "A320",
+      "name": "Airbus A320-200",
+      "wake": "M",
+      "engine": "jet",
+      "mass": { "referenceKg": 62000, "minimumKg": 47000, "maximumKg": 77000 },
+      "speeds": { "minCleanIasKt": 205, "approachIasKt": 138, "maxIasKt": 350, "typicalCruiseIasKt": 290 },
+      "ceilingFt": 39000,
+      "climbRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 2600 },
+        { "altitudeFt": 5000, "rateFpm": 2300 },
+        { "altitudeFt": 10000, "rateFpm": 1950 },
+        { "altitudeFt": 15000, "rateFpm": 1650 }
+      ],
+      "descentRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 1100 },
+        { "altitudeFt": 5000, "rateFpm": 1800 },
+        { "altitudeFt": 10000, "rateFpm": 2300 },
+        { "altitudeFt": 15000, "rateFpm": 2600 }
+      ],
+      "acceleration": { "levelKtPerSec": 1.0, "climbKtPerSec": 0.5, "descentKtPerSec": 1.4 },
+      "deceleration": { "levelKtPerSec": 1.5, "climbKtPerSec": 1.9, "descentKtPerSec": 0.9 },
+      "expediteFactor": 1.35,
+      "fuelBurnKgPerHour": { "climb": 2700, "cruise": 2100, "descent": 800, "approach": 1100 },
+      "fuelCapacityKg": 18700,
+      "typicalArrivalFuelKg": 2800,
+      "approximated": true
+    },
+    {
+      "icao": "B738",
+      "name": "Boeing 737-800",
+      "wake": "M",
+      "engine": "jet",
+      "mass": { "referenceKg": 61000, "minimumKg": 45000, "maximumKg": 79000 },
+      "speeds": { "minCleanIasKt": 210, "approachIasKt": 142, "maxIasKt": 340, "typicalCruiseIasKt": 285 },
+      "ceilingFt": 41000,
+      "climbRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 2500 },
+        { "altitudeFt": 5000, "rateFpm": 2150 },
+        { "altitudeFt": 10000, "rateFpm": 1800 },
+        { "altitudeFt": 15000, "rateFpm": 1500 }
+      ],
+      "descentRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 1100 },
+        { "altitudeFt": 5000, "rateFpm": 1750 },
+        { "altitudeFt": 10000, "rateFpm": 2250 },
+        { "altitudeFt": 15000, "rateFpm": 2550 }
+      ],
+      "acceleration": { "levelKtPerSec": 0.95, "climbKtPerSec": 0.45, "descentKtPerSec": 1.35 },
+      "deceleration": { "levelKtPerSec": 1.45, "climbKtPerSec": 1.85, "descentKtPerSec": 0.85 },
+      "expediteFactor": 1.35,
+      "fuelBurnKgPerHour": { "climb": 2900, "cruise": 2300, "descent": 850, "approach": 1150 },
+      "fuelCapacityKg": 20800,
+      "typicalArrivalFuelKg": 2900,
+      "approximated": true
+    },
+    {
+      "icao": "B77W",
+      "name": "Boeing 777-300ER",
+      "wake": "H",
+      "engine": "jet",
+      "mass": { "referenceKg": 210000, "minimumKg": 168000, "maximumKg": 351000 },
+      "speeds": { "minCleanIasKt": 235, "approachIasKt": 152, "maxIasKt": 350, "typicalCruiseIasKt": 300 },
+      "ceilingFt": 43000,
+      "climbRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 2100 },
+        { "altitudeFt": 5000, "rateFpm": 1800 },
+        { "altitudeFt": 10000, "rateFpm": 1500 },
+        { "altitudeFt": 15000, "rateFpm": 1250 }
+      ],
+      "descentRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 1000 },
+        { "altitudeFt": 5000, "rateFpm": 1600 },
+        { "altitudeFt": 10000, "rateFpm": 2100 },
+        { "altitudeFt": 15000, "rateFpm": 2400 }
+      ],
+      "acceleration": { "levelKtPerSec": 0.8, "climbKtPerSec": 0.35, "descentKtPerSec": 1.2 },
+      "deceleration": { "levelKtPerSec": 1.2, "climbKtPerSec": 1.6, "descentKtPerSec": 0.7 },
+      "expediteFactor": 1.3,
+      "fuelBurnKgPerHour": { "climb": 9500, "cruise": 7200, "descent": 2600, "approach": 3400 },
+      "fuelCapacityKg": 145500,
+      "typicalArrivalFuelKg": 9000,
+      "approximated": true
+    },
+    {
+      "icao": "A359",
+      "name": "Airbus A350-900",
+      "wake": "H",
+      "engine": "jet",
+      "mass": { "referenceKg": 190000, "minimumKg": 145000, "maximumKg": 280000 },
+      "speeds": { "minCleanIasKt": 230, "approachIasKt": 148, "maxIasKt": 350, "typicalCruiseIasKt": 300 },
+      "ceilingFt": 43000,
+      "climbRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 2300 },
+        { "altitudeFt": 5000, "rateFpm": 2000 },
+        { "altitudeFt": 10000, "rateFpm": 1700 },
+        { "altitudeFt": 15000, "rateFpm": 1400 }
+      ],
+      "descentRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 1000 },
+        { "altitudeFt": 5000, "rateFpm": 1650 },
+        { "altitudeFt": 10000, "rateFpm": 2150 },
+        { "altitudeFt": 15000, "rateFpm": 2450 }
+      ],
+      "acceleration": { "levelKtPerSec": 0.85, "climbKtPerSec": 0.4, "descentKtPerSec": 1.25 },
+      "deceleration": { "levelKtPerSec": 1.25, "climbKtPerSec": 1.65, "descentKtPerSec": 0.75 },
+      "expediteFactor": 1.3,
+      "fuelBurnKgPerHour": { "climb": 7800, "cruise": 5900, "descent": 2100, "approach": 2800 },
+      "fuelCapacityKg": 110000,
+      "typicalArrivalFuelKg": 7500,
+      "approximated": true
+    },
+    {
+      "icao": "ATR72",
+      "name": "ATR 72-600",
+      "wake": "M",
+      "engine": "turboprop",
+      "mass": { "referenceKg": 21000, "minimumKg": 13500, "maximumKg": 23000 },
+      "speeds": { "minCleanIasKt": 145, "approachIasKt": 112, "maxIasKt": 250, "typicalCruiseIasKt": 220 },
+      "ceilingFt": 25000,
+      "climbRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 1300 },
+        { "altitudeFt": 5000, "rateFpm": 1050 },
+        { "altitudeFt": 10000, "rateFpm": 800 },
+        { "altitudeFt": 15000, "rateFpm": 550 }
+      ],
+      "descentRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 800 },
+        { "altitudeFt": 5000, "rateFpm": 1200 },
+        { "altitudeFt": 10000, "rateFpm": 1500 },
+        { "altitudeFt": 15000, "rateFpm": 1700 }
+      ],
+      "acceleration": { "levelKtPerSec": 0.8, "climbKtPerSec": 0.35, "descentKtPerSec": 1.1 },
+      "deceleration": { "levelKtPerSec": 1.6, "climbKtPerSec": 1.9, "descentKtPerSec": 1.1 },
+      "expediteFactor": 1.25,
+      "fuelBurnKgPerHour": { "climb": 720, "cruise": 560, "descent": 300, "approach": 380 },
+      "fuelCapacityKg": 5000,
+      "typicalArrivalFuelKg": 700,
+      "approximated": true
+    },
+    {
+      "icao": "Q400",
+      "name": "De Havilland Canada Dash 8 Q400",
+      "wake": "M",
+      "engine": "turboprop",
+      "mass": { "referenceKg": 26000, "minimumKg": 17800, "maximumKg": 29500 },
+      "speeds": { "minCleanIasKt": 155, "approachIasKt": 120, "maxIasKt": 285, "typicalCruiseIasKt": 245 },
+      "ceilingFt": 27000,
+      "climbRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 1700 },
+        { "altitudeFt": 5000, "rateFpm": 1400 },
+        { "altitudeFt": 10000, "rateFpm": 1100 },
+        { "altitudeFt": 15000, "rateFpm": 850 }
+      ],
+      "descentRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 900 },
+        { "altitudeFt": 5000, "rateFpm": 1350 },
+        { "altitudeFt": 10000, "rateFpm": 1700 },
+        { "altitudeFt": 15000, "rateFpm": 1900 }
+      ],
+      "acceleration": { "levelKtPerSec": 0.9, "climbKtPerSec": 0.4, "descentKtPerSec": 1.2 },
+      "deceleration": { "levelKtPerSec": 1.7, "climbKtPerSec": 2.0, "descentKtPerSec": 1.2 },
+      "expediteFactor": 1.25,
+      "fuelBurnKgPerHour": { "climb": 1150, "cruise": 880, "descent": 450, "approach": 560 },
+      "fuelCapacityKg": 5300,
+      "typicalArrivalFuelKg": 800,
+      "approximated": true
+    },
+    {
+      "icao": "C172",
+      "name": "Cessna 172 Skyhawk",
+      "wake": "L",
+      "engine": "piston",
+      "mass": { "referenceKg": 1050, "minimumKg": 800, "maximumKg": 1157 },
+      "speeds": { "minCleanIasKt": 65, "approachIasKt": 65, "maxIasKt": 130, "typicalCruiseIasKt": 110 },
+      "ceilingFt": 13500,
+      "climbRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 720 },
+        { "altitudeFt": 5000, "rateFpm": 500 },
+        { "altitudeFt": 10000, "rateFpm": 280 },
+        { "altitudeFt": 15000, "rateFpm": 60 }
+      ],
+      "descentRateFpm": [
+        { "altitudeFt": 0, "rateFpm": 500 },
+        { "altitudeFt": 5000, "rateFpm": 700 },
+        { "altitudeFt": 10000, "rateFpm": 800 },
+        { "altitudeFt": 15000, "rateFpm": 800 }
+      ],
+      "acceleration": { "levelKtPerSec": 0.5, "climbKtPerSec": 0.2, "descentKtPerSec": 0.8 },
+      "deceleration": { "levelKtPerSec": 0.9, "climbKtPerSec": 1.1, "descentKtPerSec": 0.6 },
+      "expediteFactor": 1.15,
+      "fuelBurnKgPerHour": { "climb": 34, "cruise": 26, "descent": 18, "approach": 22 },
+      "fuelCapacityKg": 150,
+      "typicalArrivalFuelKg": 40,
+      "approximated": true
+    }
+  ]
+}
