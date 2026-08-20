@@ -1,21 +1,6 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-build/
+node_modules/
 dist/
-.pytest_cache/
-.ruff_cache/
-
-# Environments
-.venv/
-venv/
-
-# macOS
 .DS_Store
-
-# Generated output — the validation report must regenerate from source,
-# so the built artefacts are deliberately not tracked.
-docs/_build/
-*.pdf
-!docs/reference/*.pdf
+*.log
+.vite/
+coverage/

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2304120b'/%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%236dffb0'/%3E%3Cpath d='M8 8 L13 4' stroke='%236dffb0'/%3E%3C/svg%3E"
+    />
+    <title>VIDP Approach — radar simulation</title>
+  </head>
+  <body>
+    <div id="app">
+      <header id="status-bar">
+        <div class="status-group">
+          <span class="status-label">UTC</span><span id="status-clock" class="status-value">--:--:--</span>
+        </div>
+        <div class="status-group">
+          <span class="status-label">ATIS</span><span id="status-atis" class="status-value">-</span>
+        </div>
+        <div class="status-group">
+          <span class="status-label">ARR</span><span id="status-arr" class="status-value">--</span>
+          <span class="status-label">DEP</span><span id="status-dep" class="status-value">--</span>
+        </div>
+        <div class="status-group">
+          <span class="status-label">WIND</span><span id="status-wind" class="status-value">-----</span>
+        </div>
+        <div class="status-group">
+          <span class="status-label">QNH</span><span id="status-qnh" class="status-value">----</span>
+        </div>
+        <div class="status-spacer"></div>
+        <div class="status-group rate-group" id="rate-buttons">
+          <button type="button" data-rate="0" class="rate">II</button>
+          <button type="button" data-rate="1" class="rate">1&times;</button>
+          <button type="button" data-rate="2" class="rate">2&times;</button>
+          <button type="button" data-rate="4" class="rate">4&times;</button>
+        </div>
+        <button type="button" id="debug-toggle" class="flat">WX</button>
+        <button type="button" id="help-toggle" class="flat">?</button>
+      </header>
+
+      <main id="main">
+        <canvas id="scope"></canvas>
+
+        <aside id="side-panel">
+          <section class="panel">
+            <h2>ATIS</h2>
+            <pre id="atis-text"></pre>
+          </section>
+          <section class="panel panel-grow">
+            <h2>Communications</h2>
+            <div id="comms-log"></div>
+          </section>
+        </aside>
+      </main>
+
+      <footer id="command-bar">
+        <span id="command-prompt">&rsaquo;</span>
+        <input
+          id="command-input"
+          type="text"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="AIC101 tl 270 d 50 s 210   —   ? for help"
+        />
+      </footer>
+      <div id="command-error" hidden></div>
+
+      <div id="debug-panel" hidden>
+        <h2>Weather</h2>
+        <label>Wind direction (°M)<input id="wx-dir" type="number" min="0" max="360" step="10" /></label>
+        <label>Wind speed (kt)<input id="wx-speed" type="number" min="0" max="80" step="1" /></label>
+        <label>Gusting to (kt, blank for none)<input id="wx-gust" type="number" min="0" max="99" step="1" /></label>
+        <label>Visibility (m)<input id="wx-vis" type="number" min="50" max="9999" step="50" /></label>
+        <label>Cloud base (ft)<input id="wx-cloud" type="number" min="100" max="20000" step="100" /></label>
+        <label>Cloud cover
+          <select id="wx-cover">
+            <option>SKC</option><option>FEW</option><option>SCT</option>
+            <option>BKN</option><option>OVC</option>
+          </select>
+        </label>
+        <label>QNH (hPa)<input id="wx-qnh" type="number" min="940" max="1060" step="1" /></label>
+        <label>Temperature (°C)<input id="wx-temp" type="number" min="-30" max="55" step="1" /></label>
+        <label>Dewpoint (°C)<input id="wx-dew" type="number" min="-40" max="40" step="1" /></label>
+        <label>ATIS letter<input id="wx-atis" type="text" maxlength="1" /></label>
+        <p id="wx-suggestion"></p>
+        <button type="button" id="wx-apply-runway">Use the suggested runway</button>
+      </div>
+
+      <div id="help-overlay" hidden></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

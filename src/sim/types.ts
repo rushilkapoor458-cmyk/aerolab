@@ -1,0 +1,89 @@
+/** Core simulation types shared across the pure-logic layer. */
+
+import { Point } from './geo.js';
+
+export type WakeCategory = 'L' | 'M' | 'H' | 'J';
+
+export type FlightRole = 'arrival' | 'departure' | 'overflight';
+
+export type FlightPhase = 'cruise' | 'climb' | 'descent' | 'approach';
+
+/** How the autoflight system is currently steering laterally. */
+export type LateralMode = 'heading' | 'direct';
+
+/** Which way a turn was instructed to go. */
+export type TurnInstruction = 'left' | 'right' | 'shortest';
+
+export interface Clearance {
+  /** Assigned magnetic heading, when the aircraft is on vectors. */
+  headingDeg: number;
+  /** Turn direction to use on the way to `headingDeg`. */
+  turn: TurnInstruction;
+  /**
+   * Degrees of heading change still to fly, signed, when the controller named
+   * a side. Latched when the instruction is given so that a turn the long way
+   * round cannot restart itself as it rolls out onto the heading.
+   */
+  turnRemainingDeg: number | null;
+  /** Cleared altitude in feet AMSL. */
+  altitudeFt: number;
+  /** Assigned indicated airspeed in knots. */
+  speedKt: number;
+  /** Fix the aircraft is proceeding direct to, when `lateralMode` is 'direct'. */
+  directFix: string | null;
+  lateralMode: LateralMode;
+  /** True once the controller has cancelled the 250 kt below 10,000 ft rule. */
+  speedRestrictionCancelled: boolean;
+  /** True while the aircraft has been told to expedite its climb or descent. */
+  expedite: boolean;
+}
+
+export interface Aircraft {
+  readonly id: string;
+  readonly callsign: string;
+  /** ICAO type designator, e.g. `A320`. */
+  readonly type: string;
+  readonly wake: WakeCategory;
+  readonly role: FlightRole;
+
+  position: Point;
+  altitudeFt: number;
+  /** Magnetic heading the nose points along. Not the ground track. */
+  headingDeg: number;
+  /** Ground track in true degrees, after the wind triangle. */
+  trueTrackDeg: number;
+  /** Indicated airspeed, knots. */
+  iasKt: number;
+  /** Groundspeed, knots. */
+  groundspeedKt: number;
+  /** Current bank angle, positive to the right. */
+  bankDeg: number;
+  /** Current vertical speed, feet per minute, positive up. */
+  verticalSpeedFpm: number;
+
+  squawk: string;
+  clearance: Clearance;
+  /** Ordered list of fix names still to fly, when following a route. */
+  route: string[];
+  phase: FlightPhase;
+
+  /** Position trail, oldest first, one entry per radar sweep. */
+  history: Point[];
+  /** Seconds until the next radar sweep records a history dot. */
+  sweepTimerSec: number;
+
+  /** Set once the aircraft has left the controller's responsibility. */
+  handedOff: boolean;
+}
+
+export type CommsSource = 'atc' | 'pilot' | 'system';
+
+export interface CommsEntry {
+  readonly id: number;
+  readonly timeSec: number;
+  readonly source: CommsSource;
+  readonly callsign: string | null;
+  readonly text: string;
+  /** Marks a pilot refusal or a parse failure, so the panel can colour it. */
+  readonly rejected: boolean;
+}
