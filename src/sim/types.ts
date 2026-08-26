@@ -129,6 +129,10 @@ export interface Aircraft {
   /** Counts the go-arounds this aircraft has flown, for scoring later. */
   goAroundCount: number;
 
+  /** When and where the aircraft came onto frequency, for the delay figure. */
+  readonly entryTimeSec: number;
+  readonly entryPosition: Point;
+
   /** Position trail, oldest first, one entry per radar sweep. */
   history: Point[];
   /** Seconds until the next radar sweep records a history dot. */

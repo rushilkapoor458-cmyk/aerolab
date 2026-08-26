@@ -1,34 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import airspaceData from '../data/airspace.json';
-import aircraftData from '../data/aircraft.json';
 import { Airspace, RawAirspace } from './airspace.js';
 import { createHoldState, holdingSpeedKt, outboundCourseTrueDeg, stepHold } from './hold.js';
-import { PerformanceCatalogue, RawPerformance } from './performance.js';
+import { makeTestAircraft } from './testAircraft.js';
 import { Aircraft } from './types.js';
 
 const AIRSPACE = new Airspace(airspaceData as unknown as RawAirspace);
-const CATALOGUE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
 const PUBLISHED = AIRSPACE.hold('GUDUR');
 if (PUBLISHED === undefined) throw new Error('GUDUR has no published hold');
 const HOLD = PUBLISHED;
 
 function makeAircraft(trueTrackDeg: number, type = 'A320'): Aircraft {
-  const profile = CATALOGUE.require(type);
-  return {
-    id: 'ac1', callsign: 'AIC101', type: profile.icao, profile, wake: profile.wake,
-    role: 'arrival', position: { x: 0, y: 0 }, altitudeFt: 9000,
-    headingDeg: trueTrackDeg, trueTrackDeg, iasKt: 250, groundspeedKt: 250,
-    bankDeg: 0, verticalSpeedFpm: 0, squawk: '4271',
-    massKg: profile.mass.referenceKg, fuelKg: profile.typicalArrivalFuelKg, fuelState: 'normal',
-    clearance: {
-      headingDeg: trueTrackDeg, turn: 'shortest', turnRemainingDeg: null,
-      altitudeFt: 9000, speedKt: 250, directFix: 'GUDUR', lateralMode: 'hold',
-      speedRestrictionCancelled: false, expedite: false, descendVia: false,
+  return makeTestAircraft(
+    {
+      headingDeg: trueTrackDeg,
+      trueTrackDeg,
+      altitudeFt: 9000,
+      iasKt: 250,
+      groundspeedKt: 250,
+      clearance: {
+        headingDeg: trueTrackDeg,
+        altitudeFt: 9000,
+        speedKt: 250,
+        directFix: 'GUDUR',
+        lateralMode: 'hold',
+      },
     },
-    route: [], procedure: null, phase: 'cruise', hold: null, approach: null,
-    goAroundCount: 0, history: [], sweepTimerSec: 4,
-    handedOff: false, handedOffTo: null, handedOffFrequencyMhz: null,
-  };
+    type,
+  );
 }
 
 describe('the published pattern', () => {

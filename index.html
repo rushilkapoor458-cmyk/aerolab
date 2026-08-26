@@ -52,6 +52,10 @@
           <span class="field-label">Go-ar</span>
           <span class="field-value" id="status-goarounds">0</span>
         </div>
+        <div class="field">
+          <span class="field-label">Losses</span>
+          <span class="field-value" id="status-losses">0</span>
+        </div>
 
         <div class="status-spacer"></div>
 
@@ -61,6 +65,7 @@
           <button type="button" data-rate="2" class="rate">2&times;</button>
           <button type="button" data-rate="4" class="rate">4&times;</button>
         </div>
+        <button type="button" id="score-toggle" class="flat" title="Session report">Score</button>
         <button type="button" id="debug-toggle" class="flat" title="Weather">WX</button>
         <button type="button" id="help-toggle" class="flat" title="Help (?)">?</button>
       </header>
@@ -72,6 +77,11 @@
           <section class="panel">
             <h2>Automatic terminal information</h2>
             <pre id="atis-text"></pre>
+          </section>
+
+          <section class="panel panel-alerts">
+            <h2>Safety net</h2>
+            <div id="alerts-list"></div>
           </section>
 
           <section class="panel panel-sequence">
@@ -124,6 +134,7 @@
       </div>
 
       <div id="help-overlay" hidden></div>
+      <div id="score-overlay" hidden></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

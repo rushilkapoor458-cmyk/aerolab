@@ -19,7 +19,11 @@ interface Placement {
   readonly type: string;
   /** Fix to place the aircraft near. */
   readonly atFix: string;
-  /** Nautical miles beyond that fix, along the outbound radial from the field. */
+  /**
+   * Nautical miles beyond that fix along the outbound radial from the field.
+   * Negative places the aircraft inside it, which is where traffic that has
+   * just entered the sector actually is.
+   */
   readonly beyondNm: number;
   readonly altitudeFt: number;
   readonly clearedAltitudeFt: number;
@@ -39,17 +43,17 @@ interface Placement {
 
 const PLACEMENTS: readonly Placement[] = [
   {
-    callsign: 'AIC101', type: 'A320', atFix: 'GUDUR', beyondNm: 2,
+    callsign: 'AIC101', type: 'A320', atFix: 'GUDUR', beyondNm: -2,
     altitudeFt: 11000, clearedAltitudeFt: 9000, iasKt: 290, clearedSpeedKt: 280,
     squawk: '4271', route: ['TUMSA', 'SAHIB'], procedure: 'GUDUR1A',
   },
   {
-    callsign: 'IGO2145', type: 'B738', atFix: 'NOMAN', beyondNm: 2,
+    callsign: 'IGO2145', type: 'B738', atFix: 'NOMAN', beyondNm: -2,
     altitudeFt: 10000, clearedAltitudeFt: 8000, iasKt: 280, clearedSpeedKt: 250,
     squawk: '4302', route: ['ROHTA', 'DAULA'], procedure: 'NOMAN1H',
   },
   {
-    callsign: 'VTI872', type: 'B77W', atFix: 'BUXOR', beyondNm: 2,
+    callsign: 'VTI872', type: 'B77W', atFix: 'BUXOR', beyondNm: -2,
     altitudeFt: 13000, clearedAltitudeFt: 11000, iasKt: 300, clearedSpeedKt: 280,
     squawk: '4415', route: ['ALGAN', 'DAULA'], procedure: 'BUXOR1J',
   },
@@ -60,7 +64,7 @@ const PLACEMENTS: readonly Placement[] = [
     squawk: '4520', route: [], headingDeg: 340, fuelKg: 520,
   },
   {
-    callsign: 'QTR578', type: 'A359', atFix: 'RAKMO', beyondNm: 2,
+    callsign: 'QTR578', type: 'A359', atFix: 'RAKMO', beyondNm: -2,
     altitudeFt: 14000, clearedAltitudeFt: 12000, iasKt: 300, clearedSpeedKt: 290,
     squawk: '4633', route: ['KIRAN', 'DAULA'], procedure: 'RAKMO1C', massKg: 215000,
   },

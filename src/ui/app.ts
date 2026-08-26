@@ -13,6 +13,8 @@ import { CommandBar } from './commandBar.js';
 import { CommsPanel } from './comms.js';
 import { DebugPanel } from './debugPanel.js';
 import { HelpOverlay } from './help.js';
+import { AlertsPanel } from './alerts.js';
+import { ScoreOverlay } from './score.js';
 import { SequencePanel } from './sequence.js';
 import { StatusBar, requireElement, requireInput } from './statusBar.js';
 
@@ -29,6 +31,8 @@ export class App {
   private readonly statusBar: StatusBar;
   private readonly comms: CommsPanel;
   private readonly sequence: SequencePanel;
+  private readonly alerts: AlertsPanel;
+  private readonly score: ScoreOverlay;
   private readonly commandBar: CommandBar;
   private readonly help: HelpOverlay;
 
@@ -52,9 +56,12 @@ export class App {
     this.scope = new RadarScope(canvas, sim);
     this.statusBar = new StatusBar(sim, (rate) => this.setRate(rate));
     this.comms = new CommsPanel(requireElement('comms-log'));
-    this.sequence = new SequencePanel(requireElement('sequence-list'), sim, (id) => {
+    const selectById = (id: string): void => {
       this.select(this.sim.aircraft.find((a) => a.id === id) ?? null);
-    });
+    };
+    this.sequence = new SequencePanel(requireElement('sequence-list'), sim, selectById);
+    this.alerts = new AlertsPanel(requireElement('alerts-list'), selectById);
+    this.score = new ScoreOverlay(requireElement('score-overlay'), sim);
     this.help = new HelpOverlay(requireElement('help-overlay'));
     new DebugPanel(sim);
 
@@ -66,7 +73,14 @@ export class App {
     });
 
     requireElement('help-toggle').addEventListener('click', () => {
+      this.score.hide();
       this.help.toggle();
+      this.commandBar.focus();
+    });
+
+    requireElement('score-toggle').addEventListener('click', () => {
+      this.help.hide();
+      this.score.toggle();
       this.commandBar.focus();
     });
 
@@ -80,6 +94,7 @@ export class App {
     this.statusBar.update(this.rate);
     this.comms.update(this.sim.comms);
     this.sequence.update(this.selectedId);
+    this.alerts.update(this.sim.safety.alerts);
     const frame = (nowMs: number): void => {
       this.tick(nowMs);
       requestAnimationFrame(frame);
@@ -103,9 +118,14 @@ export class App {
       this.statusBar.update(this.rate);
       this.comms.update(this.sim.comms);
       this.sequence.update(this.selectedId);
+      this.alerts.update(this.sim.safety.alerts);
     }
 
-    this.scope.render({ selectedId: this.selectedId, ruler: this.currentRuler() });
+    this.scope.render({
+      selectedId: this.selectedId,
+      ruler: this.currentRuler(),
+      alerts: this.sim.safety.alerts,
+    });
   }
 
   private currentRuler(): Ruler | null {
@@ -200,9 +220,10 @@ export class App {
       const target = event.target;
       const typing = target instanceof HTMLInputElement || target instanceof HTMLSelectElement;
 
-      if (event.key === 'Escape' && this.help.isOpen) {
+      if (event.key === 'Escape' && (this.help.isOpen || this.score.isOpen)) {
         event.preventDefault();
         this.help.hide();
+        this.score.hide();
         this.commandBar.focus();
         return;
       }

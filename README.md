@@ -4,14 +4,15 @@ An approach/terminal radar sector for **VIDP (Indira Gandhi International, Delhi
 roughly 60 NM radius, surface to FL150. Vite + TypeScript, HTML5 canvas, no backend,
 no database, no game engine.
 
-> **Milestone 3 of 5.** The radar scope, the full flight model — per-type
-> performance profiles, mass, fuel and wind aloft — the basic command set, and
-> the procedures: published arrivals, holding, and ILS approaches flown to a
-> landing, with blown intercepts and go-arounds. Enough to run a sector: take
-> traffic off the boundary fixes, sequence it, turn it onto final, and land it.
-> The build order and what each later milestone adds are at the bottom of this
-> file. Nothing here is a stub: every command listed below is implemented, and
-> every feature not yet implemented is absent rather than faked.
+> **Milestone 4 of 5.** The radar scope, the full flight model — per-type
+> performance profiles, mass, fuel and wind aloft — the command set, the
+> procedures (published arrivals, holding, ILS approaches flown to a landing),
+> and the safety net: separation standards, wake turbulence, conflict and
+> terrain alerting, and a session report that records every minimum you broke.
+> Enough to run a sector and be marked on it. The build order and what the last
+> milestone adds are at the bottom of this file. Nothing here is a stub: every
+> command listed below is implemented, and every feature not yet implemented is
+> absent rather than faked.
 
 ---
 
@@ -205,6 +206,64 @@ row to select that aircraft. It is a read-only view of the order traffic will
 actually arrive in; the flight strip bay you drag to set your *intended* sequence is
 milestone 5.
 
+## The safety net
+
+Everything the system notices appears in the **Safety net** panel, worst first, and
+the aircraft it names turn amber or red on the scope. Amber is a prediction; red
+means a minimum is being broken right now.
+
+| Alert | What it means |
+| --- | --- |
+| `STCA` | Short term conflict alert. Amber and dashed for a loss predicted within two minutes; red and solid the moment the minima are actually broken. The line drawn between the pair is labelled with the present distance and vertical split. |
+| `WAKE` | Wake turbulence in trail on final, inside 15 NM of the threshold. |
+| `MSAW` | Terrain. Amber while descending towards the minimum safe altitude, red below it. |
+| `EXIT` | An aircraft about to leave the sector, or already outside it, that you have not handed off. |
+
+**Separation minima**: 3 NM and 1000 ft inside the terminal area, 5 NM as soon as
+either aircraft is more than 40 NM from the field. The prediction assumes each
+aircraft holds its present ground track and groundspeed and continues its present
+climb or descent *until it reaches the level it is cleared to* — so an aircraft that
+will level off safely does not raise an alert, and a turning aircraft occasionally
+raises one that resolves itself. Both are what the real thing does.
+
+**Wake turbulence minima** are in `src/data/wake.json`, following the ICAO Doc 4444
+table. Rows are the aircraft in front:
+
+| Behind ↓ / In front → | Super | Heavy | Medium | Light |
+| --- | --- | --- | --- | --- |
+| **Super** | 4 | 3 | 3 | 3 |
+| **Heavy** | 6 | 4 | 3 | 3 |
+| **Medium** | 7 | 5 | 3 | 3 |
+| **Light** | 8 | 6 | 5 | 3 |
+
+Nothing ever goes below the 3 NM radar minimum, and the loader refuses a matrix with
+a hole in it or a figure below that minimum.
+
+**MSAW is suppressed** once an aircraft is established on an approach — every
+glidepath in the world goes below the sector minimum — and it stays silent where the
+terrain grid publishes nothing, rather than inventing a figure.
+
+## The session report
+
+The **Score** button in the top right opens it. Nothing there is a points total;
+these are the figures a watch supervisor would actually look at.
+
+| Section | Figures |
+| --- | --- |
+| Movements | Arrivals landed, departures away, movements per hour, go-arounds. |
+| Efficiency | Average and worst delay, total fuel burnt. |
+| Safety | Separation losses, wake turbulence, terrain alerts, unhandled sector exits. |
+
+**Delay** is measured per landed aircraft as the time it took over and above a
+straight run from where it came on frequency to the threshold at its own normal
+speed. It is never negative: beating the straight-line time means the wind helped,
+not that you did.
+
+Underneath is the **violation log** — one row per episode, with the time it started,
+the aircraft involved, the minima that applied, the values at the closest point, when
+that closest point occurred, and how long it lasted. An episode is logged once and
+then tracked: the row keeps the *worst* values seen, not the first.
+
 ### The `WX` button
 
 Opens a debug panel that edits the weather live: surface wind direction and speed,
@@ -252,8 +311,8 @@ wind to 60 kt and watch the high traffic's groundspeeds separate from the low.
 `SEJ301` starts with about thirty-five minutes of fuel, so if you leave it alone it
 will work through both stages on its own.
 
-Milestone 4 adds separation standards, the wake turbulence matrix, STCA and MSAW
-alerting, and the session score.
+Milestone 5 adds the scenario files, generated weather, departures with a runway
+queue, scripted emergencies, and the flight strip bay.
 
 ---
 
@@ -261,6 +320,13 @@ alerting, and the session score.
 
 There are two data files, and **everything invented for the simulation in either of
 them carries `"approximated": true`**.
+
+### Wake turbulence — `src/data/wake.json`
+
+This one is mostly **not** approximated: the matrix is the published ICAO Doc 4444
+distance-based table, and the categories are the ICAO legacy ones. The single
+invented figure is **super behind super**, taken as 4 NM, which Doc 4444 does not
+publish; it is flagged in the file's `approximated` block.
 
 ### Aircraft performance — `src/data/aircraft.json`
 
@@ -288,8 +354,8 @@ Here is everything to check, by category:
 | --- | --- | --- | --- |
 | `airport` | 1 | Magnetic variation 0.6°E, transition altitude 4,000 ft, frequencies 127.9 / 118.1. Elevation 777 ft and the reference point are close to real. | AIP ENR/AD 2 VIDP. |
 | `runways` | 6 | All six. True headings assumed as 092.6 / 102.6 / 112.6 and their reciprocals; threshold coordinates derived from an assumed layout around the reference point; lengths, widths, ILS frequencies, glideslope 3.0° and the CAT I / CAT IIIB categories. | AD 2 VIDP runway table and the ILS/DME charts. In reality the three runway pairs are not spaced 10° apart. |
-| `fixes` | 22 | Every one, including the names. GUDUR, TUMSA, SITAX, SOKAT, RAKMO, KIRAN, NOMAN, ROHTA, BUXOR, ALGAN, PARAS, LOHAT, VEDAN, MEHUL, DAULA, SAHIB are placed on chosen radials at 22 / 32 / 45 / 55 NM. DIVEK, MOKAL, TARIL, SEKUR, BAGAN, NOPIL are the final approach fixes, placed 8.0 NM out. | STAR/SID charts and the ILS plates. Expect the real entry fixes and their names to differ entirely. |
-| `sector.boundary` | 24 points | The whole polygon: a 60 NM circle deliberately made slightly irregular. Ceiling FL150, floor surface. | The Delhi TMA lateral limits. |
+| `fixes` | 22 | Every one, including the names. GUDUR, TUMSA, SITAX, SOKAT, RAKMO, KIRAN, NOMAN, ROHTA, BUXOR, ALGAN, PARAS, LOHAT, VEDAN, MEHUL, DAULA, SAHIB are placed on chosen radials at 22 / 32 / 45 / 50 NM. The entry fixes sit at 50 NM so that the holding patterns published at them stay inside the sector. DIVEK, MOKAL, TARIL, SEKUR, BAGAN, NOPIL are the final approach fixes, placed 8.0 NM out. | STAR/SID charts and the ILS plates. Expect the real entry fixes and their names to differ entirely. |
+| `sector.boundary` | 24 points | The whole polygon: a nominally 60 NM circle deliberately made slightly irregular, running between 57 and 67 NM. Ceiling FL150, floor surface. The loader refuses to start if a boundary fix ends up outside it. | The Delhi TMA lateral limits. |
 | `airways` | 5 | W20, A201, G452, N563, L507 — the identifiers and the fixes on them. | ENR 3 route tables. |
 | `sids` | 4 | GUDUR1D, RAKMO2E, NOMAN1F, BUXOR1G, including every altitude and speed restriction. | SID charts per runway. |
 | `stars` | 5 | GUDUR1A, SITAX1B, RAKMO1C, NOMAN1H, BUXOR1J, including every restriction. | STAR charts. |
@@ -311,6 +377,9 @@ Three further approximations are in code rather than data:
   larger first circuit than it would in life.
 - Runway occupancy is a flat 55 seconds rather than a vacation time that depends on
   the aircraft, the exit taken and the surface.
+- Conflict prediction samples the next two minutes every five seconds along straight
+  tracks. A real STCA models the turn as well, and would not briefly light up on an
+  aircraft that is already turning away.
 
 ---
 
@@ -365,7 +434,8 @@ rather than quietly flying a default.
     ├── style.css                scope-dark theme for the surrounding panels
     ├── data/
     │   ├── airspace.json        the whole of VIDP — the only airport-specific file
-    │   └── aircraft.json        performance profiles for the seven types
+    │   ├── aircraft.json        performance profiles for the seven types
+    │   └── wake.json            wake turbulence separation matrix
     ├── sim/                     pure logic, no DOM, fully testable
     │   ├── units.ts             unit constants, rate limiting, formatting
     │   ├── geo.ts               local projection, bearings, distances, cross-track
@@ -395,13 +465,16 @@ rather than quietly flying a default.
         └── help.ts              the ? overlay
 ```
 
-Tests sit next to what they test, as `*.test.ts`. They cover the command parser, turn
-geometry and the wind triangle, performance interpolation and mass effects, fuel burn
-and the emergency escalation, wind aloft and METAR generation, ILS geometry and every
-capture rule, the holding pattern state machine, the airspace loader, data block
-layout and leader lines, and the simulation's determinism, handoff and refusal
-behaviour — including flying a complete approach to a landing, blowing through the
-localiser, and both kinds of go-around — 224 tests in ten files.
+Tests sit next to what they test, as `*.test.ts`, and share one aircraft fixture in
+`src/sim/testAircraft.ts`. They cover the command parser, turn geometry and the wind
+triangle, performance interpolation and mass effects, fuel burn and the emergency
+escalation, wind aloft and METAR generation, ILS geometry and every capture rule, the
+holding pattern state machine, the wake matrix, separation standards and conflict
+prediction, the safety net and its violation log, the score, the airspace loader,
+data block layout and leader lines, and the simulation's determinism, handoff and
+refusal behaviour — including flying a complete approach to a landing, blowing
+through the localiser, both kinds of go-around, and a deliberate separation loss —
+291 tests in fourteen files.
 
 ```bash
 npm test
@@ -426,9 +499,9 @@ piece rather than many small ones. Both properties are asserted in
 | --- | --- | --- |
 | 1 | Radar scope, turn geometry, wind, command bar | done |
 | 2 | Per-type performance profiles, mass, fuel, wind aloft, the rest of the basic commands | done |
-| 3 | Published arrivals, holding and ILS flown: localiser and glideslope capture, go-arounds, arrivals sequenced to landing | **this build** |
-| 4 | Separation standards, wake matrix, STCA, MSAW, sector exit alerts, scoring and the violation log | next |
-| 5 | Scenario files, generated weather, emergencies, flight strip bay, polish | |
+| 3 | Published arrivals, holding and ILS flown: localiser and glideslope capture, go-arounds, arrivals sequenced to landing | done |
+| 4 | Separation standards, wake matrix, STCA, MSAW, sector exit alerts, scoring and the violation log | **this build** |
+| 5 | Scenario files, generated weather, departures and the runway queue, emergencies, flight strip bay | next |
 
 Departures are milestone 5, with the scenario files: the runway queue, `line up and
 wait`, `cleared for takeoff`, and SIDs flown outbound. The SID data is already in

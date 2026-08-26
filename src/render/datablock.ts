@@ -8,6 +8,7 @@
  */
 
 import { Airspace } from '../sim/airspace.js';
+import { AlertSeverity } from '../sim/safety.js';
 import { Aircraft } from '../sim/types.js';
 import { formatFlightLevel } from '../sim/units.js';
 import { ScreenPoint } from './camera.js';
@@ -73,9 +74,16 @@ export function navigationField(ac: Aircraft): string {
   return `H${Math.round(ac.clearance.headingDeg).toString().padStart(3, '0')}`;
 }
 
-/** How this aircraft's block should be coloured. */
-export function dataBlockSeverity(ac: Aircraft): DataBlockSeverity {
-  if (ac.fuelState === 'emergency') return 'alert';
+/**
+ * How this aircraft's block should be coloured. A safety net alert outranks
+ * everything else: a controller must see the conflict before anything.
+ */
+export function dataBlockSeverity(
+  ac: Aircraft,
+  alert: AlertSeverity | null = null,
+): DataBlockSeverity {
+  if (alert === 'warning' || ac.fuelState === 'emergency') return 'alert';
+  if (alert === 'caution') return 'caution';
   if (ac.handedOff) return 'dim';
   if (ac.fuelState === 'minimum') return 'caution';
   return 'normal';

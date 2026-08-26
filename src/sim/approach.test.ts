@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import airspaceData from '../data/airspace.json';
-import aircraftData from '../data/aircraft.json';
 import { Airspace, RawAirspace } from './airspace.js';
 import {
   THRESHOLD_CROSSING_HEIGHT_FT,
@@ -14,11 +13,10 @@ import {
   localiserTrackTrueDeg,
 } from './approach.js';
 import { angleDiff, movePoint } from './geo.js';
-import { PerformanceCatalogue, RawPerformance } from './performance.js';
+import { makeTestAircraft } from './testAircraft.js';
 import { Aircraft } from './types.js';
 
 const AIRSPACE = new Airspace(airspaceData as unknown as RawAirspace);
-const CATALOGUE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
 const RUNWAY_29 = AIRSPACE.runway('29');
 const APPROACH_29 = AIRSPACE.approachForRunway('29');
 if (RUNWAY_29 === undefined || APPROACH_29 === undefined) throw new Error('runway 29 missing');
@@ -37,62 +35,32 @@ interface Placement {
 }
 
 function place(p: Placement, type = 'A320'): Aircraft {
-  const profile = CATALOGUE.require(type);
   const reciprocal = (RUNWAY.trueHeadingDeg + 180) % 360;
   const onCentreline = movePoint(RUNWAY.threshold, reciprocal, p.distanceNm);
   const right = (RUNWAY.trueHeadingDeg + 90) % 360;
   const position = movePoint(onCentreline, right, p.offsetNm ?? 0);
   const track = p.trackDeg ?? RUNWAY.trueHeadingDeg;
-  return {
-    id: 'ac1',
-    callsign: 'AIC101',
-    type: profile.icao,
-    profile,
-    wake: profile.wake,
-    role: 'arrival',
-    position,
-    altitudeFt: p.altitudeFt,
-    headingDeg: track,
-    trueTrackDeg: track,
-    iasKt: p.iasKt ?? 180,
-    groundspeedKt: p.iasKt ?? 180,
-    bankDeg: 0,
-    verticalSpeedFpm: 0,
-    squawk: '4271',
-    massKg: profile.mass.referenceKg,
-    fuelKg: profile.typicalArrivalFuelKg,
-    fuelState: 'normal',
-    clearance: {
-      headingDeg: track,
-      turn: 'shortest',
-      turnRemainingDeg: null,
+  const speed = p.iasKt ?? 180;
+  return makeTestAircraft(
+    {
+      position,
       altitudeFt: p.altitudeFt,
-      speedKt: p.iasKt ?? 180,
-      directFix: null,
-      lateralMode: 'heading',
-      speedRestrictionCancelled: false,
-      expedite: false,
-      descendVia: false,
+      headingDeg: track,
+      trueTrackDeg: track,
+      iasKt: speed,
+      groundspeedKt: speed,
+      clearance: { headingDeg: track, altitudeFt: p.altitudeFt, speedKt: speed },
+      approach: {
+        runway: '29',
+        ident: 'ILS29',
+        localiserCaptured: false,
+        glideslopeCaptured: false,
+        reportedBlowThrough: false,
+        stabilityChecked: false,
+      },
     },
-    route: [],
-    procedure: null,
-    phase: 'cruise',
-    hold: null,
-    approach: {
-      runway: '29',
-      ident: 'ILS29',
-      localiserCaptured: false,
-      glideslopeCaptured: false,
-      reportedBlowThrough: false,
-      stabilityChecked: false,
-    },
-    goAroundCount: 0,
-    history: [],
-    sweepTimerSec: 4,
-    handedOff: false,
-    handedOffTo: null,
-    handedOffFrequencyMhz: null,
-  };
+    type,
+  );
 }
 
 describe('localiser geometry', () => {

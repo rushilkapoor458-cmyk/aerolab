@@ -40,6 +40,15 @@ const KEYS: readonly Row[] = [
   { keys: 'Escape', description: 'Clear the command line.' },
 ];
 
+const SAFETY: readonly Row[] = [
+  { keys: 'STCA', description: 'Short term conflict alert. Amber and dashed for a loss predicted within two minutes, red and solid the moment the minima are actually broken. The line between the pair is labelled with the current distance and vertical split.' },
+  { keys: 'Separation minima', description: '3 NM and 1000 ft inside the terminal area; 5 NM as soon as either aircraft is more than 40 NM from the field.' },
+  { keys: 'WAKE', description: 'Wake turbulence in trail on final: heavy behind heavy 4 NM, medium behind heavy 5, light behind heavy 6, light behind medium 5, and 8 behind a super. The full matrix is in src/data/wake.json.' },
+  { keys: 'MSAW', description: 'Terrain. Amber while descending towards the minimum safe altitude, red below it. Suppressed once established on an approach, and silent where the grid publishes no terrain data.' },
+  { keys: 'EXIT', description: 'An aircraft about to leave the sector, or already outside it, that you have not handed off.' },
+  { keys: 'Score', description: 'The button in the top right opens the session report: movements, rate per hour, delay, fuel, and every minimum broken with the values at the closest point.' },
+];
+
 const APPROACH_NOTES: readonly Row[] = [
   { keys: 'A good intercept', description: 'Inside the intercept range, within 30° of the localiser course, and inside the beam. Miss any one and the aircraft flies straight through the centreline and tells you so.' },
   { keys: 'Glideslope from below', description: 'The slope is captured only when it comes down to the aircraft. Hold one high and it will stay high, then go around at the missed approach point.' },
@@ -67,6 +76,8 @@ const BLOCK: readonly Row[] = [
   { keys: 'AIC101 M MIN', description: 'Amber: minimum fuel advised. The crew can accept no undue delay.' },
   { keys: 'AIC101 M EMG', description: 'Red: emergency declared, squawking 7700. It wants priority.' },
   { keys: 'AIC101 M HO', description: 'Dimmed: handed off to another frequency and no longer taking your instructions.' },
+  { keys: 'Amber block', description: 'A safety net caution names this aircraft — a predicted conflict, or terrain ahead.' },
+  { keys: 'Red block', description: 'A safety net warning names it: separation, wake or terrain minima actually broken.' },
   { keys: '110↓090', description: 'Present altitude in hundreds of feet, the trend arrow, and the cleared altitude.' },
   { keys: '287 250 TUMSA', description: 'Groundspeed, assigned speed, and what it is steering by: a fix, H270 on a heading, HOLD GUDUR in the pattern, or the approach.' },
   { keys: '\u2192ILS29 \u2016ILS29 \u25bcILS29', description: 'Cleared for the approach on vectors, established on the localiser, and on the glidepath.' },
@@ -113,7 +124,7 @@ function table(rows: readonly Row[]): string {
 function render(): string {
   return [
     '<h1>VIDP Approach — Delhi Director</h1>',
-    '<p>Radar scope, the full flight model with per-type performance and fuel, wind aloft, published arrivals, holding, and ILS approaches flown to a landing. Conflict alerting, scoring and scenarios arrive in the milestones that follow.</p>',
+    '<p>Radar scope, the full flight model with per-type performance and fuel, wind aloft, published arrivals, holding, ILS approaches flown to a landing, and the safety net: conflict alerting, wake turbulence, terrain and the session score. Scenarios, weather and departures arrive in the last milestone.</p>',
     '<h2>Instructions</h2>',
     table(COMMANDS),
     '<h2>Procedures</h2>',
@@ -124,6 +135,8 @@ function render(): string {
     table(MOUSE),
     '<h2>Flying the approach</h2>',
     table(APPROACH_NOTES),
+    '<h2>The safety net</h2>',
+    table(SAFETY),
     '<h2>What the aircraft are doing</h2>',
     table(MODEL),
     '<h2>Reading a data block</h2>',

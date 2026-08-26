@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import airspaceData from '../data/airspace.json';
 import aircraftData from '../data/aircraft.json';
+import wakeData from '../data/wake.json';
 import { Airspace, RawAirspace } from './airspace.js';
-import { crossTrackNm, distanceNm, movePoint } from './geo.js';
+import { crossTrackNm, distanceNm, movePoint, pointInPolygon } from './geo.js';
 import { seedInitialTraffic } from './initialTraffic.js';
 import { PerformanceCatalogue, RawPerformance } from './performance.js';
+import { RawWakeMatrix, WakeMatrix } from './wake.js';
 import { Simulation } from './world.js';
 
 const PERFORMANCE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
+const WAKE = new WakeMatrix(wakeData as unknown as RawWakeMatrix);
 
 function build(seed = 1): Simulation {
   const airspace = new Airspace(airspaceData as unknown as RawAirspace);
-  const sim = new Simulation(airspace, PERFORMANCE, seed);
+  const sim = new Simulation(airspace, PERFORMANCE, WAKE, seed);
   seedInitialTraffic(sim);
   return sim;
 }
@@ -38,9 +41,14 @@ describe('airspace data', () => {
   it('reports a minimum safe altitude everywhere inside the sector', () => {
     const airspace = new Airspace(airspaceData as unknown as RawAirspace);
     expect(airspace.minimumSafeAltitudeFt({ x: 0, y: 0 })).toBeGreaterThan(0);
-    expect(airspace.minimumSafeAltitudeFt({ x: -45, y: -30 })).toBeGreaterThan(
-      airspace.minimumSafeAltitudeFt({ x: 10, y: 10 }),
+    expect(airspace.minimumSafeAltitudeFt({ x: -45, y: -30 }) ?? 0).toBeGreaterThan(
+      airspace.minimumSafeAltitudeFt({ x: 10, y: 10 }) ?? 0,
     );
+  });
+
+  it('publishes nothing outside the grid rather than inventing a figure', () => {
+    const airspace = new Airspace(airspaceData as unknown as RawAirspace);
+    expect(airspace.minimumSafeAltitudeFt({ x: 0, y: 200 })).toBeNull();
   });
 });
 
@@ -591,5 +599,185 @@ describe('speed on the approach', () => {
     const last = sim.comms[sim.comms.length - 1];
     expect(last?.rejected).toBe(true);
     expect(last?.text).toMatch(/below our approach speed of 138/);
+  });
+});
+
+/* ------------------------------------------------------------- safety net */
+
+describe('the safety net in the world', () => {
+  it('runs on its own one second cycle', () => {
+    const sim = build();
+    sim.aircraft = [];
+    sim.add({
+      callsign: 'AAA1', type: 'A320', role: 'arrival', position: { x: 0, y: 10 },
+      altitudeFt: 7000, headingDeg: 90, iasKt: 250,
+      clearedAltitudeFt: 7000, clearedSpeedKt: 250, squawk: '1001',
+    });
+    sim.add({
+      callsign: 'BBB2', type: 'A320', role: 'arrival', position: { x: 1.5, y: 10 },
+      altitudeFt: 7300, headingDeg: 90, iasKt: 250,
+      clearedAltitudeFt: 7300, clearedSpeedKt: 250, squawk: '1002',
+    });
+    expect(sim.safety.alerts).toHaveLength(0);
+    sim.step(2);
+    const alert = sim.safety.alerts.find((a) => a.kind === 'stca');
+    expect(alert?.severity).toBe('warning');
+    expect(sim.safety.violations).toHaveLength(1);
+  });
+
+  it('produces the same alerts from the same seed', () => {
+    const a = build(99);
+    const b = build(99);
+    a.step(300);
+    b.step(300);
+    expect(a.safety.alerts.map((x) => x.id)).toEqual(b.safety.alerts.map((x) => x.id));
+    expect(a.safety.violations.length).toBe(b.safety.violations.length);
+  });
+
+  it('warns when an unhandled aircraft leaves the sector', () => {
+    const sim = build();
+    sim.transmit('AIC101 fh 112');
+    sim.step(60 * 12);
+    const exit = sim.safety.alerts.find((x) => x.kind === 'sector-exit');
+    expect(exit).toBeDefined();
+    expect(sim.safety.violations.some((v) => v.kind === 'sector-exit')).toBe(true);
+  });
+
+  it('stops warning once the aircraft is handed off', () => {
+    const sim = build();
+    sim.transmit('AIC101 fh 112');
+    sim.step(60 * 12);
+    expect(sim.safety.alerts.some((x) => x.kind === 'sector-exit')).toBe(true);
+    sim.transmit('AIC101 contact delhi control 127.9');
+    sim.step(2);
+    expect(sim.safety.alerts.some((x) => x.kind === 'sector-exit')).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ score */
+
+describe('the session score', () => {
+  it('starts empty', () => {
+    const sim = build();
+    const score = sim.score();
+    expect(score.arrivals).toBe(0);
+    expect(score.movementsPerHour).toBe(0);
+    expect(score.totalViolations).toBe(0);
+    expect(score.onFrequency).toBe(6);
+  });
+
+  it('counts a landing, its delay and the fuel it burnt', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST10', 12, 0, 3000, 0, 180);
+    sim.transmit('TEST10 ils 29');
+    for (let i = 0; i < 80 && sim.arrivals === 0; i++) sim.step(10);
+
+    const score = sim.score();
+    expect(score.arrivals).toBe(1);
+    expect(score.movements).toBe(1);
+    expect(score.movementsPerHour).toBeGreaterThan(0);
+    expect(score.fuelBurntKg).toBeGreaterThan(0);
+    // Twelve miles flown straight in: the delay against a direct run is small.
+    expect(score.averageDelaySec).toBeLessThan(120);
+  });
+
+  it('charges a delay for a long vector', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST11', 12, 0, 3000, 0, 180);
+    // Send it away from the field for four minutes before turning it back.
+    sim.transmit('TEST11 fh 112');
+    sim.step(60 * 4);
+    sim.transmit('TEST11 fh 292');
+    sim.step(60 * 5);
+    sim.transmit('TEST11 ils 29');
+    for (let i = 0; i < 120 && sim.arrivals === 0; i++) sim.step(10);
+    expect(sim.arrivals).toBe(1);
+    expect(sim.score().averageDelaySec).toBeGreaterThan(120);
+  });
+
+  it('counts what was broken', () => {
+    const sim = build();
+    sim.aircraft = [];
+    sim.add({
+      callsign: 'AAA1', type: 'A320', role: 'arrival', position: { x: 0, y: 10 },
+      altitudeFt: 7000, headingDeg: 90, iasKt: 250,
+      clearedAltitudeFt: 7000, clearedSpeedKt: 250, squawk: '1001',
+    });
+    sim.add({
+      callsign: 'BBB2', type: 'A320', role: 'arrival', position: { x: 1, y: 10 },
+      altitudeFt: 7000, headingDeg: 90, iasKt: 250,
+      clearedAltitudeFt: 7000, clearedSpeedKt: 250, squawk: '1002',
+    });
+    sim.step(2);
+    expect(sim.score().separationLosses).toBe(1);
+    expect(sim.score().totalViolations).toBe(1);
+  });
+
+  it('logs the violation with the values at the closest point', () => {
+    const sim = build();
+    sim.aircraft = [];
+    sim.add({
+      callsign: 'AAA1', type: 'A320', role: 'arrival', position: { x: 0, y: 10 },
+      altitudeFt: 7000, headingDeg: 90, iasKt: 250,
+      clearedAltitudeFt: 7000, clearedSpeedKt: 250, squawk: '1001',
+    });
+    sim.add({
+      callsign: 'BBB2', type: 'A320', role: 'arrival', position: { x: 2.5, y: 10 },
+      altitudeFt: 7400, headingDeg: 270, iasKt: 250,
+      clearedAltitudeFt: 7400, clearedSpeedKt: 250, squawk: '1002',
+    });
+    sim.step(40);
+
+    const violation = sim.safety.violations[0];
+    expect(violation?.kind).toBe('stca');
+    expect([...(violation?.callsigns ?? [])].sort()).toEqual(['AAA1', 'BBB2']);
+    expect(violation?.requiredLateralNm).toBe(3);
+    expect(violation?.requiredVerticalFt).toBe(1000);
+    expect(violation?.actualLateralNm ?? 99).toBeLessThan(2.5);
+    expect(violation?.actualVerticalFt).toBeCloseTo(400, 0);
+    expect(violation?.worstAtSec).toBeGreaterThanOrEqual(violation?.startedAtSec ?? 0);
+  });
+});
+
+describe('the sector at rest', () => {
+  it('starts with every aircraft inside the airspace and nothing alerting', () => {
+    const sim = build();
+    sim.step(5);
+    expect(sim.safety.alerts).toHaveLength(0);
+    expect(sim.safety.violations).toHaveLength(0);
+  });
+
+  it('keeps a holding aircraft inside the sector at every entry point', () => {
+    const airspace = new Airspace(airspaceData as unknown as RawAirspace);
+    const entryHolds = airspace.holds.filter(
+      (h) => airspace.fix(h.fix)?.type === 'boundary',
+    );
+    expect(entryHolds.length).toBeGreaterThan(0);
+
+    for (const hold of entryHolds) {
+      const sim = build();
+      const ac = sim.aircraft[0];
+      if (ac === undefined) throw new Error('no traffic');
+      const fix = airspace.fix(hold.fix);
+      if (fix === undefined) throw new Error(`missing ${hold.fix}`);
+      sim.aircraft = [ac];
+      ac.position = fix.position;
+      ac.altitudeFt = 9000;
+      ac.clearance.altitudeFt = 9000;
+      sim.transmit(`${ac.callsign} hold at ${hold.fix} as published`);
+      sim.step(60 * 8);
+      expect(
+        sim.safety.alerts.filter((a) => a.kind === 'sector-exit').map((a) => a.message),
+      ).toEqual([]);
+    }
+  });
+
+  it('publishes every boundary fix inside the boundary', () => {
+    const airspace = new Airspace(airspaceData as unknown as RawAirspace);
+    for (const fix of airspace.fixes.filter((f) => f.type === 'boundary')) {
+      expect(pointInPolygon(fix.position, airspace.sector.boundary)).toBe(true);
+    }
   });
 });

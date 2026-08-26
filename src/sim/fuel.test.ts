@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import aircraftData from '../data/aircraft.json';
 import {
   EMERGENCY_FUEL_MINUTES,
   EMERGENCY_SQUAWK,
@@ -9,57 +8,23 @@ import {
   stateForEndurance,
   updateFuel,
 } from './fuel.js';
-import { PerformanceCatalogue, RawPerformance, fuelBurnKgPerSec } from './performance.js';
+import { fuelBurnKgPerSec } from './performance.js';
+import { TEST_CATALOGUE as CATALOGUE, makeTestAircraft } from './testAircraft.js';
 import { Aircraft } from './types.js';
 
-const CATALOGUE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
 const FIELD_ELEVATION_FT = 777;
 
 function makeAircraft(fuelKg: number, type = 'A320'): Aircraft {
-  const profile = CATALOGUE.require(type);
-  return {
-    id: 'ac1',
-    callsign: 'AIC101',
-    type: profile.icao,
-    profile,
-    wake: profile.wake,
-    role: 'arrival',
-    position: { x: 0, y: 0 },
-    altitudeFt: 8000,
-    headingDeg: 90,
-    trueTrackDeg: 90,
-    iasKt: 250,
-    groundspeedKt: 250,
-    bankDeg: 0,
-    verticalSpeedFpm: 0,
-    squawk: '4271',
-    massKg: profile.mass.referenceKg,
-    fuelKg,
-    fuelState: 'normal',
-    clearance: {
-      headingDeg: 90,
-      turn: 'shortest',
-      turnRemainingDeg: null,
+  return makeTestAircraft(
+    {
       altitudeFt: 8000,
-      speedKt: 250,
-      directFix: null,
-      lateralMode: 'heading',
-      speedRestrictionCancelled: false,
-      expedite: false,
-      descendVia: false,
+      iasKt: 250,
+      groundspeedKt: 250,
+      fuelKg,
+      clearance: { altitudeFt: 8000, speedKt: 250 },
     },
-    route: [],
-    procedure: null,
-    phase: 'cruise',
-    hold: null,
-    approach: null,
-    goAroundCount: 0,
-    history: [],
-    sweepTimerSec: 4,
-    handedOff: false,
-    handedOffTo: null,
-    handedOffFrequencyMhz: null,
-  };
+    type,
+  );
 }
 
 /** Fuel for exactly `minutes` of cruise. */

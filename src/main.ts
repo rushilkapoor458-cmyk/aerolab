@@ -3,8 +3,10 @@
 import './style.css';
 import airspaceData from './data/airspace.json';
 import aircraftData from './data/aircraft.json';
+import wakeData from './data/wake.json';
 import { Airspace, RawAirspace } from './sim/airspace.js';
 import { PerformanceCatalogue, RawPerformance } from './sim/performance.js';
+import { RawWakeMatrix, WakeMatrix } from './sim/wake.js';
 import { seedInitialTraffic } from './sim/initialTraffic.js';
 import { Simulation } from './sim/world.js';
 import { App } from './ui/app.js';
@@ -15,7 +17,8 @@ const SEED = 20260820;
 function boot(): void {
   const airspace = new Airspace(airspaceData as unknown as RawAirspace);
   const performance = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
-  const sim = new Simulation(airspace, performance, SEED);
+  const wake = new WakeMatrix(wakeData as unknown as RawWakeMatrix);
+  const sim = new Simulation(airspace, performance, wake, SEED);
   seedInitialTraffic(sim);
   new App(sim).start();
 }

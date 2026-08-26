@@ -7,6 +7,7 @@
  */
 
 import { Airspace, Runway } from '../sim/airspace.js';
+import { Alert } from '../sim/safety.js';
 import { Point, bearingDeg, distanceNm, movePoint, normalizeDeg } from '../sim/geo.js';
 import { Aircraft } from '../sim/types.js';
 import { Simulation } from '../sim/world.js';
@@ -32,6 +33,7 @@ export interface Ruler {
 export interface ScopeView {
   readonly selectedId: string | null;
   readonly ruler: Ruler | null;
+  readonly alerts: readonly Alert[];
 }
 
 const RANGE_RINGS_NM = [10, 20, 30, 40, 50, 60];
@@ -106,9 +108,10 @@ export class RadarScope {
       if (ac.approach !== null) this.drawApproachPath(ac, airspace);
     }
 
+    this.drawConflicts(view.alerts);
     for (const ac of this.sim.aircraft) this.drawTarget(ac, ac.id === view.selectedId);
 
-    this.drawDataBlocks(view.selectedId);
+    this.drawDataBlocks(view.selectedId, view.alerts);
     if (view.ruler !== null) this.drawRuler(view.ruler);
     this.drawScaleBar();
   }
@@ -437,19 +440,76 @@ export class RadarScope {
     ctx.restore();
   }
 
-  private drawDataBlocks(selectedId: string | null): void {
+  /**
+   * A line between the two aircraft of every conflict, flashing so it catches
+   * the eye away from where the controller happens to be looking.
+   */
+  private drawConflicts(alerts: readonly Alert[]): void {
+    const pairs = alerts.filter((a) => a.aircraftIds.length === 2);
+    if (pairs.length === 0) return;
+    const { ctx, camera } = this;
+    const now = performance.now();
+
+    ctx.save();
+    ctx.font = THEME.fontLabel;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    for (const alert of pairs) {
+      const first = this.sim.aircraft.find((x) => x.id === alert.aircraftIds[0]);
+      const second = this.sim.aircraft.find((x) => x.id === alert.aircraftIds[1]);
+      if (first === undefined || second === undefined) continue;
+
+      const a = camera.toScreen(first.position);
+      const b = camera.toScreen(second.position);
+      const warning = alert.severity === 'warning';
+      // Warnings flash faster than cautions, so the two never read the same.
+      const period = warning ? 700 : 1200;
+      const phase = (now % period) / period;
+      ctx.globalAlpha = 0.45 + 0.55 * Math.abs(Math.sin(phase * Math.PI));
+      ctx.strokeStyle = warning ? THEME.dataBlockAlert : THEME.dataBlockCaution;
+      ctx.lineWidth = warning ? 1.8 : 1.2;
+      ctx.setLineDash(warning ? [] : [6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const distance = distanceNm(first.position, second.position);
+      const vertical = Math.abs(first.altitudeFt - second.altitudeFt);
+      ctx.fillStyle = warning ? THEME.dataBlockAlert : THEME.dataBlockCaution;
+      ctx.fillText(
+        `${distance.toFixed(1)} / ${Math.round(vertical)}`,
+        (a.x + b.x) / 2,
+        (a.y + b.y) / 2 - 4,
+      );
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  private drawDataBlocks(selectedId: string | null, alerts: readonly Alert[]): void {
     const { ctx, camera } = this;
     ctx.save();
     ctx.font = THEME.fontBlock;
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
 
+    const worst = new Map<string, 'caution' | 'warning'>();
+    for (const alert of alerts) {
+      for (const id of alert.aircraftIds) {
+        if (alert.severity === 'warning' || worst.get(id) === undefined) {
+          worst.set(id, alert.severity);
+        }
+      }
+    }
+
     const requests: DataBlockRequest[] = this.sim.aircraft.map((ac) => ({
       id: ac.id,
       anchor: camera.toScreen(ac.position),
       lines: dataBlockLines(ac, this.sim.airspace),
       selected: ac.id === selectedId,
-      severity: dataBlockSeverity(ac),
+      severity: dataBlockSeverity(ac, worst.get(ac.id) ?? null),
     }));
     const measure = (text: string): number => ctx.measureText(text).width;
     const viewport = { width: camera.widthPx, height: camera.heightPx };

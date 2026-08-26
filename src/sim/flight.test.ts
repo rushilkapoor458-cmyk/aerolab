@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import aircraftData from '../data/aircraft.json';
 import { angleDiff, normalizeDeg } from './geo.js';
 import {
   MAX_BANK_DEG,
@@ -16,10 +15,9 @@ import {
   turnRateForBank,
   windTriangle,
 } from './flight.js';
-import { PerformanceCatalogue, RawPerformance } from './performance.js';
+import { AircraftOverrides, makeTestAircraft } from './testAircraft.js';
 import { Aircraft, SteeringCommand } from './types.js';
 
-const CATALOGUE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
 const CALM: Wind = { fromTrueDeg: 0, speedKt: 0 };
 
 function context(wind: Wind = CALM): StepContext {
@@ -31,52 +29,8 @@ function toHeading(headingDeg: number | null): SteeringCommand {
   return { headingDeg, verticalSpeedFpm: null, speedKt: null };
 }
 
-function makeAircraft(overrides: Partial<Aircraft> = {}, type = 'A320'): Aircraft {
-  const profile = CATALOGUE.require(type);
-  const base: Aircraft = {
-    id: 'ac1',
-    callsign: 'AIC101',
-    type: profile.icao,
-    profile,
-    wake: profile.wake,
-    role: 'arrival',
-    position: { x: 0, y: 0 },
-    altitudeFt: 6000,
-    headingDeg: 90,
-    trueTrackDeg: 90,
-    iasKt: 220,
-    groundspeedKt: 220,
-    bankDeg: 0,
-    verticalSpeedFpm: 0,
-    squawk: '4271',
-    massKg: profile.mass.referenceKg,
-    fuelKg: profile.typicalArrivalFuelKg,
-    fuelState: 'normal',
-    clearance: {
-      headingDeg: 90,
-      turn: 'shortest',
-      turnRemainingDeg: null,
-      altitudeFt: 6000,
-      speedKt: 220,
-      directFix: null,
-      lateralMode: 'heading',
-      speedRestrictionCancelled: false,
-      expedite: false,
-      descendVia: false,
-    },
-    route: [],
-    procedure: null,
-    phase: 'cruise',
-    hold: null,
-    approach: null,
-    goAroundCount: 0,
-    history: [],
-    sweepTimerSec: 4,
-    handedOff: false,
-    handedOffTo: null,
-    handedOffFrequencyMhz: null,
-  };
-  return { ...base, ...overrides };
+function makeAircraft(overrides: AircraftOverrides = {}, type = 'A320'): Aircraft {
+  return makeTestAircraft(overrides, type);
 }
 
 /** Fly the aircraft for a while at the simulation's own substep. */

@@ -11,6 +11,9 @@ import { NavContext, goAround, updateAutoflight } from './autoflight.js';
 import { updateFuel } from './fuel.js';
 import { PerformanceCatalogue } from './performance.js';
 import { Rng } from './rng.js';
+import { SafetyNet } from './safety.js';
+import { SessionScore, computeScore } from './score.js';
+import { WakeMatrix } from './wake.js';
 import { Weather, defaultWeather, windAtAltitude } from './weather.js';
 import { Aircraft, Clearance, CommsEntry, FlightRole } from './types.js';
 import { parseCommandLine } from './commands/parser.js';
@@ -49,6 +52,8 @@ export interface RunwayConfiguration {
 export class Simulation {
   readonly airspace: Airspace;
   readonly performance: PerformanceCatalogue;
+  readonly wake: WakeMatrix;
+  readonly safety: SafetyNet;
   readonly rng: Rng;
   weather: Weather;
   aircraft: Aircraft[] = [];
@@ -60,9 +65,15 @@ export class Simulation {
   /** Runways occupied by a landing roll, keyed by ident, value is the clock. */
   private readonly runwayClearAtSec = new Map<string, number>();
   private readonly landedIds = new Set<string>();
-  /** Session counters; milestone 4 turns these into a score. */
+  /** Session counters. */
+  readonly startedAtSec: number;
   arrivals = 0;
+  departures = 0;
   goArounds = 0;
+  fuelBurntKg = 0;
+  readonly arrivalDelaysSec: number[] = [];
+  /** Seconds of simulated time still owed to the safety net. */
+  private safetyTimerSec = 0;
 
   private nextCommsId = 1;
   private nextAircraftId = 1;
@@ -70,14 +81,18 @@ export class Simulation {
   constructor(
     airspace: Airspace,
     performance: PerformanceCatalogue,
+    wake: WakeMatrix,
     seed: number,
     startTimeSec = 10 * 3600 + 12 * 60,
   ) {
     this.airspace = airspace;
     this.performance = performance;
+    this.wake = wake;
+    this.safety = new SafetyNet(airspace, wake);
     this.rng = new Rng(seed);
     this.weather = defaultWeather();
     this.timeSec = startTimeSec;
+    this.startedAtSec = startTimeSec;
     this.runways = this.suggestedRunways();
   }
 
@@ -147,6 +162,8 @@ export class Simulation {
       bankDeg: 0,
       verticalSpeedFpm: 0,
       squawk: seed.squawk,
+      entryTimeSec: this.timeSec,
+      entryPosition: seed.position,
       massKg: seed.massKg ?? profile.mass.referenceKg,
       fuelKg: seed.fuelKg ?? profile.typicalArrivalFuelKg,
       fuelState: 'normal',
@@ -203,12 +220,22 @@ export class Simulation {
           continue;
         }
         stepAircraft(ac, auto.command, dt, ctx);
+        const fuelBefore = ac.fuelKg;
         for (const call of updateFuel(ac, dt, elevation)) {
           this.say('pilot', ac.callsign, call, ac.fuelState === 'emergency');
         }
+        this.fuelBurntKg += fuelBefore - ac.fuelKg;
       }
       this.removeLandedAircraft();
       this.retireDepartedAircraft();
+
+      // The safety net runs on its own one second cycle, independent of the
+      // frame rate, so its alerts are reproducible from the seed.
+      this.safetyTimerSec += dt;
+      if (this.safetyTimerSec >= 1) {
+        this.safetyTimerSec -= 1;
+        this.safety.update(this.aircraft, this.timeSec);
+      }
     }
   }
 
@@ -222,14 +249,43 @@ export class Simulation {
   static readonly RUNWAY_OCCUPANCY_SEC = 55;
 
   private recordLanding(ac: Aircraft): void {
-    const runway = ac.approach?.runway ?? this.runways.arrival;
+    const runwayIdent = ac.approach?.runway ?? this.runways.arrival;
     this.runwayClearAtSec.set(
-      runway.toUpperCase(),
+      runwayIdent.toUpperCase(),
       this.timeSec + Simulation.RUNWAY_OCCUPANCY_SEC,
     );
     this.landedIds.add(ac.id);
     this.arrivals += 1;
-    this.say('system', ac.callsign, `${ac.callsign} landed runway ${runway}.`, false);
+    this.arrivalDelaysSec.push(this.delayForArrival(ac, runwayIdent));
+    this.say('system', ac.callsign, `${ac.callsign} landed runway ${runwayIdent}.`, false);
+  }
+
+  /**
+   * How much longer the aircraft took than a straight run from where it came
+   * on frequency to the threshold at its own normal speed. Never negative:
+   * beating the straight-line time means the wind helped, not that you did.
+   */
+  private delayForArrival(ac: Aircraft, runwayIdent: string): number {
+    const runway = this.airspace.runway(runwayIdent);
+    if (runway === undefined) return 0;
+    const straightNm = distanceNm(ac.entryPosition, runway.threshold);
+    const nominalKt = Math.max(180, ac.profile.speeds.typicalCruiseIasKt);
+    const nominalSec = (straightNm / nominalKt) * 3600;
+    return Math.max(0, this.timeSec - ac.entryTimeSec - nominalSec);
+  }
+
+  /** The session as a supervisor would read it. */
+  score(): SessionScore {
+    return computeScore({
+      elapsedSec: this.timeSec - this.startedAtSec,
+      arrivals: this.arrivals,
+      departures: this.departures,
+      goArounds: this.goArounds,
+      fuelBurntKg: this.fuelBurntKg,
+      arrivalDelaysSec: this.arrivalDelaysSec,
+      violations: this.safety.violations,
+      onFrequency: this.aircraft.length,
+    });
   }
 
   private removeLandedAircraft(): void {

@@ -244,8 +244,9 @@ function executeAltitude(
     return no(`${formatFlightLevel(airspace.sector.ceilingFt)} is the top of your airspace`);
   }
 
+  // Outside the published grid there is nothing to check against.
   const msa = airspace.minimumSafeAltitudeFt(ac.position);
-  if (target < msa - MSA_BUFFER_FT) {
+  if (msa !== null && target < msa - MSA_BUFFER_FT) {
     return no(`the minimum safe altitude in this area is ${msa} feet`);
   }
 

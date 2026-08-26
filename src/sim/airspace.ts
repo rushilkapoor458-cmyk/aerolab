@@ -7,7 +7,7 @@
  * helpers. Nothing downstream touches raw JSON.
  */
 
-import { LatLon, Point, Projection, normalizeDeg, trueToMagnetic } from './geo.js';
+import { LatLon, Point, Projection, normalizeDeg, pointInPolygon, trueToMagnetic } from './geo.js';
 import { FT_PER_NM } from './units.js';
 
 export type FixType = 'boundary' | 'terminal' | 'enroute' | 'faf';
@@ -248,6 +248,14 @@ export class Airspace {
       }
     }
     for (const hold of this.holds) checkFix(hold.fix, `hold at ${hold.fix}`);
+    // A sector entry fix outside its own sector means traffic arrives already
+    // out of the airspace, which the safety net would rightly complain about.
+    for (const fix of this.fixes) {
+      if (fix.type !== 'boundary') continue;
+      if (!pointInPolygon(fix.position, this.sector.boundary)) {
+        problems.push(`boundary fix ${fix.name} lies outside the sector boundary`);
+      }
+    }
     if (this.msaGrid.values.length !== this.msaGrid.rows) {
       problems.push(`MSA grid declares ${this.msaGrid.rows} rows but holds ${this.msaGrid.values.length}`);
     }
@@ -290,15 +298,16 @@ export class Airspace {
     return this.holds.find((h) => h.fix === fixName.toUpperCase());
   }
 
-  /** Minimum safe altitude at a point, in feet AMSL. */
-  minimumSafeAltitudeFt(p: Point): number {
+  /**
+   * Minimum safe altitude at a point, in feet AMSL, or null where the grid
+   * publishes nothing. Null means "no terrain data here", not "no terrain":
+   * callers must not invent a figure, and must not alert on one either.
+   */
+  minimumSafeAltitudeFt(p: Point): number | null {
     const col = Math.floor((p.x - this.msaGrid.origin.x) / this.msaGrid.cellSizeNm);
     const row = Math.floor((p.y - this.msaGrid.origin.y) / this.msaGrid.cellSizeNm);
     const line = this.msaGrid.values[row];
-    const value = line?.[col];
-    // Outside the published grid there is no terrain data; the sector floor
-    // is the safest thing to report rather than a fabricated low number.
-    return value ?? this.sector.ceilingFt;
+    return line?.[col] ?? null;
   }
 
   /** True bearing to magnetic, using this airport's variation. */
