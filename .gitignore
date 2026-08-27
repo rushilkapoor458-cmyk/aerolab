@@ -1,6 +1,27 @@
-node_modules/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
 dist/
-.DS_Store
-*.log
+.pytest_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+venv/
+
+# Node — the simulator in atc/
+node_modules/
 .vite/
 coverage/
+*.log
+
+# macOS
+.DS_Store
+
+# Generated output — the validation report must regenerate from source,
+# so the built artefacts are deliberately not tracked.
+docs/_build/
+*.pdf
+!docs/reference/*.pdf

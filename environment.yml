@@ -1,0 +1,19 @@
+# Recreate the development environment with:
+#     conda env create -f environment.yml
+#     conda activate aerolab
+#     pip install -e ".[dev]"
+#
+# Versions are floored, not pinned, so that the environment can be rebuilt on
+# another machine. The exact versions this project was built and validated
+# against are recorded in NOTES.md.
+name: aerolab
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy>=2.0
+  - scipy>=1.14
+  - matplotlib>=3.9
+  - typer>=0.12
+  - pytest>=8.0
+  - pip
