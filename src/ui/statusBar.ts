@@ -1,6 +1,7 @@
 /** Clock, ATIS, runways in use, wind and the simulation rate control. */
 
 import { formatBearing } from '../sim/geo.js';
+import { formatDuration } from '../sim/score.js';
 import { formatClock, pad2 } from '../sim/units.js';
 import { formatMetar } from '../sim/weather.js';
 import { Simulation } from '../sim/world.js';
@@ -16,6 +17,8 @@ export class StatusBar {
   private readonly arrivals: HTMLElement;
   private readonly goArounds: HTMLElement;
   private readonly losses: HTMLElement;
+  private readonly scenarioName: HTMLElement;
+  private readonly remaining: HTMLElement;
   private readonly rateButtons: HTMLButtonElement[];
 
   constructor(
@@ -32,6 +35,8 @@ export class StatusBar {
     this.arrivals = requireElement('status-arrivals');
     this.goArounds = requireElement('status-goarounds');
     this.losses = requireElement('status-losses');
+    this.scenarioName = requireElement('status-scenario');
+    this.remaining = requireElement('status-remaining');
 
     const group = requireElement('rate-buttons');
     this.rateButtons = Array.from(group.querySelectorAll<HTMLButtonElement>('button.rate'));
@@ -53,6 +58,11 @@ export class StatusBar {
     this.qnh.textContent = String(Math.round(w.qnhHpa));
     this.arrivals.textContent = String(this.sim.arrivals);
     this.goArounds.textContent = String(this.sim.goArounds);
+    this.scenarioName.textContent = this.sim.scenario?.name ?? 'Free play';
+    const left = this.sim.remainingSec;
+    this.remaining.textContent = left === null ? '--:--' : formatDuration(left);
+    this.remaining.style.color = left !== null && left <= 300 ? 'var(--caution)' : '';
+
     const losses = this.sim.safety.violations.length;
     this.losses.textContent = String(losses);
     this.losses.style.color = losses > 0 ? 'var(--danger)' : '';

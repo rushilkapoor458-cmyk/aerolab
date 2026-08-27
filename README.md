@@ -4,15 +4,11 @@ An approach/terminal radar sector for **VIDP (Indira Gandhi International, Delhi
 roughly 60 NM radius, surface to FL150. Vite + TypeScript, HTML5 canvas, no backend,
 no database, no game engine.
 
-> **Milestone 4 of 5.** The radar scope, the full flight model — per-type
-> performance profiles, mass, fuel and wind aloft — the command set, the
-> procedures (published arrivals, holding, ILS approaches flown to a landing),
-> and the safety net: separation standards, wake turbulence, conflict and
-> terrain alerting, and a session report that records every minimum you broke.
-> Enough to run a sector and be marked on it. The build order and what the last
-> milestone adds are at the bottom of this file. Nothing here is a stub: every
-> command listed below is implemented, and every feature not yet implemented is
-> absent rather than faked.
+> **Complete — milestone 5 of 5.** Per-type performance and fuel, wind aloft,
+> published arrivals and departures, holding, ILS approaches flown to a landing,
+> the safety net, five scenarios, scripted weather and emergencies, and a flight
+> strip bay. Nothing here is a stub: every command listed below is implemented,
+> and the known limitations are listed at the end rather than hidden.
 
 ---
 
@@ -67,6 +63,32 @@ If you have never used the terminal before, follow this exactly.
 
 ---
 
+## Scenarios
+
+The **Scenarios** button in the top right lists the five that ship. Each runs from
+its own seed, so the same scenario always plays out the same way; choosing one
+starts a fresh session at `?scenario=<id>`.
+
+| Scenario | What it is |
+| --- | --- |
+| **Tutorial** | Two scripted arrivals, no departures, light wind. Prompts in the comms panel tell you what to type. |
+| **Standard day** | 20 movements an hour, runway 29 both ways. A normal shift. |
+| **Evening rush** | 45 movements an hour with heavies mixed in, arrivals 29 and departures 28. The wake matrix will bite. |
+| **Runway change** | The wind backs through the session, the ATIS rolls, and at 22 minutes the runway changes to 11. Traffic arrives short of fuel. |
+| **Emergencies** | A normal flow, then an engine failure on a departure, and later a radio failure on an arrival that keeps flying its last clearance. |
+
+Scenarios live in `src/data/scenarios/`. Each one names its traffic rates, its fleet
+and airline mix, the entry fixes arrivals appear at, the SIDs departures are given,
+its starting weather, and a list of timed events — a message, a weather change, a
+runway change, an emergency, or a specific aircraft. The loader validates every
+scenario against the airspace and the aircraft catalogue on boot: an unknown type, a
+runway that does not exist, or an entry fix with no STAR published from it all fail
+loudly rather than halfway through a session.
+
+An emergency that has nobody to happen to — an engine failure scheduled for a
+departure while every departure is still at the holding point — waits until there is
+one, for up to twenty minutes, and then says it gave up.
+
 ## Flying the sector
 
 Click an aircraft to select it — its callsign drops into the command line and its
@@ -94,6 +116,8 @@ AIC101 tl 270 d 50 s 210
 | `AIC101 cancel speed restriction` | `AIC101 resume normal speed` | Release the 250 kt below 10,000 ft rule for that aircraft. |
 | `AIC101 proceed direct GUDUR` | `AIC101 dct GUDUR`, `AIC101 pd GUDUR` | Track to a published fix, then continue along the rest of its route. |
 | `AIC101 squawk 4271` | `AIC101 sq 4271` | Assign a transponder code. Refused while an emergency squawk is set. |
+| `IGO412 line up and wait runway 28` | `IGO412 luw 28` | Put a departure on the runway. |
+| `IGO412 cleared for takeoff` | `IGO412 cft`, `IGO412 takeoff` | Send it. |
 | `AIC101 say fuel remaining` | `AIC101 say fuel` | Ask for fuel on board. The crew answer in kilos and minutes at the current burn rate. |
 | `AIC101 contact tower 118.1` | `AIC101 ct 118.1` | Hand the aircraft off. It acknowledges, stops taking your instructions, and drops off the scope once it is outside the sector. |
 
@@ -190,7 +214,7 @@ The whole point of the ILS here is that it can be flown badly.
   more than 25 kt above its final approach speed, or the runway still occupied, and
   the crew go around without being asked.
 - **A landing aircraft holds the runway for 55 seconds.** Sequence tighter than that
-  and the one behind goes around. Wake turbulence minima arrive in milestone 4.
+  and the one behind goes around, on top of the wake turbulence minima below.
 - Speed is managed for you inside 10 NM: back to minimum clean by 5 NM, then to the
   type's final approach speed. Once an aircraft is cleared for the approach you can
   also assign speeds below its clean minimum, because it is configuring.
@@ -200,11 +224,50 @@ maximum speed — flown as: track to the fix, turn outbound, run the leg, turn b
 inbound. **Entry is simplified to a direct entry**; the parallel and teardrop entries
 are not modelled.
 
-The **arrival sequence** panel on the right lists everything inbound, nearest the
-field first, with what each aircraft is steering by and its range and level. Click a
-row to select that aircraft. It is a read-only view of the order traffic will
-actually arrive in; the flight strip bay you drag to set your *intended* sequence is
-milestone 5.
+The **strip bay** on the right lists everything inbound and everything waiting to
+depart. Click a strip to select that aircraft, and drag an arrival strip to set the
+order you intend to land them in.
+
+## Departures
+
+Taxi is abstracted: a departure appears at the holding point with its SID already
+loaded, and shows up in the departure half of the strip bay. It is not on the radar
+until it starts rolling — an aircraft at the holding point is the tower's.
+
+```
+IGO412 line up and wait runway 28      IGO412 luw 28
+IGO412 cleared for takeoff             IGO412 cft
+```
+
+Lining up first is optional; a clearance to go implies it. Either is refused while
+the runway is occupied. From the clearance onwards the take-off is modelled: the
+aircraft accelerates at its own rate, rotates at its own speed, uses more runway on a
+still day than into a headwind, and then climbs on its SID. A heading given to an
+aircraft still on the ground is a heading to fly after departure.
+
+It counts as a departure on the score once you have handed it on and it has left the
+sector.
+
+## Emergencies
+
+| Tag | What happens |
+| --- | --- |
+| `ENG` | Engine failure. Squawks 7700, climbs at around 40% of its normal rate, and will not accept more than 250 kt however you ask. It wants the shortest track back to an approach. |
+| `NORDO` | Radio failure. Squawks 7600, flies its last clearance and answers nothing. Your transmissions still go out — they are simply not acknowledged — so you have to move everyone else around it. |
+| `EMG` | A fuel emergency, under 15 minutes' endurance. |
+
+An aircraft with an emergency squawk will not let you change its code.
+
+## The strip bay
+
+Arrivals and departures are kept apart, as on a real bay. **Drag an arrival strip** to
+set the order you intend to land them in; the number goes amber when a strip is out
+of position against the order the traffic will actually arrive in. The order is
+yours — the simulation does not act on it and does not correct it.
+
+Each strip carries the callsign, type and wake category, what the aircraft is doing,
+its level, its indicated airspeed and its range from the field. A coloured edge
+marks anything the safety net is unhappy about. Click a strip to select the aircraft.
 
 ## The safety net
 
@@ -311,8 +374,25 @@ wind to 60 kt and watch the high traffic's groundspeeds separate from the low.
 `SEJ301` starts with about thirty-five minutes of fuel, so if you leave it alone it
 will work through both stages on its own.
 
-Milestone 5 adds the scenario files, generated weather, departures with a runway
-queue, scripted emergencies, and the flight strip bay.
+## Known limitations
+
+These are things the simulation does not model, listed so that you know they are
+absent rather than broken.
+
+- **Simultaneous parallel operations.** The runways are close together and the
+  simulation applies one set of radar minima everywhere, so running arrivals to one
+  runway and departures off its neighbour can raise a conflict alert that real
+  parallel-runway procedures would not.
+- **No ground movement.** Taxi is abstracted to a queue at the holding point; there
+  is no apron, no taxiway, and no runway crossing.
+- **Holding entries** are always direct entries; parallel and teardrop are not
+  modelled.
+- **Speed control on final** is automatic inside 10 NM, so you cannot fine-tune the
+  spacing on the localiser the way a real approach controller would.
+- **The tower is not modelled.** You clear aircraft for the approach and for
+  take-off yourself; there is no separate tower frequency doing it for you.
+- **One controller position.** There is no coordination with anyone: handing off is
+  a single instruction, and nobody hands anything to you.
 
 ---
 
@@ -383,6 +463,24 @@ Three further approximations are in code rather than data:
 
 ---
 
+## Adding a scenario
+
+Copy one of the files in `src/data/scenarios/`, edit it, and add it to the list in
+`src/sim/scenarios.ts`. The fields are:
+
+| Field | What it does |
+| --- | --- |
+| `seed` | Drives every random choice. The same seed replays the same session. |
+| `startTimeUtc`, `durationMin` | The clock, and how long the session runs. |
+| `runways` | The configuration to start in. |
+| `traffic.arrivalsPerHour`, `departuresPerHour` | The flow. Set both to zero for a fully scripted scenario. |
+| `traffic.fleet`, `traffic.airlines` | Weighted mixes. Types must exist in `aircraft.json`. |
+| `traffic.entryFixes` | Where arrivals appear. Each must have a STAR published from it. |
+| `traffic.entryAltitudeFt`, `entrySpeedKt`, `fuelFactor` | How they arrive, and how much fuel they have. |
+| `traffic.departureSids` | SIDs issued in rotation, filtered to those valid for the runway in use. |
+| `weather` | The full starting weather, including the wind aloft. |
+| `events` | Timed `message`, `weather`, `runway-change`, `emergency`, `arrival` and `departure` events. |
+
 ## Adding an aircraft type
 
 Add an object to `types` in `src/data/aircraft.json` following the shape of the ones
@@ -435,7 +533,8 @@ rather than quietly flying a default.
     ├── data/
     │   ├── airspace.json        the whole of VIDP — the only airport-specific file
     │   ├── aircraft.json        performance profiles for the seven types
-    │   └── wake.json            wake turbulence separation matrix
+    │   ├── wake.json            wake turbulence separation matrix
+    │   └── scenarios/           the five scenarios
     ├── sim/                     pure logic, no DOM, fully testable
     │   ├── units.ts             unit constants, rate limiting, formatting
     │   ├── geo.ts               local projection, bearings, distances, cross-track
@@ -445,7 +544,6 @@ rather than quietly flying a default.
     │   ├── weather.ts           weather state and METAR generation
     │   ├── flight.ts            turn geometry, wind triangle, vertical and speed
     │   ├── autoflight.ts        clearance to heading, fix tracking and sequencing
-    │   ├── initialTraffic.ts    milestone 1 hand-placed traffic
     │   ├── world.ts             the Simulation: step, transmit, comms
     │   └── commands/
     │       ├── types.ts         the instruction vocabulary
@@ -472,9 +570,12 @@ escalation, wind aloft and METAR generation, ILS geometry and every capture rule
 holding pattern state machine, the wake matrix, separation standards and conflict
 prediction, the safety net and its violation log, the score, the airspace loader,
 data block layout and leader lines, and the simulation's determinism, handoff and
-refusal behaviour — including flying a complete approach to a landing, blowing
-through the localiser, both kinds of go-around, and a deliberate separation loss —
-291 tests in fourteen files.
+refusal behaviour, the scenario schema and all five shipped scenarios, traffic
+generation and its reproducibility, the take-off roll and the departure clearances,
+and the strip bay's ordering — including flying a complete approach to a landing,
+blowing through the localiser, both kinds of go-around, a deliberate separation loss,
+and a departure taken from the holding point to out of the sector — 341 tests in
+seventeen files.
 
 ```bash
 npm test
@@ -500,9 +601,9 @@ piece rather than many small ones. Both properties are asserted in
 | 1 | Radar scope, turn geometry, wind, command bar | done |
 | 2 | Per-type performance profiles, mass, fuel, wind aloft, the rest of the basic commands | done |
 | 3 | Published arrivals, holding and ILS flown: localiser and glideslope capture, go-arounds, arrivals sequenced to landing | done |
-| 4 | Separation standards, wake matrix, STCA, MSAW, sector exit alerts, scoring and the violation log | **this build** |
-| 5 | Scenario files, generated weather, departures and the runway queue, emergencies, flight strip bay | next |
+| 4 | Separation standards, wake matrix, STCA, MSAW, sector exit alerts, scoring and the violation log | done |
+| 5 | Scenario files, weather events, departures and the runway queue, emergencies, flight strip bay | **this build** |
 
-Departures are milestone 5, with the scenario files: the runway queue, `line up and
-wait`, `cleared for takeoff`, and SIDs flown outbound. The SID data is already in
-`airspace.json` and validated on load.
+All five milestones are built. The SIDs, STARs, approaches and holds in
+`airspace.json` are all flown, and the wake matrix, the terrain grid and the scenario
+files are all used rather than merely present.

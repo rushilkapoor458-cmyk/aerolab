@@ -231,7 +231,7 @@ describe('approaches', () => {
 
   it('explains a missing runway', () => {
     expect(error('AIC101 ils')).toMatch(/Which runway/);
-    expect(error('AIC101 cleared visual 29')).toMatch(/only approach available is the ILS/);
+    expect(error('AIC101 cleared visual 29')).toMatch(/cleared ILS runway 29 approach/);
   });
 
   it('cancels an approach and goes around', () => {

@@ -30,6 +30,7 @@ const INSTRUCTION_WORDS = new Set([
   'CANCEL', 'RESUME', 'PROCEED', 'DIRECT', 'DCT', 'PD',
   'SQUAWK', 'SQ', 'SAY', 'CONTACT', 'CT',
   'CLEARED', 'ILS', 'HOLD', 'GO', 'GA', 'DV',
+  'LINE', 'LUW', 'LINEUP', 'TAKEOFF', 'CFT',
 ]);
 
 class TokenCursor {
@@ -218,17 +219,46 @@ function parseOne(cursor: TokenCursor): OneResult {
     case 'CT':
       return parseContact(cursor);
 
-    case 'CLEARED':
+    case 'CLEARED': {
+      if (cursor.accept('TO')) {
+        if (cursor.accept('LAND')) {
+          return fail('Landing clearance is the tower\u2019s. Clear it for the approach instead: "cleared ILS runway 29 approach".');
+        }
+        return fail('Cleared to what?');
+      }
+      const forTakeoff = cursor.peek() === 'FOR' && cursor.peek(1) === 'TAKEOFF';
+      if (forTakeoff) {
+        cursor.next();
+        cursor.next();
+        cursor.accept('RUNWAY', 'RWY');
+        if (cursor.peek() !== undefined && RUNWAY_RE.test(cursor.peek() ?? '')) cursor.next();
+        return { ok: true, command: { kind: 'takeoff' } };
+      }
       cursor.accept('FOR');
       if (!cursor.accept('ILS')) {
-        return fail('Cleared for what? The only approach available is the ILS, e.g. "cleared ILS runway 29 approach".');
+        return fail('Cleared for what? Either "cleared ILS runway 29 approach" or "cleared for takeoff".');
       }
       return parseApproach(cursor);
+    }
     case 'ILS':
       return parseApproach(cursor);
 
     case 'HOLD':
       return parseHold(cursor);
+
+    case 'LINE': {
+      if (!cursor.accept('UP')) return fail('Line up? The instruction is "line up and wait runway 29".');
+      cursor.accept('AND');
+      cursor.accept('WAIT');
+      return parseLineUp(cursor);
+    }
+    case 'LUW':
+    case 'LINEUP':
+      return parseLineUp(cursor);
+
+    case 'TAKEOFF':
+    case 'CFT':
+      return { ok: true, command: { kind: 'takeoff' } };
 
     case 'GO': {
       if (cursor.accept('AROUND')) return { ok: true, command: { kind: 'goAround' } };
@@ -241,7 +271,8 @@ function parseOne(cursor: TokenCursor): OneResult {
       return fail(
         `I do not recognise "${word.toLowerCase()}". The simulator understands: turn left/right heading, fly heading, ` +
           `climb, descend, descend via, maintain, expedite, speed, cancel speed restriction, proceed direct, ` +
-          `cleared ILS, hold, go around, squawk, say fuel and contact. Press ? for the full reference.`,
+          `cleared ILS, hold, go around, line up and wait, cleared for takeoff, squawk, say fuel ` +
+          `and contact. Press ? for the full reference.`,
       );
   }
 }
@@ -318,6 +349,18 @@ function parseApproach(cursor: TokenCursor): OneResult {
   cursor.accept('APPROACH');
   const ident = token.length === 1 ? `0${token}` : token;
   return { ok: true, command: { kind: 'approach', runway: ident } };
+}
+
+/** `line up and wait runway 29`, `luw 29`, or just `luw`. */
+function parseLineUp(cursor: TokenCursor): OneResult {
+  cursor.accept('RUNWAY', 'RWY');
+  const token = cursor.peek();
+  if (token !== undefined && RUNWAY_RE.test(token)) {
+    cursor.next();
+    const ident = token.length === 1 ? `0${token}` : token;
+    return { ok: true, command: { kind: 'lineUp', runway: ident } };
+  }
+  return { ok: true, command: { kind: 'lineUp', runway: null } };
 }
 
 /** A four figure clock time, `1420`, as seconds since midnight. */

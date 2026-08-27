@@ -72,11 +72,19 @@ export class RadarScope {
     this.camera.resize(width, height);
   }
 
+  /**
+   * Aircraft the radar is painting. One still at the holding point is the
+   * tower's business and does not appear until it starts rolling.
+   */
+  private get painted(): readonly Aircraft[] {
+    return this.sim.aircraft.filter((ac) => ac.ground === null || ac.ground === 'takeoff');
+  }
+
   /** The aircraft under a screen point, if any. */
   aircraftAt(screen: ScreenPoint): Aircraft | null {
     let best: Aircraft | null = null;
     let bestDistance = PICK_RADIUS_PX;
-    for (const ac of this.sim.aircraft) {
+    for (const ac of this.painted) {
       const p = this.camera.toScreen(ac.position);
       const d = Math.hypot(p.x - screen.x, p.y - screen.y);
       if (d < bestDistance) {
@@ -102,14 +110,15 @@ export class RadarScope {
     this.drawAerodrome();
     this.drawFixes(airspace);
 
-    const selected = this.sim.aircraft.find((a) => a.id === view.selectedId) ?? null;
+    const painted = this.painted;
+    const selected = painted.find((a) => a.id === view.selectedId) ?? null;
     if (selected !== null) this.drawRoute(selected, airspace);
-    for (const ac of this.sim.aircraft) {
+    for (const ac of painted) {
       if (ac.approach !== null) this.drawApproachPath(ac, airspace);
     }
 
     this.drawConflicts(view.alerts);
-    for (const ac of this.sim.aircraft) this.drawTarget(ac, ac.id === view.selectedId);
+    for (const ac of painted) this.drawTarget(ac, ac.id === view.selectedId);
 
     this.drawDataBlocks(view.selectedId, view.alerts);
     if (view.ruler !== null) this.drawRuler(view.ruler);
@@ -211,6 +220,7 @@ export class RadarScope {
     const idents = new Set<string>([this.sim.runways.arrival]);
     for (const ac of this.sim.aircraft) {
       if (ac.approach !== null) idents.add(ac.approach.runway);
+      if (ac.role === 'departure' && ac.departureRunway !== null) idents.add(ac.departureRunway);
     }
     const runways: Runway[] = [];
     for (const ident of idents) {
@@ -455,8 +465,8 @@ export class RadarScope {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     for (const alert of pairs) {
-      const first = this.sim.aircraft.find((x) => x.id === alert.aircraftIds[0]);
-      const second = this.sim.aircraft.find((x) => x.id === alert.aircraftIds[1]);
+      const first = this.painted.find((x) => x.id === alert.aircraftIds[0]);
+      const second = this.painted.find((x) => x.id === alert.aircraftIds[1]);
       if (first === undefined || second === undefined) continue;
 
       const a = camera.toScreen(first.position);
@@ -504,7 +514,7 @@ export class RadarScope {
       }
     }
 
-    const requests: DataBlockRequest[] = this.sim.aircraft.map((ac) => ({
+    const requests: DataBlockRequest[] = this.painted.map((ac) => ({
       id: ac.id,
       anchor: camera.toScreen(ac.position),
       lines: dataBlockLines(ac, this.sim.airspace),

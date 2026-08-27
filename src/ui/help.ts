@@ -28,6 +28,13 @@ const PROCEDURES: readonly Row[] = [
   { keys: 'AIC101 hold at GUDUR as published\nAIC101 hold GUDUR', description: 'Enter the published racetrack: published inbound course, turn direction and leg time.' },
   { keys: 'AIC101 hold at GUDUR expect further clearance 1420\nAIC101 hold GUDUR efc 1420', description: 'The same, with an EFC time the crew read back.' },
   { keys: 'AIC101 descend via the arrival\nAIC101 dv', description: 'Fly the published STAR restrictions — each fix\u2019s altitude and speed — instead of level-by-level clearances.' },
+];
+
+const DEPARTURES: readonly Row[] = [
+  { keys: 'IGO412 line up and wait runway 29\nIGO412 luw 29  ·  luw', description: 'Put a departure on the runway. Refused while the runway is occupied.' },
+  { keys: 'IGO412 cleared for takeoff\nIGO412 takeoff  ·  cft', description: 'Send it. Lining up first is optional — a clearance to go implies it. It rolls, rotates at its own speed and climbs on its SID.' },
+  { keys: 'IGO412 fly heading 270', description: 'Given to an aircraft still on the ground, this is a heading to fly after departure.' },
+  { keys: 'IGO412 contact delhi control 127.9', description: 'Hand it on once it is climbing away. It counts as a departure when it leaves the sector.' },
   { keys: 'AIC101 tl 270 d 50 s 210', description: 'Chain as many instructions as you like onto one callsign.' },
 ];
 
@@ -38,6 +45,13 @@ const KEYS: readonly Row[] = [
   { keys: 'Space', description: 'Pause and resume, when the command line is empty.' },
   { keys: '?', description: 'This overlay, when the command line is empty. Escape or ? closes it.' },
   { keys: 'Escape', description: 'Clear the command line.' },
+];
+
+const SESSION: readonly Row[] = [
+  { keys: 'Scenarios', description: 'The button in the top right lists the five scenarios: tutorial, standard day, evening rush, runway change, and emergencies. Each runs from its own seed, so it plays out the same way every time.' },
+  { keys: 'Strip bay', description: 'Arrivals and departures are kept apart, as on a real bay. Drag an arrival strip to set the order you intend to land them in; a strip whose number is amber is out of position against the order they will actually arrive in.' },
+  { keys: 'NORDO', description: 'A radio failure. It squawks 7600, flies its last clearance, and answers nothing — your transmissions go out, they are simply not acknowledged.' },
+  { keys: 'ENG', description: 'An engine failure. It squawks 7700, climbs at a fraction of its normal rate and will not accept more than 250 knots.' },
 ];
 
 const SAFETY: readonly Row[] = [
@@ -76,6 +90,8 @@ const BLOCK: readonly Row[] = [
   { keys: 'AIC101 M MIN', description: 'Amber: minimum fuel advised. The crew can accept no undue delay.' },
   { keys: 'AIC101 M EMG', description: 'Red: emergency declared, squawking 7700. It wants priority.' },
   { keys: 'AIC101 M HO', description: 'Dimmed: handed off to another frequency and no longer taking your instructions.' },
+  { keys: 'AIC101 M ENG', description: 'Engine failure. Squawking 7700, climbing badly, capped at 250 knots.' },
+  { keys: 'AIC101 M NORDO', description: 'Radio failure. Squawking 7600 and not answering.' },
   { keys: 'Amber block', description: 'A safety net caution names this aircraft — a predicted conflict, or terrain ahead.' },
   { keys: 'Red block', description: 'A safety net warning names it: separation, wake or terrain minima actually broken.' },
   { keys: '110↓090', description: 'Present altitude in hundreds of feet, the trend arrow, and the cleared altitude.' },
@@ -124,11 +140,13 @@ function table(rows: readonly Row[]): string {
 function render(): string {
   return [
     '<h1>VIDP Approach — Delhi Director</h1>',
-    '<p>Radar scope, the full flight model with per-type performance and fuel, wind aloft, published arrivals, holding, ILS approaches flown to a landing, and the safety net: conflict alerting, wake turbulence, terrain and the session score. Scenarios, weather and departures arrive in the last milestone.</p>',
+    '<p>An approach radar sector for Delhi: per-type performance and fuel, wind aloft, published arrivals and departures, holding, ILS approaches flown to a landing, the safety net, and five scenarios to run it in.</p>',
     '<h2>Instructions</h2>',
     table(COMMANDS),
     '<h2>Procedures</h2>',
     table(PROCEDURES),
+    '<h2>Departures</h2>',
+    table(DEPARTURES),
     '<h2>Keyboard</h2>',
     table(KEYS),
     '<h2>Mouse</h2>',
@@ -137,6 +155,8 @@ function render(): string {
     table(APPROACH_NOTES),
     '<h2>The safety net</h2>',
     table(SAFETY),
+    '<h2>The session</h2>',
+    table(SESSION),
     '<h2>What the aircraft are doing</h2>',
     table(MODEL),
     '<h2>Reading a data block</h2>',

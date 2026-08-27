@@ -8,9 +8,13 @@ import { Point, angleDiff, distanceNm, normalizeDeg, pointInPolygon } from './ge
 import { RADAR_SWEEP_SEC, Wind } from './flight.js';
 import { stepAircraft } from './flight.js';
 import { NavContext, goAround, updateAutoflight } from './autoflight.js';
+import { stepGroundRoll } from './departure.js';
+import { declareEngineFailure, declareRadioFailure, isOutOfContact } from './emergency.js';
 import { updateFuel } from './fuel.js';
 import { PerformanceCatalogue } from './performance.js';
 import { Rng } from './rng.js';
+import { Scenario, ScenarioEvent, startTimeSec, validateScenario } from './scenario.js';
+import { TrafficDirector } from './traffic.js';
 import { SafetyNet } from './safety.js';
 import { SessionScore, computeScore } from './score.js';
 import { WakeMatrix } from './wake.js';
@@ -55,6 +59,11 @@ export class Simulation {
   readonly wake: WakeMatrix;
   readonly safety: SafetyNet;
   readonly rng: Rng;
+  scenario: Scenario | null = null;
+  private traffic: TrafficDirector | null = null;
+  private pendingEvents: ScenarioEvent[] = [];
+  /** Events that could not fire yet, e.g. an emergency with nobody to give it to. */
+  private deferredEvents: { event: ScenarioEvent; deadlineSec: number }[] = [];
   weather: Weather;
   aircraft: Aircraft[] = [];
   /** Seconds since midnight UTC. */
@@ -66,7 +75,7 @@ export class Simulation {
   private readonly runwayClearAtSec = new Map<string, number>();
   private readonly landedIds = new Set<string>();
   /** Session counters. */
-  readonly startedAtSec: number;
+  startedAtSec: number;
   arrivals = 0;
   departures = 0;
   goArounds = 0;
@@ -94,6 +103,30 @@ export class Simulation {
     this.timeSec = startTimeSec;
     this.startedAtSec = startTimeSec;
     this.runways = this.suggestedRunways();
+  }
+
+  /**
+   * Load a scenario: its weather, its runway configuration, its clock, and
+   * the traffic generator that will feed the session.
+   */
+  loadScenario(scenario: Scenario): void {
+    validateScenario(scenario, this.airspace, this.performance);
+    this.scenario = scenario;
+    this.weather = { ...scenario.weather };
+    this.runways = { ...scenario.runways };
+    this.timeSec = startTimeSec(scenario);
+    this.startedAtSec = this.timeSec;
+    this.traffic = new TrafficDirector(scenario, scenario.seed, this.timeSec);
+    // Sorted here, so an event list need not be written in time order.
+    this.pendingEvents = [...scenario.events].sort((a, b) => a.atMin - b.atMin);
+    this.deferredEvents = [];
+    this.say('system', null, `${scenario.name} — ${scenario.description}`, false);
+  }
+
+  /** Simulated seconds remaining in the scenario, or null if it has none. */
+  get remainingSec(): number | null {
+    if (this.scenario === null) return null;
+    return Math.max(0, this.scenario.durationMin * 60 - (this.timeSec - this.startedAtSec));
   }
 
   /** Surface wind as the flight model needs it: FROM, in true degrees. */
@@ -174,6 +207,10 @@ export class Simulation {
       hold: null,
       approach: null,
       goAroundCount: 0,
+    ground: null,
+    departureRunway: null,
+    emergency: 'none',
+    performanceFactor: 1,
       history: [seed.position],
       sweepTimerSec: RADAR_SWEEP_SEC,
       handedOff: false,
@@ -203,6 +240,11 @@ export class Simulation {
       remaining -= dt;
       this.timeSec += dt;
       for (const ac of this.aircraft) {
+        if (ac.ground !== null) {
+          // Sitting on the ground: no navigation, and no fuel worth counting.
+          this.stepOnGround(ac, dt);
+          continue;
+        }
         const nav: NavContext = {
           airspace: this.airspace,
           wind: this.windAt(ac.altitudeFt),
@@ -228,21 +270,159 @@ export class Simulation {
       }
       this.removeLandedAircraft();
       this.retireDepartedAircraft();
+      this.fireDueEvents();
+      this.traffic?.update(this, this.timeSec);
 
       // The safety net runs on its own one second cycle, independent of the
       // frame rate, so its alerts are reproducible from the seed.
       this.safetyTimerSec += dt;
       if (this.safetyTimerSec >= 1) {
         this.safetyTimerSec -= 1;
-        this.safety.update(this.aircraft, this.timeSec);
+        // Aircraft still on the ground are the tower's, not ours.
+        this.safety.update(this.aircraft.filter((ac) => ac.ground === null), this.timeSec);
       }
     }
+  }
+
+  /** Advance a departure that has not left the ground yet. */
+  private stepOnGround(ac: Aircraft, dtSec: number): void {
+    const runway = this.airspace.runway(ac.departureRunway ?? this.runways.departure);
+    if (runway === undefined) return;
+    const result = stepGroundRoll(ac, dtSec, {
+      wind: this.windAt(ac.altitudeFt),
+      magneticVariationDeg: this.airspace.airport.magneticVariationDeg,
+      runway,
+    });
+    if (result.airborne) {
+      this.runwayClearAtSec.set(runway.ident.toUpperCase(), this.timeSec + 20);
+      this.say('pilot', ac.callsign, `airborne, ${ac.callsign}`, false);
+    }
+  }
+
+  /* ------------------------------------------------------------- scenario */
+
+  /** How long a scenario keeps trying to place an emergency before giving up. */
+  static readonly EVENT_DEFERRAL_SEC = 20 * 60;
+
+  private fireDueEvents(): void {
+    if (this.scenario === null) return;
+
+    while (this.pendingEvents.length > 0) {
+      const event = this.pendingEvents[0];
+      if (event === undefined) break;
+      if (this.timeSec - this.startedAtSec < event.atMin * 60) break;
+      this.pendingEvents.shift();
+      if (!this.applyEvent(event)) {
+        // Nothing to give it to yet — an emergency needs an aeroplane.
+        this.deferredEvents.push({
+          event,
+          deadlineSec: this.timeSec + Simulation.EVENT_DEFERRAL_SEC,
+        });
+      }
+    }
+
+    if (this.deferredEvents.length === 0) return;
+    this.deferredEvents = this.deferredEvents.filter((deferred) => {
+      if (this.applyEvent(deferred.event)) return false;
+      if (this.timeSec < deferred.deadlineSec) return true;
+      this.say('system', null, 'A scripted event was dropped: no suitable aircraft for it.', false);
+      return false;
+    });
+  }
+
+  /** Apply one event. Returns false if it could not be applied yet. */
+  private applyEvent(event: ScenarioEvent): boolean {
+    switch (event.kind) {
+      case 'message':
+        this.say('system', null, event.text, false);
+        return true;
+
+      case 'weather': {
+        this.weather = { ...this.weather, ...event.weather };
+        this.weather.atisLetter = nextAtisLetter(this.weather.atisLetter);
+        const suggested = this.suggestedRunways();
+        const note =
+          suggested.arrival === this.runways.arrival
+            ? ''
+            : ` — this wind favours runway ${suggested.arrival}`;
+        this.say(
+          'system',
+          null,
+          `New ATIS, information ${this.weather.atisLetter}${note}.`,
+          suggested.arrival !== this.runways.arrival,
+        );
+        return true;
+      }
+
+      case 'runway-change': {
+        this.runways = { arrival: event.arrival, departure: event.departure };
+        this.say(
+          'system',
+          null,
+          `Runway change: arrivals runway ${event.arrival}, departures runway ${event.departure}.`,
+          true,
+        );
+        return true;
+      }
+
+      case 'emergency': {
+        const target = this.pickEmergencyTarget(event.target);
+        if (target === null) return false;
+        const call =
+          event.emergency === 'engine' ? declareEngineFailure(target) : declareRadioFailure(target);
+        this.say(event.emergency === 'engine' ? 'pilot' : 'system', target.callsign, call, true);
+        return true;
+      }
+
+      case 'arrival': {
+        const spec = {
+          callsign: event.callsign,
+          type: event.type,
+          entryFix: event.entryFix,
+          altitudeFt: event.altitudeFt,
+          speedKt: event.speedKt,
+          ...(event.fuelKg === undefined ? {} : { fuelKg: event.fuelKg }),
+        };
+        this.traffic?.spawnArrival(this, spec);
+        return true;
+      }
+
+      case 'departure': {
+        this.traffic?.spawnDeparture(this, {
+          callsign: event.callsign,
+          type: event.type,
+          sid: event.sid,
+        });
+        return true;
+      }
+
+      default: {
+        const unreachable: never = event;
+        throw new Error(`unknown scenario event ${JSON.stringify(unreachable)}`);
+      }
+    }
+  }
+
+  /** Pick an aircraft for a scripted emergency, deterministically. */
+  private pickEmergencyTarget(target: 'random-arrival' | 'random-departure'): Aircraft | null {
+    const wanted = target === 'random-arrival' ? 'arrival' : 'departure';
+    const airborne = this.aircraft.filter(
+      (ac) => ac.ground === null && ac.emergency === 'none' && !ac.handedOff,
+    );
+    const candidates = airborne.filter((ac) => ac.role === wanted);
+    if (candidates.length === 0) return null;
+    return candidates[this.rng.int(0, candidates.length - 1)] ?? null;
   }
 
   /** True while a landing roll is still on the runway. */
   isRunwayOccupied(ident: string): boolean {
     const clearAt = this.runwayClearAtSec.get(ident.toUpperCase());
     return clearAt !== undefined && this.timeSec < clearAt;
+  }
+
+  /** Reserve a runway for a period, e.g. while a departure is on it. */
+  occupyRunway(ident: string, seconds: number): void {
+    this.runwayClearAtSec.set(ident.toUpperCase(), this.timeSec + seconds);
   }
 
   /** How long a landing aircraft keeps the runway, in seconds. */
@@ -324,6 +504,9 @@ export class Simulation {
       if (ac === undefined || !ac.handedOff) continue;
       if (pointInPolygon(ac.position, this.airspace.sector.boundary)) continue;
       this.aircraft.splice(i, 1);
+      // A departure that has been handed on and has left the airspace is a
+      // movement completed.
+      if (ac.role === 'departure') this.departures += 1;
       this.say('system', ac.callsign, `${ac.callsign} has left the sector.`, false);
     }
   }
@@ -349,9 +532,19 @@ export class Simulation {
       this.say('system', null, error, true);
       return error;
     }
+    if (isOutOfContact(ac)) {
+      // A radio failure is not a parse error: the transmission goes out, it
+      // is simply not answered, and the aircraft carries on as last cleared.
+      this.say('atc', ac.callsign, `${ac.callsign}, ${describe(line)}`, false);
+      this.say('system', ac.callsign, `${ac.callsign} does not answer — squawking ${ac.squawk}.`, true);
+      return null;
+    }
     this.say('atc', ac.callsign, `${ac.callsign}, ${describe(line)}`, false);
     const outcome = executeCommands(ac, parsed.value.commands, {
       airspace: this.airspace,
+      departureRunway: this.runways.departure,
+      isRunwayOccupied: (ident) => this.isRunwayOccupied(ident),
+      occupyRunway: (ident, seconds) => this.occupyRunway(ident, seconds),
       timeSec: this.timeSec,
       goAround: (target, reason) => this.requestGoAround(target, reason),
     });
@@ -382,6 +575,13 @@ export class Simulation {
     );
     return { rangeNm, bearingMagneticDeg: this.airspace.toMagnetic(trueBearing) };
   }
+}
+
+/** ATIS letters run A to Z and back to A. */
+export function nextAtisLetter(letter: string): string {
+  const code = letter.toUpperCase().charCodeAt(0);
+  if (Number.isNaN(code) || code < 65 || code > 90) return 'A';
+  return code === 90 ? 'A' : String.fromCharCode(code + 1);
 }
 
 /** Echo the controller's own transmission back into the log, tidied up. */

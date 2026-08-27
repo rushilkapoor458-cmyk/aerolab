@@ -18,6 +18,12 @@ import { Command } from './types.js';
 
 export interface ExecutionContext {
   readonly airspace: Airspace;
+  /** The runway configuration in use, for departures with no runway named. */
+  readonly departureRunway: string;
+  /** True while a landing roll or another departure still has the runway. */
+  readonly isRunwayOccupied: (ident: string) => boolean;
+  /** Hold the runway for a departure that has just been cleared to go. */
+  readonly occupyRunway: (ident: string, seconds: number) => void;
   /** Simulation clock, for expect-further-clearance times. */
   readonly timeSec: number;
   /** Send the aircraft around; returns the crew's answer, or null if it is not on one. */
@@ -63,6 +69,10 @@ function executeOne(ac: Aircraft, command: Command, ctx: ExecutionContext): Sing
   const airspace = ctx.airspace;
   switch (command.kind) {
     case 'heading': {
+      if (ac.ground !== null) {
+        ac.clearance.headingDeg = command.headingDeg;
+        return ok(`after departure, heading ${formatBearing(command.headingDeg)}`);
+      }
       leaveProcedures(ac);
       ac.clearance.lateralMode = 'heading';
       ac.clearance.directFix = null;
@@ -180,6 +190,41 @@ function executeOne(ac: Aircraft, command: Command, ctx: ExecutionContext): Sing
       const report = ctx.goAround(ac, 'on instruction');
       if (report === null) return no('we are not on an approach');
       return ok(report);
+    }
+
+    case 'lineUp': {
+      if (ac.role !== 'departure' || ac.ground === null) {
+        return no('we are already airborne');
+      }
+      if (ac.ground !== 'queue') return no(`we are already lined up on runway ${ac.departureRunway}`);
+      const ident = (command.runway ?? ac.departureRunway ?? ctx.departureRunway).toUpperCase();
+      const runway = airspace.runway(ident);
+      if (runway === undefined) return no(`${ident} is not a runway here`);
+      if (ctx.isRunwayOccupied(runway.ident)) return no(`runway ${runway.ident} is still occupied`);
+      ac.ground = 'lineup';
+      ac.departureRunway = runway.ident;
+      ac.headingDeg = runway.magneticHeadingDeg;
+      ac.clearance.headingDeg = runway.magneticHeadingDeg;
+      // Sitting on the runway keeps everyone else off it.
+      ctx.occupyRunway(runway.ident, 600);
+      return ok(`lining up and waiting runway ${runway.ident}`);
+    }
+
+    case 'takeoff': {
+      if (ac.role !== 'departure' || ac.ground === null) return no('we are already airborne');
+      const ident = (ac.departureRunway ?? ctx.departureRunway).toUpperCase();
+      const runway = airspace.runway(ident);
+      if (runway === undefined) return no(`${ident} is not a runway here`);
+      // Lining up first is optional: a clearance to go implies it.
+      if (ac.ground === 'queue' && ctx.isRunwayOccupied(runway.ident)) {
+        return no(`runway ${runway.ident} is still occupied`);
+      }
+      ac.ground = 'takeoff';
+      ac.departureRunway = runway.ident;
+      ac.headingDeg = runway.magneticHeadingDeg;
+      ac.clearance.headingDeg = runway.magneticHeadingDeg;
+      ctx.occupyRunway(runway.ident, 600);
+      return ok(`cleared for takeoff runway ${runway.ident}`);
     }
 
     case 'descendVia': {

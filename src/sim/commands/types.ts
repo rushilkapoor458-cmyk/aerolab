@@ -18,6 +18,8 @@ export type Command =
   | { readonly kind: 'approach'; readonly runway: string }
   | { readonly kind: 'cancelApproach' }
   | { readonly kind: 'goAround' }
+  | { readonly kind: 'lineUp'; readonly runway: string | null }
+  | { readonly kind: 'takeoff' }
   | { readonly kind: 'descendVia' }
   | {
       readonly kind: 'hold';

@@ -4,7 +4,7 @@ import aircraftData from '../data/aircraft.json';
 import wakeData from '../data/wake.json';
 import { Airspace, RawAirspace } from './airspace.js';
 import { crossTrackNm, distanceNm, movePoint, pointInPolygon } from './geo.js';
-import { seedInitialTraffic } from './initialTraffic.js';
+import { seedInitialTraffic } from './testTraffic.js';
 import { PerformanceCatalogue, RawPerformance } from './performance.js';
 import { RawWakeMatrix, WakeMatrix } from './wake.js';
 import { Simulation } from './world.js';

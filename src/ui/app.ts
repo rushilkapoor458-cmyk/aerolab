@@ -15,7 +15,8 @@ import { DebugPanel } from './debugPanel.js';
 import { HelpOverlay } from './help.js';
 import { AlertsPanel } from './alerts.js';
 import { ScoreOverlay } from './score.js';
-import { SequencePanel } from './sequence.js';
+import { ScenarioPicker } from './scenarioPicker.js';
+import { StripBay } from './strips.js';
 import { StatusBar, requireElement, requireInput } from './statusBar.js';
 
 /** Simulated seconds may never advance by more than this in one frame. */
@@ -30,7 +31,8 @@ export class App {
   private readonly scope: RadarScope;
   private readonly statusBar: StatusBar;
   private readonly comms: CommsPanel;
-  private readonly sequence: SequencePanel;
+  private readonly strips: StripBay;
+  private readonly scenarios: ScenarioPicker;
   private readonly alerts: AlertsPanel;
   private readonly score: ScoreOverlay;
   private readonly commandBar: CommandBar;
@@ -59,7 +61,13 @@ export class App {
     const selectById = (id: string): void => {
       this.select(this.sim.aircraft.find((a) => a.id === id) ?? null);
     };
-    this.sequence = new SequencePanel(requireElement('sequence-list'), sim, selectById);
+    this.strips = new StripBay(
+      requireElement('arrival-strips'),
+      requireElement('departure-strips'),
+      sim,
+      selectById,
+    );
+    this.scenarios = new ScenarioPicker(requireElement('scenario-overlay'), sim.scenario);
     this.alerts = new AlertsPanel(requireElement('alerts-list'), selectById);
     this.score = new ScoreOverlay(requireElement('score-overlay'), sim);
     this.help = new HelpOverlay(requireElement('help-overlay'));
@@ -74,14 +82,22 @@ export class App {
 
     requireElement('help-toggle').addEventListener('click', () => {
       this.score.hide();
+      this.scenarios.hide();
       this.help.toggle();
       this.commandBar.focus();
     });
 
     requireElement('score-toggle').addEventListener('click', () => {
       this.help.hide();
+      this.scenarios.hide();
       this.score.toggle();
       this.commandBar.focus();
+    });
+
+    requireElement('scenario-toggle').addEventListener('click', () => {
+      this.help.hide();
+      this.score.hide();
+      this.scenarios.toggle();
     });
 
     this.bindPointer();
@@ -93,7 +109,7 @@ export class App {
     this.lastFrameMs = performance.now();
     this.statusBar.update(this.rate);
     this.comms.update(this.sim.comms);
-    this.sequence.update(this.selectedId);
+    this.strips.update(this.selectedId);
     this.alerts.update(this.sim.safety.alerts);
     const frame = (nowMs: number): void => {
       this.tick(nowMs);
@@ -117,7 +133,7 @@ export class App {
       this.panelTimerSec = 0;
       this.statusBar.update(this.rate);
       this.comms.update(this.sim.comms);
-      this.sequence.update(this.selectedId);
+      this.strips.update(this.selectedId);
       this.alerts.update(this.sim.safety.alerts);
     }
 
@@ -220,10 +236,12 @@ export class App {
       const target = event.target;
       const typing = target instanceof HTMLInputElement || target instanceof HTMLSelectElement;
 
-      if (event.key === 'Escape' && (this.help.isOpen || this.score.isOpen)) {
+      const overlayOpen = this.help.isOpen || this.score.isOpen || this.scenarios.isOpen;
+      if (event.key === 'Escape' && overlayOpen) {
         event.preventDefault();
         this.help.hide();
         this.score.hide();
+        this.scenarios.hide();
         this.commandBar.focus();
         return;
       }

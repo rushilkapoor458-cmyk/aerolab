@@ -18,6 +18,15 @@
         </div>
 
         <div class="field field-wide">
+          <span class="field-label">Scenario</span>
+          <span class="field-value" id="status-scenario">-</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Left</span>
+          <span class="field-value" id="status-remaining">--:--</span>
+        </div>
+
+        <div class="field field-wide">
           <span class="field-label">UTC</span>
           <span class="field-value" id="status-clock">--:--:--</span>
         </div>
@@ -65,6 +74,7 @@
           <button type="button" data-rate="2" class="rate">2&times;</button>
           <button type="button" data-rate="4" class="rate">4&times;</button>
         </div>
+        <button type="button" id="scenario-toggle" class="flat" title="Choose a scenario">Scenarios</button>
         <button type="button" id="score-toggle" class="flat" title="Session report">Score</button>
         <button type="button" id="debug-toggle" class="flat" title="Weather">WX</button>
         <button type="button" id="help-toggle" class="flat" title="Help (?)">?</button>
@@ -84,9 +94,14 @@
             <div id="alerts-list"></div>
           </section>
 
-          <section class="panel panel-sequence">
-            <h2>Arrival sequence</h2>
-            <div id="sequence-list"></div>
+          <section class="panel panel-strips">
+            <h2>Arrivals — drag to set your sequence</h2>
+            <div id="arrival-strips" class="strip-list"></div>
+          </section>
+
+          <section class="panel panel-strips panel-departures">
+            <h2>Departures</h2>
+            <div id="departure-strips" class="strip-list"></div>
           </section>
 
           <section class="panel panel-grow">
@@ -135,6 +150,7 @@
 
       <div id="help-overlay" hidden></div>
       <div id="score-overlay" hidden></div>
+      <div id="scenario-overlay" hidden></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

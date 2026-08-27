@@ -7,19 +7,32 @@ import wakeData from './data/wake.json';
 import { Airspace, RawAirspace } from './sim/airspace.js';
 import { PerformanceCatalogue, RawPerformance } from './sim/performance.js';
 import { RawWakeMatrix, WakeMatrix } from './sim/wake.js';
-import { seedInitialTraffic } from './sim/initialTraffic.js';
+import { DEFAULT_SCENARIO_ID, findScenario } from './sim/scenarios.js';
+
 import { Simulation } from './sim/world.js';
 import { App } from './ui/app.js';
 
-/** Fixed seed: the same session every time until the scenarios land. */
-const SEED = 20260820;
+/** Which scenario to run: `?scenario=rush`, defaulting to a normal shift. */
+function requestedScenarioId(): string {
+  const requested = new URLSearchParams(window.location.search).get('scenario');
+  return requested === null || requested.length === 0 ? DEFAULT_SCENARIO_ID : requested;
+}
 
 function boot(): void {
   const airspace = new Airspace(airspaceData as unknown as RawAirspace);
   const performance = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
   const wake = new WakeMatrix(wakeData as unknown as RawWakeMatrix);
-  const sim = new Simulation(airspace, performance, wake, SEED);
-  seedInitialTraffic(sim);
+
+  const id = requestedScenarioId();
+  const scenario = findScenario(id);
+  if (scenario === undefined) {
+    throw new Error(`There is no scenario called "${id}". Try ?scenario=${DEFAULT_SCENARIO_ID}.`);
+  }
+
+  // The scenario's own seed drives every random choice in the session, so the
+  // same scenario always plays out the same way.
+  const sim = new Simulation(airspace, performance, wake, scenario.seed);
+  sim.loadScenario(scenario);
   new App(sim).start();
 }
 

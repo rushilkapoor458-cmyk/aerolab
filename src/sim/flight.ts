@@ -13,6 +13,7 @@ import {
   climbRateFpm,
   descentRateFpm,
 } from './performance.js';
+import { ENGINE_OUT_MAX_SPEED_KT } from './emergency.js';
 import { Aircraft, SteeringCommand } from './types.js';
 import { approach, clamp, iasToTas, toDegrees, toRadians } from './units.js';
 
@@ -145,7 +146,12 @@ export function effectiveTargetSpeedKt(ac: Aircraft): number {
   const profile = ac.profile;
   // Configured for an approach, the aircraft may fly below its clean minimum.
   const floor = ac.approach === null ? profile.speeds.minCleanIasKt : profile.speeds.approachIasKt;
-  const requested = clamp(ac.clearance.speedKt, floor, profile.speeds.maxIasKt);
+  // An engine-out aircraft will not accept a high speed, whatever it is given.
+  const ceiling =
+    ac.emergency === 'engine'
+      ? Math.max(floor, Math.min(profile.speeds.maxIasKt, ENGINE_OUT_MAX_SPEED_KT))
+      : profile.speeds.maxIasKt;
+  const requested = clamp(ac.clearance.speedKt, floor, ceiling);
   if (ac.clearance.speedRestrictionCancelled) return requested;
   if (ac.altitudeFt < SPEED_LIMIT_ALTITUDE_FT) return Math.min(requested, SPEED_LIMIT_KT);
   return requested;
@@ -159,9 +165,11 @@ export function availableVerticalRateFpm(
   climbing: boolean,
   expedite: boolean,
   decelerationDemandKt: number,
+  /** Below one after an engine failure; it only hurts the climb. */
+  performanceFactor = 1,
 ): number {
   return climbing
-    ? climbRateFpm(profile, altitudeFt, massKg, expedite)
+    ? climbRateFpm(profile, altitudeFt, massKg, expedite) * performanceFactor
     : descentRateFpm(profile, altitudeFt, massKg, expedite, decelerationDemandKt);
 }
 
@@ -237,6 +245,7 @@ export function stepAircraft(
       climbing,
       ac.clearance.expedite,
       decelerationDemand,
+      ac.performanceFactor,
     );
     // Ease off approaching the cleared level so the capture is not a corner.
     const captureLimit = Math.abs(altError) * 6;

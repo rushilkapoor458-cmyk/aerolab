@@ -1,13 +1,13 @@
 /**
- * Hand-placed starting traffic.
+ * Test support: hand-placed traffic.
+ *
+ * The application runs from scenario files; this fixture exists so the unit
+ * tests have a known picture to work against without a traffic generator.
  *
  * Six aircraft spanning the whole performance range — a 777 and an A350 down
  * to a Cessna — so the scope, the data blocks and every command can be
  * exercised immediately. SEJ301 is deliberately short of fuel, so if you leave
  * it alone it will advise minimum fuel and then declare an emergency.
- *
- * Milestone 5 replaces this with the scenario files; the seeding interface it
- * uses is already the one here.
  */
 
 import { Point, bearingDeg, movePoint } from './geo.js';

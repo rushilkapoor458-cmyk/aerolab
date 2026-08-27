@@ -9,6 +9,12 @@ export type FlightRole = 'arrival' | 'departure' | 'overflight';
 
 export type FlightPhase = 'cruise' | 'climb' | 'descent' | 'approach';
 
+/** Where a departure is on the ground. Null means airborne. */
+export type GroundState = 'queue' | 'lineup' | 'takeoff';
+
+/** A declared emergency other than fuel, which has its own state. */
+export type EmergencyState = 'none' | 'engine' | 'radio';
+
 /**
  * How the fuel state escalates. `minimum` is an advisory — the aircraft can
  * accept no undue delay; `emergency` is a declaration, squawking 7700, and
@@ -126,8 +132,19 @@ export interface Aircraft {
   hold: HoldState | null;
   /** Set once cleared for an instrument approach. */
   approach: ApproachState | null;
-  /** Counts the go-arounds this aircraft has flown, for scoring later. */
+  /** Counts the go-arounds this aircraft has flown. */
   goAroundCount: number;
+
+  /** Where a departure is on the ground; null once airborne. */
+  ground: GroundState | null;
+  /** Runway a departure is using. */
+  departureRunway: string | null;
+  emergency: EmergencyState;
+  /**
+   * Multiplier on climb performance. One normally; well below one after an
+   * engine failure, which also caps the speed the aircraft will accept.
+   */
+  performanceFactor: number;
 
   /** When and where the aircraft came onto frequency, for the delay figure. */
   readonly entryTimeSec: number;

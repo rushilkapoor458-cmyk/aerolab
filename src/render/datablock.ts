@@ -8,6 +8,7 @@
  */
 
 import { Airspace } from '../sim/airspace.js';
+import { emergencyTag } from '../sim/emergency.js';
 import { AlertSeverity } from '../sim/safety.js';
 import { Aircraft } from '../sim/types.js';
 import { formatFlightLevel } from '../sim/units.js';
@@ -82,7 +83,7 @@ export function dataBlockSeverity(
   ac: Aircraft,
   alert: AlertSeverity | null = null,
 ): DataBlockSeverity {
-  if (alert === 'warning' || ac.fuelState === 'emergency') return 'alert';
+  if (alert === 'warning' || ac.fuelState === 'emergency' || ac.emergency !== 'none') return 'alert';
   if (alert === 'caution') return 'caution';
   if (ac.handedOff) return 'dim';
   if (ac.fuelState === 'minimum') return 'caution';
@@ -95,14 +96,17 @@ export function dataBlockLines(ac: Aircraft, airspace: Airspace): string[] {
     ac.verticalSpeedFpm > 200 ? '↑' : ac.verticalSpeedFpm < -200 ? '↓' : '→';
   const nextFix = navigationField(ac);
   // A tag after the wake category: the state the controller must not forget.
+  const emergency = emergencyTag(ac.emergency);
   const tag =
-    ac.fuelState === 'emergency'
-      ? ' EMG'
-      : ac.handedOff
-        ? ' HO'
-        : ac.fuelState === 'minimum'
-          ? ' MIN'
-          : '';
+    emergency !== ''
+      ? ` ${emergency}`
+      : ac.fuelState === 'emergency'
+        ? ' EMG'
+        : ac.handedOff
+          ? ' HO'
+          : ac.fuelState === 'minimum'
+            ? ' MIN'
+            : '';
   void airspace;
   return [
     `${ac.callsign} ${ac.wake}${tag}`,

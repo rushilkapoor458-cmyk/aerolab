@@ -233,33 +233,43 @@ button.flat.active {
   50% { background: rgba(255, 107, 107, 0.14); }
 }
 
-/* ------------------------------------------------------- arrival sequence */
+/* ------------------------------------------------------------- strip bay */
 
-#sequence-list {
-  flex: 1;
-  overflow-y: auto;
-  font-size: 11px;
-}
+.panel-strips { display: flex; flex-direction: column; min-height: 0; }
+.panel-strips:first-of-type { max-height: 34%; }
+.panel-departures { max-height: 26%; }
 
-.seq-row {
+.strip-list { flex: 1; overflow-y: auto; font-size: 11px; }
+
+.strip {
   display: grid;
-  grid-template-columns: 14px 60px 1fr 46px 40px;
-  gap: 6px;
+  grid-template-columns: 14px 58px 52px 1fr 34px 30px 32px;
+  gap: 5px;
   align-items: baseline;
-  padding: 2px 0;
+  padding: 3px 2px;
+  border-left: 2px solid transparent;
   border-bottom: 1px solid rgba(18, 58, 38, 0.4);
   cursor: pointer;
+  user-select: none;
 }
 
-.seq-row:hover { background: rgba(18, 58, 38, 0.35); }
-.seq-row.selected { background: rgba(255, 209, 102, 0.12); }
-.seq-index { color: var(--text-faint); text-align: right; }
-.seq-callsign { color: var(--text-strong); }
-.seq-state { color: var(--text-dim); }
-.seq-range, .seq-alt { color: var(--text); text-align: right; }
-.seq-row.on-approach .seq-state { color: var(--accent); }
-.seq-row.holding .seq-state { color: var(--caution); }
-.seq-empty { color: var(--text-faint); padding: 4px 0; }
+.strip:hover { background: rgba(18, 58, 38, 0.35); }
+.strip.selected { background: rgba(255, 209, 102, 0.12); border-left-color: var(--accent); }
+.strip.dragging { opacity: 0.4; }
+.strip.drop-target { border-top: 1px solid var(--accent); }
+.strip.caution { border-left-color: var(--caution); }
+.strip.alert { border-left-color: var(--danger); }
+.strip.alert .strip-callsign { color: var(--danger); }
+
+.strip-index { color: var(--text-faint); text-align: right; }
+.strip-callsign { color: var(--text-strong); }
+.strip-type { color: var(--text-dim); }
+.strip-state { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-alt, .strip-speed, .strip-range { color: var(--text); text-align: right; }
+.strip.on-approach .strip-state { color: var(--accent); }
+.strip.holding .strip-state { color: var(--caution); }
+.strip.out-of-order .strip-index { color: var(--caution); }
+.strip-empty { color: var(--text-faint); padding: 4px 0; }
 
 /* ---------------------------------------------------------------- comms */
 
@@ -391,7 +401,8 @@ button.flat.active {
 /* -------------------------------------------------- help and score overlays */
 
 #help-overlay,
-#score-overlay {
+#score-overlay,
+#scenario-overlay {
   position: absolute;
   inset: 46px 0 0 0;
   background: rgba(3, 12, 8, 0.97);
@@ -400,10 +411,11 @@ button.flat.active {
   z-index: 30;
 }
 
-#help-overlay[hidden], #score-overlay[hidden] { display: none; }
+#help-overlay[hidden], #score-overlay[hidden], #scenario-overlay[hidden] { display: none; }
 
 #help-overlay h1,
-#score-overlay h1 {
+#score-overlay h1,
+#scenario-overlay h1 {
   font-size: 14px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -425,7 +437,8 @@ button.flat.active {
 }
 
 #help-overlay p,
-#score-overlay p { margin: 4px 0; color: var(--text-dim); max-width: 900px; line-height: 1.6; }
+#score-overlay p,
+#scenario-overlay p { margin: 4px 0; color: var(--text-dim); max-width: 900px; line-height: 1.6; }
 
 #help-overlay table {
   border-collapse: collapse;
@@ -438,7 +451,46 @@ button.flat.active {
 #help-overlay td.k { color: var(--accent); white-space: nowrap; width: 300px; }
 #help-overlay td.d { color: var(--text); }
 #help-overlay .close,
-#score-overlay .close { color: var(--text-faint); font-size: 11px; margin-top: 24px; }
+#score-overlay .close,
+#scenario-overlay .close { color: var(--text-faint); font-size: 11px; margin-top: 24px; }
+
+/* -------------------------------------------------------- scenario picker */
+
+.scenario-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 18px 0 6px;
+  max-width: 1100px;
+}
+
+.scenario-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 320px;
+  padding: 14px 16px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  color: var(--text);
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: border-color 90ms linear, background 90ms linear;
+}
+
+.scenario-card:hover { border-color: var(--text-dim); background: var(--panel-raised); }
+.scenario-card.current { border-color: var(--accent); }
+.scenario-name { font-size: 15px; color: var(--text-strong); letter-spacing: 0.04em; }
+
+.scenario-rate {
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.scenario-description { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
 
 /* ------------------------------------------------------------ score report */
 
