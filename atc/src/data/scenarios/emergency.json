@@ -5,7 +5,7 @@
   "seed": 20260904,
   "startTimeUtc": "07:40",
   "durationMin": 60,
-  "runways": { "arrival": "29", "departure": "29" },
+  "runways": { "arrival": "29R", "departure": "29R" },
   "traffic": {
     "arrivalsPerHour": 14,
     "departuresPerHour": 10,
@@ -48,7 +48,7 @@
     {
       "atMin": 0,
       "kind": "message",
-      "text": "Morning bank, runway 29. Build the picture while it is quiet."
+      "text": "Morning bank, runway 29R. Build the picture while it is quiet."
     },
     {
       "atMin": 8,

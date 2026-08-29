@@ -10,7 +10,7 @@ import { RawWakeMatrix, WakeMatrix } from './wake.js';
 
 const AIRSPACE = new Airspace(airspaceData as unknown as RawAirspace);
 const WAKE = new WakeMatrix(wakeData as unknown as RawWakeMatrix);
-const RUNWAY_29 = AIRSPACE.runway('29');
+const RUNWAY_29 = AIRSPACE.runway('29R');
 if (RUNWAY_29 === undefined) throw new Error('runway 29 missing');
 const RUNWAY = RUNWAY_29;
 
@@ -30,8 +30,8 @@ function onFinal(callsign: string, distanceNm: number, type: string, captured = 
       headingDeg: RUNWAY.trueHeadingDeg,
       groundspeedKt: 150,
       approach: {
-        runway: '29',
-        ident: 'ILS29',
+        runway: '29R',
+        ident: 'ILS29R',
         localiserCaptured: captured,
         glideslopeCaptured: captured,
         reportedBlowThrough: false,

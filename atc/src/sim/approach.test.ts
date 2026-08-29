@@ -18,8 +18,8 @@ import { makeTestAircraft } from './testAircraft.js';
 import { Aircraft } from './types.js';
 
 const AIRSPACE = new Airspace(airspaceData as unknown as RawAirspace);
-const RUNWAY_29 = AIRSPACE.runway('29');
-const APPROACH_29 = AIRSPACE.approachForRunway('29');
+const RUNWAY_29 = AIRSPACE.runway('29R');
+const APPROACH_29 = AIRSPACE.approachForRunway('29R');
 if (RUNWAY_29 === undefined || APPROACH_29 === undefined) throw new Error('runway 29 missing');
 const RUNWAY = RUNWAY_29;
 const APPROACH = APPROACH_29;
@@ -52,8 +52,8 @@ function place(p: Placement, type = 'A320'): Aircraft {
       groundspeedKt: speed,
       clearance: { headingDeg: track, altitudeFt: p.altitudeFt, speedKt: speed },
       approach: {
-        runway: '29',
-        ident: 'ILS29',
+        runway: '29R',
+        ident: 'ILS29R',
         localiserCaptured: false,
         glideslopeCaptured: false,
         reportedBlowThrough: false,

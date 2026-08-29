@@ -73,7 +73,9 @@ export class StatusBar {
       `${this.sim.airspace.airport.icao} information ${w.atisLetter}\n` +
       `${metar}\n` +
       `Runway in use ${this.sim.runways.arrival}` +
-      (runway === undefined ? '' : ` (${runway.category}, ILS ${runway.ilsFrequencyMhz.toFixed(2)})`) +
+      (runway === undefined
+        ? ''
+        : ` (${runway.category}${runway.ilsFrequencyMhz === null ? ', no ILS' : `, ILS ${runway.ilsFrequencyMhz.toFixed(2)}`})`) +
       `\nWind aloft ${formatBearing(w.windAloftDirectionDeg)}/${pad2(Math.round(w.windAloftSpeedKt))} at ${Math.round(w.windAloftAltitudeFt).toLocaleString('en-GB')} ft` +
       `\nTransition altitude ${this.sim.airspace.airport.transitionAltitudeFt} ft`;
 

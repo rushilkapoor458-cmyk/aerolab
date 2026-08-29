@@ -395,10 +395,10 @@ will work through both stages on its own.
 These are things the simulation does not model, listed so that you know they are
 absent rather than broken.
 
-- **Simultaneous parallel operations.** The runways are close together and the
+- **Simultaneous parallel operations.** VIDP has four near-parallel runways, and the
   simulation applies one set of radar minima everywhere, so running arrivals to one
   runway and departures off its neighbour can raise a conflict alert that real
-  parallel-runway procedures would not.
+  independent parallel approach procedures would not.
 - **No ground movement.** Taxi is abstracted to a queue at the holding point; there
   is no apron, no taxiway, and no runway crossing.
 - **Holding entries** are always direct entries; parallel and teardrop are not
@@ -437,7 +437,26 @@ world: L, M, H and J as ICAO defines them.
 
 ### Airspace — `src/data/airspace.json`
 
-Everything lives in this one file. **Nothing in it is published chart data.** It is geometrically self-consistent — fixes really do sit where their
+Everything lives in this one file. **The aerodrome itself is now real; the airspace
+around it is not.**
+
+Taken from published sources, and correct:
+
+| | |
+| --- | --- |
+| Runways | All four pairs: **09/27, 10/28, 11L/29R, 11R/29L** — the real designators. |
+| Magnetic courses | 092/272, 098/278, 113/293. |
+| Lengths and widths | 9,239 × 148 ft, 12,510 × 151 ft, 14,436 × 148 ft, 14,530 × 200 ft. |
+| ILS frequencies | 109.10 (RWY 10), 111.90 (RWY 28), 112.40 (RWY 11L). |
+| No ILS on 09/27 | Real, and modelled: clearing an aircraft for an approach to 09 or 27 is refused. |
+| Elevation, reference point | 777 ft, 28°34′07″N 077°06′44″E. |
+
+Sources: [SkyVector](https://skyvector.com/airport/VIDP/Indira-Gandhi-International-Airport),
+[OurAirports](https://ourairports.com/airports/VIDP/runways.html),
+[the AAI eAIP ILS RWY 11L plate](https://aim-india.aai.aero/eaip-v2-07-2024/eAIP/VIDP-ILS-RWY-11L-CAT-II-III.pdf),
+[Wikipedia](https://en.wikipedia.org/wiki/Indira_Gandhi_International_Airport).
+
+Everything else is still invented. It is geometrically self-consistent — fixes really do sit where their
 bearings and distances say, final approach fixes really are 8.0 NM out on the
 localiser course — but the numbers themselves need correcting from real charts before
 you would call this VIDP.
@@ -446,14 +465,14 @@ Here is everything to check, by category:
 
 | Object | Count | What is invented | What to correct from charts |
 | --- | --- | --- | --- |
-| `airport` | 1 | Magnetic variation 0.6°E, transition altitude 4,000 ft, frequencies 127.9 / 118.1. Elevation 777 ft and the reference point are close to real. | AIP ENR/AD 2 VIDP. |
-| `runways` | 6 | All six. True headings assumed as 092.6 / 102.6 / 112.6 and their reciprocals; threshold coordinates derived from an assumed layout around the reference point; lengths, widths, ILS frequencies, glideslope 3.0° and the CAT I / CAT IIIB categories. | AD 2 VIDP runway table and the ILS/DME charts. In reality the three runway pairs are not spaced 10° apart. |
+| `airport` | 1 | Invented: magnetic variation 0.6°E, transition altitude 4,000 ft, frequencies 127.9 / 118.1. **Elevation and the reference point are the published ones.** | AIP ENR/AD 2 VIDP. |
+| `runways` | 8 ends | **Courses, lengths, widths and the three published ILS frequencies are real.** Still invented: where each strip sits relative to the reference point, the glideslope angle of 3.0°, the ILS frequencies of the reciprocals that open sources do not publish (29R, 11R, 29L), and the CAT categories other than 11L. | AD 2 VIDP runway table for the threshold coordinates; the ILS plates for the remaining frequencies. |
 | `fixes` | 22 | Every one, including the names. GUDUR, TUMSA, SITAX, SOKAT, RAKMO, KIRAN, NOMAN, ROHTA, BUXOR, ALGAN, PARAS, LOHAT, VEDAN, MEHUL, DAULA, SAHIB are placed on chosen radials at 22 / 32 / 45 / 50 NM. The entry fixes sit at 50 NM so that the holding patterns published at them stay inside the sector. DIVEK, MOKAL, TARIL, SEKUR, BAGAN, NOPIL are the final approach fixes, placed 8.0 NM out. | STAR/SID charts and the ILS plates. Expect the real entry fixes and their names to differ entirely. |
 | `sector.boundary` | 24 points | The whole polygon: a nominally 60 NM circle deliberately made slightly irregular, running between 57 and 67 NM. Ceiling FL150, floor surface. The loader refuses to start if a boundary fix ends up outside it. | The Delhi TMA lateral limits. |
 | `airways` | 5 | W20, A201, G452, N563, L507 — the identifiers and the fixes on them. | ENR 3 route tables. |
 | `sids` | 4 | GUDUR1D, RAKMO2E, NOMAN1F, BUXOR1G, including every altitude and speed restriction. | SID charts per runway. |
 | `stars` | 5 | GUDUR1A, SITAX1B, RAKMO1C, NOMAN1H, BUXOR1J, including every restriction. | STAR charts. |
-| `approaches` | 6 | All six ILS approaches: intercept altitude 3,000 ft, intercept range 18 NM, FAF altitude 2,600 ft, decision heights, missed approach altitude 4,000 ft. Localiser courses inherit the invented runway bearings. | ILS plates per runway. |
+| `approaches` | 6 | One per runway that has a localiser. The **localiser courses are real**; intercept altitude 3,000 ft, intercept range 18 NM, FAF altitude 2,600 ft, decision heights and missed approach altitude 4,000 ft are invented. | ILS plates per runway. |
 | `holds` | 7 | All of them: inbound courses, turn directions, 60-second legs, 230 kt maximum, altitude bands. | Holding pattern data on the STAR and approach charts. |
 | `msaGrid` | 625 cells | The entire terrain grid: 2,500 ft over the plain, 3,300 ft and 4,300 ft to the south-west for the Aravalli ridge, 3,000 ft outside 55 NM. | Area minimum altitude charts. |
 

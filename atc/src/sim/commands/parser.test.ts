@@ -256,11 +256,11 @@ describe('contact', () => {
 
 describe('approaches', () => {
   it('accepts the full clearance and the shorthand', () => {
-    const expected = [{ kind: 'approach', runway: '29' }];
-    expect(commands('AIC101 cleared ILS runway 29 approach')).toEqual(expected);
-    expect(commands('AIC101 cleared ils 29')).toEqual(expected);
-    expect(commands('AIC101 ils 29')).toEqual(expected);
-    expect(commands('AIC101 ils rwy 29')).toEqual(expected);
+    const expected = [{ kind: 'approach', runway: '29R' }];
+    expect(commands('AIC101 cleared ILS runway 29R approach')).toEqual(expected);
+    expect(commands('AIC101 cleared ils 29R')).toEqual(expected);
+    expect(commands('AIC101 ils 29R')).toEqual(expected);
+    expect(commands('AIC101 ils rwy 29R')).toEqual(expected);
   });
 
   it('pads a single digit runway', () => {

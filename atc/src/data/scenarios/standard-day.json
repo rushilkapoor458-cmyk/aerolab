@@ -5,7 +5,7 @@
   "seed": 20260901,
   "startTimeUtc": "10:00",
   "durationMin": 60,
-  "runways": { "arrival": "29", "departure": "29" },
+  "runways": { "arrival": "29R", "departure": "29R" },
   "traffic": {
     "arrivalsPerHour": 12,
     "departuresPerHour": 8,
@@ -52,7 +52,7 @@
     {
       "atMin": 0,
       "kind": "message",
-      "text": "Delhi Approach, runway 29 in use. Arrivals off the STARs, departures on the SIDs."
+      "text": "Delhi Approach, runway 29R in use. Arrivals off the STARs, departures on the SIDs."
     }
   ]
 }

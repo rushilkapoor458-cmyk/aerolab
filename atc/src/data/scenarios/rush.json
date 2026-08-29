@@ -5,7 +5,7 @@
   "seed": 20260902,
   "startTimeUtc": "18:30",
   "durationMin": 60,
-  "runways": { "arrival": "29", "departure": "28" },
+  "runways": { "arrival": "29R", "departure": "28" },
   "traffic": {
     "arrivalsPerHour": 27,
     "departuresPerHour": 18,
@@ -52,7 +52,7 @@
     {
       "atMin": 0,
       "kind": "message",
-      "text": "Evening rush. Arrivals runway 29, departures runway 28. Watch the wake minima behind the heavies."
+      "text": "Evening rush. Arrivals runway 29R, departures runway 28. Watch the wake minima behind the heavies."
     },
     {
       "atMin": 30,

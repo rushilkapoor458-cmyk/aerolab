@@ -20,7 +20,7 @@ import { Simulation } from './world.js';
 const AIRSPACE = new Airspace(airspaceData as unknown as RawAirspace);
 const PERFORMANCE = new PerformanceCatalogue(aircraftData as unknown as RawPerformance);
 const WAKE = new WakeMatrix(wakeData as unknown as RawWakeMatrix);
-const RUNWAY_29 = AIRSPACE.runway('29');
+const RUNWAY_29 = AIRSPACE.runway('29R');
 if (RUNWAY_29 === undefined) throw new Error('runway 29 missing');
 const RUNWAY = RUNWAY_29;
 const CALM = { fromTrueDeg: 0, speedKt: 0 };
@@ -51,7 +51,7 @@ describe('the take-off roll', () => {
     expect(ac.ground).toBe('queue');
     expect(ac.iasKt).toBe(0);
     expect(ac.groundspeedKt).toBe(0);
-    expect(ac.departureRunway).toBe('29');
+    expect(ac.departureRunway).toBe('29R');
     expect(distanceNm(ac.position, RUNWAY.threshold)).toBeCloseTo(0, 9);
   });
 
@@ -131,9 +131,9 @@ describe('departure clearances', () => {
 
   it('lines up and then takes off', () => {
     const { sim, callsign } = launchable();
-    expect(sim.transmit(`${callsign} line up and wait runway 29`)).toBeNull();
+    expect(sim.transmit(`${callsign} line up and wait runway 29R`)).toBeNull();
     expect(sim.find(callsign)?.ground).toBe('lineup');
-    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/lining up and waiting runway 29/);
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/lining up and waiting runway 29R/);
 
     expect(sim.transmit(`${callsign} cleared for takeoff`)).toBeNull();
     expect(sim.find(callsign)?.ground).toBe('takeoff');
@@ -147,8 +147,8 @@ describe('departure clearances', () => {
 
   it('refuses to line up on an occupied runway', () => {
     const { sim, callsign } = launchable();
-    sim.occupyRunway('29', 120);
-    sim.transmit(`${callsign} luw 29`);
+    sim.occupyRunway('29R', 120);
+    sim.transmit(`${callsign} luw 29R`);
     const last = sim.comms[sim.comms.length - 1];
     expect(last?.rejected).toBe(true);
     expect(last?.text).toMatch(/still occupied/);
@@ -166,7 +166,7 @@ describe('departure clearances', () => {
     const { sim, callsign } = launchable();
     sim.transmit(`${callsign} cleared for takeoff`);
     sim.step(90);
-    sim.transmit(`${callsign} luw 29`);
+    sim.transmit(`${callsign} luw 29R`);
     expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/already airborne/);
   });
 

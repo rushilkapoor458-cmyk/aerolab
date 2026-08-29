@@ -8,7 +8,7 @@
 
 import { Airspace, Runway } from '../sim/airspace.js';
 import { Alert } from '../sim/safety.js';
-import { Point, bearingDeg, distanceNm, movePoint, normalizeDeg } from '../sim/geo.js';
+import { Point, bearingDeg, distanceNm, formatBearing, movePoint, normalizeDeg } from '../sim/geo.js';
 import { Aircraft } from '../sim/types.js';
 import { Simulation } from '../sim/world.js';
 import { toRadians } from '../sim/units.js';
@@ -43,6 +43,12 @@ const COMPASS_RADIUS_NM = 60;
 const CENTRELINE_LENGTH_NM = 12;
 const SPEED_VECTOR_SEC = 60;
 const TARGET_HALF_PX = 3.5;
+/** Feet in a nautical mile, for drawing runways at their paved width. */
+const FT_PER_NM = 6076.11548556;
+/** Zoom at which runway designators become readable. */
+const RUNWAY_LABEL_ZOOM_PX_PER_NM = 14;
+/** Zoom at which route legs carry their course and distance. */
+const LEG_LABEL_ZOOM_PX_PER_NM = 5;
 /** How close in pixels a click has to be to pick up a target. */
 export const PICK_RADIUS_PX = 14;
 
@@ -280,13 +286,33 @@ export class RadarScope {
 
       // The final approach fix, where the descent begins.
       const faf = approach === undefined ? undefined : airspace.fix(approach.finalApproachFix);
-      if (faf !== undefined) {
+      if (faf !== undefined && approach !== undefined) {
         const s = camera.toScreen(faf.position);
         ctx.strokeStyle = THEME.fafMark;
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
         ctx.stroke();
+        // The crossing altitude, as the plate gives it.
+        ctx.font = THEME.fontSmall;
+        ctx.fillStyle = THEME.chartLabel;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`${approach.fafAltitudeFt}`, s.x, s.y + 6);
+      }
+
+      // The localiser course, against the centreline, as the plate gives it.
+      if (approach !== undefined) {
+        const at = camera.toScreen(movePoint(runway.threshold, outbound, CENTRELINE_LENGTH_NM * 0.62));
+        ctx.font = THEME.fontLabel;
+        ctx.fillStyle = THEME.chartLabel;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(
+          `ILS ${runway.ident}  ${formatBearing(approach.localiserCourseMagneticDeg)}\u00b0`,
+          at.x,
+          at.y - 6,
+        );
       }
     }
     ctx.restore();
@@ -296,16 +322,37 @@ export class RadarScope {
     const { ctx, camera } = this;
     ctx.save();
     ctx.strokeStyle = THEME.runway;
+    ctx.fillStyle = THEME.runway;
     ctx.lineCap = 'butt';
+
     for (const runway of airspace.runways) {
       const a = camera.toScreen(runway.threshold);
       const b = camera.toScreen(runway.stopEnd);
       // Draw the paved width where the zoom can show it, a hairline otherwise.
-      ctx.lineWidth = Math.max(1.6, (runway.widthFt / 6076.11548556) * camera.pxPerNm);
+      ctx.lineWidth = Math.max(1.6, (runway.widthFt / FT_PER_NM) * camera.pxPerNm);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
+    }
+
+    // Designators, once there is room to read them.
+    if (camera.pxPerNm >= RUNWAY_LABEL_ZOOM_PX_PER_NM) {
+      ctx.font = THEME.fontSmall;
+      ctx.fillStyle = THEME.runwayLabel;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const across = 0.22; // Offset the label clear of the paved surface, in NM.
+      for (const runway of airspace.runways) {
+        const side = (runway.trueHeadingDeg + 90) % 360;
+        const at = movePoint(
+          movePoint(runway.threshold, (runway.trueHeadingDeg + 180) % 360, 0.12),
+          side,
+          across,
+        );
+        const s = camera.toScreen(at);
+        ctx.fillText(runway.ident, s.x, s.y);
+      }
     }
     ctx.restore();
   }
@@ -355,6 +402,11 @@ export class RadarScope {
     ctx.restore();
   }
 
+  /**
+   * The selected aircraft's route, drawn the way a procedure is drawn on a
+   * plate: the track, the course and distance of each leg, and the published
+   * restriction at each fix it is going to cross.
+   */
   private drawRoute(ac: Aircraft, airspace: Airspace): void {
     const { ctx, camera } = this;
     const names: string[] = [];
@@ -380,6 +432,45 @@ export class RadarScope {
       else ctx.lineTo(s.x, s.y);
     });
     ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (camera.pxPerNm >= LEG_LABEL_ZOOM_PX_PER_NM) {
+      ctx.font = THEME.fontSmall;
+      ctx.fillStyle = THEME.chartLabel;
+      ctx.textAlign = 'center';
+
+      for (let i = 1; i < points.length; i++) {
+        const from = points[i - 1];
+        const to = points[i];
+        if (from === undefined || to === undefined) continue;
+
+        // Course and distance, against the middle of the leg.
+        const course = airspace.toMagnetic(bearingDeg(from, to));
+        const legNm = distanceNm(from, to);
+        const mid = camera.toScreen({ x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 });
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${formatBearing(course)}\u00b0  ${legNm.toFixed(1)}`, mid.x, mid.y - 3);
+
+        // The published restriction at the fix this leg ends on.
+        const name = names[i - 1];
+        const restriction =
+          name === undefined || ac.procedure === null
+            ? undefined
+            : airspace.procedureLeg(ac.procedure, name);
+        if (restriction === undefined) continue;
+        const parts: string[] = [];
+        if (restriction.altitudeConstraint !== null) {
+          const c = restriction.altitudeConstraint;
+          const mark = c.type === 'at_or_below' ? '\u2264' : c.type === 'at_or_above' ? '\u2265' : '';
+          parts.push(`${mark}${c.altitudeFt}`);
+        }
+        if (restriction.speedConstraint !== null) parts.push(`${restriction.speedConstraint.speedKt}kt`);
+        if (parts.length === 0) continue;
+        const at = camera.toScreen(to);
+        ctx.textBaseline = 'top';
+        ctx.fillText(parts.join('  '), at.x, at.y + 12);
+      }
+    }
     ctx.restore();
   }
 
