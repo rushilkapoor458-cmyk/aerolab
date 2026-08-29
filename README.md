@@ -7,10 +7,21 @@ tunnel; Phase 7 is the bridge between them.
 The goal is not "code that produces plots". It is a solver whose error bounds
 are known, stated, and validated against published data.
 
-> **Also in this repository:** [`atc/`](atc/README.md) holds an unrelated second
-> project — a terminal radar control simulation for Delhi approach, written in
-> TypeScript. It is entirely self-contained: separate build, separate dependencies,
-> no shared code. Nothing below applies to it, and nothing in it applies here.
+## Also in this repository: [Delhi Approach](atc/README.md)
+
+[`atc/`](atc/) holds an unrelated second project — **[Delhi Approach](atc/README.md)**,
+a terminal radar control simulation for VIDP, written in TypeScript. Vector the
+traffic, sequence it onto the ILS and land it.
+
+```bash
+cd atc && npm install && npm run dev     # then open http://localhost:5173/
+```
+
+It needs [Node.js](https://nodejs.org) and nothing else — separate build, separate
+dependencies, no shared code with the toolkit. Its own README has a step-by-step
+walkthrough for a first run, the full command reference, and the list of airspace
+values that are approximated rather than taken from published charts. Nothing below
+applies to it, and nothing in it applies here.
 
 ## Status
 
