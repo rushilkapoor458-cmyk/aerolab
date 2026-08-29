@@ -67,8 +67,8 @@ describe('the shipped scenarios', () => {
     const scenario = findScenario('standard-day');
     if (scenario === undefined) throw new Error('missing');
     expect(scenario.traffic.arrivalsPerHour + scenario.traffic.departuresPerHour).toBe(20);
-    expect(scenario.runways.arrival).toBe('29');
-    expect(scenario.runways.departure).toBe('29');
+    expect(scenario.runways.arrival).toBe('29R');
+    expect(scenario.runways.departure).toBe('29R');
   });
 
   it('give the weather scenario a runway change and short fuel', () => {

@@ -52,6 +52,8 @@ export function makeTestAircraft(overrides: AircraftOverrides = {}, type = 'A320
       speedRestrictionCancelled: false,
       expedite: false,
       descendVia: false,
+      speedAssignedOnApproach: false,
+      speedReleaseDistanceNm: null,
     },
     route: [],
     procedure: null,

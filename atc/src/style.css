@@ -7,20 +7,21 @@
  */
 
 :root {
-  --bg: #030d08;
-  --panel: #071710;
-  --panel-raised: #0a2016;
-  --edge: #123a26;
-  --edge-soft: #0d2a1c;
+  --bg: #0b0d10;
+  --panel: #12151a;
+  --panel-raised: #171b21;
+  --edge: #262c35;
+  --edge-soft: #1d222a;
 
-  --text: #a7ecc7;
-  --text-strong: #d8ffe9;
-  --text-dim: #4d8f6d;
-  --text-faint: #2f6349;
+  --text: #c7d0da;
+  --text-strong: #eef2f7;
+  --text-dim: #8b95a3;
+  --text-faint: #5a6473;
 
-  --accent: #ffd166;
+  --accent: #ffc44d;
   --caution: #ffb020;
-  --danger: #ff6b6b;
+  --danger: #ff5f56;
+  --info: #57c8d8;
 
   --mono: "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --row: 26px;
@@ -143,7 +144,7 @@ button.flat:hover {
 }
 
 button.rate.active {
-  color: #041209;
+  color: #0b0d10;
   background: var(--text);
   border-color: var(--text);
 }
@@ -215,12 +216,12 @@ button.flat.active {
   gap: 6px;
   align-items: baseline;
   padding: 3px 0;
-  border-bottom: 1px solid rgba(18, 58, 38, 0.4);
+  border-bottom: 1px solid rgba(38, 44, 53, 0.6);
   cursor: pointer;
   line-height: 1.4;
 }
 
-.alert-row:hover { background: rgba(18, 58, 38, 0.35); }
+.alert-row:hover { background: rgba(38, 44, 53, 0.55); }
 .alert-kind { font-size: 9px; letter-spacing: 0.12em; }
 .alert-since { color: var(--text-faint); text-align: right; }
 .alert-row.caution .alert-kind, .alert-row.caution .alert-text { color: var(--caution); }
@@ -230,7 +231,7 @@ button.flat.active {
 
 @keyframes alert-pulse {
   0%, 100% { background: transparent; }
-  50% { background: rgba(255, 107, 107, 0.14); }
+  50% { background: rgba(255, 95, 86, 0.16); }
 }
 
 /* ------------------------------------------------------------- strip bay */
@@ -248,13 +249,13 @@ button.flat.active {
   align-items: baseline;
   padding: 3px 2px;
   border-left: 2px solid transparent;
-  border-bottom: 1px solid rgba(18, 58, 38, 0.4);
+  border-bottom: 1px solid rgba(38, 44, 53, 0.6);
   cursor: pointer;
   user-select: none;
 }
 
-.strip:hover { background: rgba(18, 58, 38, 0.35); }
-.strip.selected { background: rgba(255, 209, 102, 0.12); border-left-color: var(--accent); }
+.strip:hover { background: rgba(38, 44, 53, 0.55); }
+.strip.selected { background: rgba(255, 196, 77, 0.12); border-left-color: var(--accent); }
 .strip.dragging { opacity: 0.4; }
 .strip.drop-target { border-top: 1px solid var(--accent); }
 .strip.caution { border-left-color: var(--caution); }
@@ -293,7 +294,7 @@ button.flat.active {
 #comms-log .atc .text { color: var(--text-strong); }
 #comms-log .atc .marker { color: var(--text-dim); }
 #comms-log .pilot .text { color: var(--text); }
-#comms-log .system .text { color: var(--accent); }
+#comms-log .system .text { color: var(--info); }
 #comms-log .rejected .text { color: var(--danger); }
 
 /* ----------------------------------------------------------- command bar */
@@ -405,7 +406,7 @@ button.flat.active {
 #scenario-overlay {
   position: absolute;
   inset: 46px 0 0 0;
-  background: rgba(3, 12, 8, 0.97);
+  background: rgba(11, 13, 16, 0.97);
   overflow-y: auto;
   padding: 24px 32px 48px;
   z-index: 30;
@@ -529,7 +530,7 @@ table.log th {
 table.log td {
   padding: 4px 16px 4px 0;
   color: var(--text);
-  border-bottom: 1px solid rgba(18, 58, 38, 0.35);
+  border-bottom: 1px solid rgba(38, 44, 53, 0.6);
   white-space: nowrap;
 }
 

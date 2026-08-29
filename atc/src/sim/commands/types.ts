@@ -10,7 +10,13 @@ export type Command =
       readonly sense: 'climb' | 'descend' | 'maintain';
       readonly expedite: boolean;
     }
-  | { readonly kind: 'speed'; readonly speedKt: number }
+  | {
+      readonly kind: 'speed';
+      readonly speedKt: number;
+      /** Distance from the threshold at which the speed is released, if named. */
+      readonly releaseDistanceNm: number | null;
+    }
+  | { readonly kind: 'minimumApproachSpeed' }
   | { readonly kind: 'speedCancel' }
   | { readonly kind: 'direct'; readonly fix: string }
   | { readonly kind: 'squawk'; readonly code: string }

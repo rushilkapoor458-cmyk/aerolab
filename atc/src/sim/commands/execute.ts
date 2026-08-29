@@ -104,13 +104,34 @@ function executeOne(ac: Aircraft, command: Command, ctx: ExecutionContext): Sing
       if (command.speedKt > envelope.maxIasKt) {
         return no(`we can't do more than ${envelope.maxIasKt} knots`);
       }
+      if (command.releaseDistanceNm !== null && ac.approach === null) {
+        return no('we are not on an approach, so there is nothing to hold that speed to');
+      }
       ac.clearance.speedKt = command.speedKt;
+      // A speed given after the approach clearance is the controller taking
+      // the spacing back; it holds until the aircraft is released.
+      ac.clearance.speedAssignedOnApproach = ac.approach !== null;
+      ac.clearance.speedReleaseDistanceNm = command.releaseDistanceNm;
+
       const restricted =
         !ac.clearance.speedRestrictionCancelled &&
         ac.altitudeFt < SPEED_LIMIT_ALTITUDE_FT &&
         command.speedKt > SPEED_LIMIT_KT;
-      const text = `speed ${command.speedKt}`;
+      const held =
+        command.releaseDistanceNm === null
+          ? ''
+          : ` to ${command.releaseDistanceNm} mile${command.releaseDistanceNm === 1 ? '' : 's'}`;
+      const text = `speed ${command.speedKt}${held}`;
       return ok(restricted ? `${text}, we're restricted to ${SPEED_LIMIT_KT} below ten thousand` : text);
+    }
+
+    case 'minimumApproachSpeed': {
+      if (ac.approach === null) return no('we are not on an approach');
+      const speed = ac.profile.speeds.approachIasKt;
+      ac.clearance.speedKt = speed;
+      ac.clearance.speedAssignedOnApproach = true;
+      ac.clearance.speedReleaseDistanceNm = 0;
+      return ok(`reducing to our minimum approach speed, ${speed} knots`);
     }
 
     case 'speedCancel': {
@@ -174,6 +195,10 @@ function executeOne(ac: Aircraft, command: Command, ctx: ExecutionContext): Sing
         stabilityChecked: false,
       };
       ac.clearance.descendVia = false;
+      // The crew manage their own speed from here unless the controller
+      // assigns one after this clearance.
+      ac.clearance.speedAssignedOnApproach = false;
+      ac.clearance.speedReleaseDistanceNm = null;
       return ok(`cleared ILS runway ${runway.ident} approach`);
     }
 
@@ -325,6 +350,8 @@ function leaveProcedures(ac: Aircraft): void {
   ac.approach = null;
   ac.hold = null;
   ac.clearance.descendVia = false;
+  ac.clearance.speedAssignedOnApproach = false;
+  ac.clearance.speedReleaseDistanceNm = null;
   if (ac.phase === 'approach') ac.phase = 'cruise';
 }
 

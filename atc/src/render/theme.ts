@@ -1,58 +1,63 @@
 /**
  * Scope palette and type.
  *
- * A vector radar display: a near-black ground, a restrained green for the
- * map, brighter green for the traffic, and colour used only where it carries
- * meaning — amber for attention, red for an emergency.
+ * A modern air traffic management console: a near-black ground, the map in
+ * dark neutral greys, traffic and data blocks in white and pale grey, and
+ * colour used only where it carries meaning — cyan for the aerodrome and the
+ * procedure you are working, amber for a caution, red for a warning.
+ *
+ * The discipline is that nothing routine is coloured. If something on this
+ * display is amber or red, it wants you.
  */
 
 export const THEME = {
   /* ground and map */
-  background: '#03110a',
-  vignette: 'rgba(0, 0, 0, 0.35)',
-  rangeRing: '#0f3623',
-  rangeRingMajor: '#16492f',
-  rangeRingLabel: '#1d6a44',
-  compassTick: '#164a30',
-  compassTickMajor: '#22764c',
-  compassLabel: '#2c8d5d',
-  boundary: '#1d7a4b',
-  boundaryGlow: 'rgba(29, 122, 75, 0.25)',
+  background: '#0b0d10',
+  rangeRing: '#1b2027',
+  rangeRingMajor: '#272e37',
+  rangeRingLabel: '#4d5763',
+  compassTick: '#232a33',
+  compassTickMajor: '#39424e',
+  compassLabel: '#5a6473',
+  boundary: '#3d4753',
+  boundaryGlow: 'rgba(61, 71, 83, 0.22)',
 
-  /* aerodrome */
-  runway: '#a8f5c8',
-  aerodrome: '#4fbf85',
-  centreline: '#1b6a44',
-  centrelineTick: '#2a8f5c',
-  ilsCone: 'rgba(20, 84, 54, 0.55)',
-  ilsEdge: '#1f7a4e',
-  fafMark: '#3fb87c',
+  /* aerodrome and procedures */
+  runway: '#e8edf3',
+  runwayLabel: '#9aa6b4',
+  aerodrome: '#57c8d8',
+  centreline: '#2f3a45',
+  centrelineTick: '#43505e',
+  ilsCone: 'rgba(45, 92, 104, 0.28)',
+  ilsEdge: '#2f5f6b',
+  fafMark: '#57c8d8',
+  chartLabel: '#7d8b9b',
 
   /* navigation */
-  fix: '#2c8f62',
-  fixLabel: '#3aae76',
-  fixBoundary: '#49c98b',
-  route: '#7f74e8',
-  approachPath: '#c08adf',
+  fix: '#4a5563',
+  fixLabel: '#798798',
+  fixBoundary: '#6f8091',
+  route: '#6f7fd0',
+  approachPath: '#57c8d8',
 
   /* traffic */
-  target: '#78ffb8',
-  targetGlow: 'rgba(120, 255, 184, 0.5)',
-  targetSelected: '#ffd166',
-  history: '#2f9a67',
-  vector: '#4fd694',
-  leader: '#2c8a5f',
+  target: '#e9eef5',
+  targetGlow: 'rgba(233, 238, 245, 0.35)',
+  targetSelected: '#ffc44d',
+  history: '#6b7686',
+  vector: '#aab6c5',
+  leader: '#5b6675',
 
   /* data blocks */
-  dataBlock: '#8dffc4',
-  dataBlockSelected: '#ffd166',
+  dataBlock: '#e9eef5',
+  dataBlockSelected: '#ffc44d',
   dataBlockCaution: '#ffb020',
-  dataBlockAlert: '#ff5c5c',
-  dataBlockDim: '#3f7a5c',
+  dataBlockAlert: '#ff5f56',
+  dataBlockDim: '#69737f',
 
   /* tools */
-  ruler: '#ffd166',
-  scaleBar: '#2c8d5d',
+  ruler: '#ffc44d',
+  scaleBar: '#5a6473',
 
   /* type */
   fontBlock: '11.5px "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace',

@@ -114,12 +114,54 @@ describe('altitudes', () => {
 
 describe('speeds', () => {
   it('accepts every form', () => {
-    const expected = [{ kind: 'speed', speedKt: 210 }];
+    const expected = [{ kind: 'speed', speedKt: 210, releaseDistanceNm: null }];
     expect(commands('AIC101 reduce speed to 210')).toEqual(expected);
     expect(commands('AIC101 increase speed to 210')).toEqual(expected);
     expect(commands('AIC101 speed 210')).toEqual(expected);
     expect(commands('AIC101 s 210')).toEqual(expected);
     expect(commands('AIC101 spd 210')).toEqual(expected);
+  });
+
+  it('takes a distance to hold the speed to', () => {
+    expect(commands('AIC101 s 160 to 4')).toEqual([
+      { kind: 'speed', speedKt: 160, releaseDistanceNm: 4 },
+    ]);
+    expect(commands('AIC101 maintain 160 knots to 4 miles')).toEqual([
+      { kind: 'speed', speedKt: 160, releaseDistanceNm: 4 },
+    ]);
+    expect(commands('AIC101 reduce speed to 170 kts to 5 DME')).toEqual([
+      { kind: 'speed', speedKt: 170, releaseDistanceNm: 5 },
+    ]);
+  });
+
+  it('does not mistake a level for a speed, or the other way round', () => {
+    expect(commands('AIC101 maintain 6000')).toEqual([
+      { kind: 'altitude', altitudeFt: 6000, sense: 'maintain', expedite: false },
+    ]);
+    expect(commands('AIC101 m 70')).toEqual([
+      { kind: 'altitude', altitudeFt: 7000, sense: 'maintain', expedite: false },
+    ]);
+    expect(commands('AIC101 maintain 180 knots')).toEqual([
+      { kind: 'speed', speedKt: 180, releaseDistanceNm: null },
+    ]);
+  });
+
+  it('rejects a release distance that is not a distance', () => {
+    expect(error('AIC101 s 160 to 40')).toMatch(/between 1 and 20 miles/);
+  });
+
+  it('does not swallow the next instruction as a distance', () => {
+    expect(commands('AIC101 s 210 d 30')).toEqual([
+      { kind: 'speed', speedKt: 210, releaseDistanceNm: null },
+      { kind: 'altitude', altitudeFt: 3000, sense: 'descend', expedite: false },
+    ]);
+  });
+
+  it('accepts minimum approach speed in every form', () => {
+    const expected = [{ kind: 'minimumApproachSpeed' }];
+    expect(commands('AIC101 reduce to minimum approach speed')).toEqual(expected);
+    expect(commands('AIC101 minimum approach speed')).toEqual(expected);
+    expect(commands('AIC101 min')).toEqual(expected);
   });
 
   it('cancels the restriction', () => {
@@ -154,7 +196,7 @@ describe('chaining', () => {
     expect(commands('AIC101 tl 270 d 50 s 210')).toEqual([
       { kind: 'heading', headingDeg: 270, turn: 'left' },
       { kind: 'altitude', altitudeFt: 5000, sense: 'descend', expedite: false },
-      { kind: 'speed', speedKt: 210 },
+      { kind: 'speed', speedKt: 210, releaseDistanceNm: null },
     ]);
   });
 
@@ -162,7 +204,7 @@ describe('chaining', () => {
     expect(commands('AIC101 turn left heading 270, descend and maintain 5000, reduce speed to 210')).toEqual([
       { kind: 'heading', headingDeg: 270, turn: 'left' },
       { kind: 'altitude', altitudeFt: 5000, sense: 'descend', expedite: false },
-      { kind: 'speed', speedKt: 210 },
+      { kind: 'speed', speedKt: 210, releaseDistanceNm: null },
     ]);
   });
 
@@ -214,11 +256,11 @@ describe('contact', () => {
 
 describe('approaches', () => {
   it('accepts the full clearance and the shorthand', () => {
-    const expected = [{ kind: 'approach', runway: '29' }];
-    expect(commands('AIC101 cleared ILS runway 29 approach')).toEqual(expected);
-    expect(commands('AIC101 cleared ils 29')).toEqual(expected);
-    expect(commands('AIC101 ils 29')).toEqual(expected);
-    expect(commands('AIC101 ils rwy 29')).toEqual(expected);
+    const expected = [{ kind: 'approach', runway: '29R' }];
+    expect(commands('AIC101 cleared ILS runway 29R approach')).toEqual(expected);
+    expect(commands('AIC101 cleared ils 29R')).toEqual(expected);
+    expect(commands('AIC101 ils 29R')).toEqual(expected);
+    expect(commands('AIC101 ils rwy 29R')).toEqual(expected);
   });
 
   it('pads a single digit runway', () => {

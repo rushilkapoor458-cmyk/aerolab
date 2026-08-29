@@ -308,6 +308,8 @@ export function goAround(
   ac.clearance.turnRemainingDeg = null;
   ac.clearance.altitudeFt = missedAltitude;
   ac.clearance.expedite = false;
+  ac.clearance.speedAssignedOnApproach = false;
+  ac.clearance.speedReleaseDistanceNm = null;
   ac.clearance.speedKt = Math.max(ac.clearance.speedKt, ac.profile.speeds.minCleanIasKt);
   const heading =
     runway === undefined ? ac.headingDeg : ctx.airspace.toMagnetic(runway.trueHeadingDeg);

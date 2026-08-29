@@ -50,7 +50,8 @@ export interface Runway {
   readonly lengthFt: number;
   readonly lengthNm: number;
   readonly widthFt: number;
-  readonly ilsFrequencyMhz: number;
+  /** Localiser frequency, or null where the runway has no ILS. */
+  readonly ilsFrequencyMhz: number | null;
   readonly glideslopeAngleDeg: number;
   readonly category: string;
   /** Far end of the paved surface, for drawing. */
@@ -243,8 +244,11 @@ export class Airspace {
     }
     for (const app of this.approaches) {
       checkFix(app.finalApproachFix, `approach ${app.ident}`);
-      if (!this.runwayIndex.has(app.runway)) {
+      const runway = this.runwayIndex.get(app.runway);
+      if (runway === undefined) {
         problems.push(`approach ${app.ident} references unknown runway ${app.runway}`);
+      } else if (runway.ilsFrequencyMhz === null) {
+        problems.push(`approach ${app.ident} is published for runway ${app.runway}, which has no ILS`);
       }
     }
     for (const hold of this.holds) checkFix(hold.fix, `hold at ${hold.fix}`);
@@ -333,7 +337,7 @@ interface RawRunway {
   thresholdElevationFt: number;
   lengthFt: number;
   widthFt: number;
-  ilsFrequencyMhz: number;
+  ilsFrequencyMhz: number | null;
   glideslopeAngleDeg: number;
   category: string;
 }

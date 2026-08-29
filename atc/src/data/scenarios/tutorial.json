@@ -1,11 +1,11 @@
 {
   "id": "tutorial",
   "name": "Tutorial",
-  "description": "Two arrivals, no departures. Take your time, vector them onto the ILS for 29 and land them.",
+  "description": "Two arrivals, no departures. Take your time, vector them onto the ILS for 29R and land them.",
   "seed": 1001,
   "startTimeUtc": "09:00",
   "durationMin": 45,
-  "runways": { "arrival": "29", "departure": "29" },
+  "runways": { "arrival": "29R", "departure": "29R" },
   "traffic": {
     "arrivalsPerHour": 0,
     "departuresPerHour": 0,
@@ -36,7 +36,7 @@
     {
       "atMin": 0,
       "kind": "message",
-      "text": "Tutorial. AIC101 is inbound from GUDUR. Try: AIC101 dct DIVEK, then AIC101 d 30, then AIC101 ils 29. Press ? at any time."
+      "text": "Tutorial. AIC101 is inbound from GUDUR. Try: AIC101 dct DIVEK, then AIC101 d 30, then AIC101 ils 29R. Press ? at any time."
     },
     {
       "atMin": 0,

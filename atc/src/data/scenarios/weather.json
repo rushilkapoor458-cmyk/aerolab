@@ -5,7 +5,7 @@
   "seed": 20260903,
   "startTimeUtc": "14:10",
   "durationMin": 60,
-  "runways": { "arrival": "29", "departure": "29" },
+  "runways": { "arrival": "29R", "departure": "29R" },
   "traffic": {
     "arrivalsPerHour": 16,
     "departuresPerHour": 8,
@@ -49,7 +49,7 @@
     {
       "atMin": 0,
       "kind": "message",
-      "text": "Runway 29 in use. A squall line is forecast to cross the field in the next half hour."
+      "text": "Runway 29R in use. A squall line is forecast to cross the field in the next half hour."
     },
     {
       "atMin": 12,
@@ -82,13 +82,13 @@
     {
       "atMin": 22,
       "kind": "runway-change",
-      "arrival": "11",
-      "departure": "11"
+      "arrival": "11L",
+      "departure": "11L"
     },
     {
       "atMin": 22,
       "kind": "message",
-      "text": "Runway change to 11. Anything already established on 29 now has a tailwind — break it off and re-sequence."
+      "text": "Runway change to 11L. Anything already established on 29R now has a tailwind — break it off and re-sequence."
     },
     {
       "atMin": 45,

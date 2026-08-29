@@ -114,7 +114,7 @@ describe('scenario events', () => {
 
   it('changes the runway when the wind demands it', () => {
     const sim = run('weather', 60 * 23);
-    expect(sim.runways.arrival).toBe('11');
+    expect(sim.runways.arrival).toBe('11L');
     expect(sim.comms.some((c) => /Runway change/.test(c.text))).toBe(true);
   });
 
