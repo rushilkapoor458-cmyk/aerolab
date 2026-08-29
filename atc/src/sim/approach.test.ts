@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import airspaceData from '../data/airspace.json';
 import { Airspace, RawAirspace } from './airspace.js';
 import {
+  DEFAULT_SPEED_RELEASE_NM,
   THRESHOLD_CROSSING_HEIGHT_FT,
   approachSpeedKt,
   canCaptureGlideslope,
@@ -186,11 +187,59 @@ describe('flying the glideslope', () => {
 });
 
 describe('approach speed', () => {
-  it('backs off in stages towards the final approach speed', () => {
+  it('backs off in stages towards the final approach speed when left alone', () => {
     const ac = place({ distanceNm: 12, altitudeFt: 3000, iasKt: 250 });
     expect(approachSpeedKt(ac, 12)).toBeGreaterThan(approachSpeedKt(ac, 7));
     expect(approachSpeedKt(ac, 7)).toBeGreaterThan(approachSpeedKt(ac, 3));
     expect(approachSpeedKt(ac, 3)).toBe(ac.profile.speeds.approachIasKt);
+  });
+
+  it('holds an assigned speed instead, until it is released', () => {
+    const ac = place({ distanceNm: 12, altitudeFt: 3000, iasKt: 180 });
+    ac.clearance.speedKt = 160;
+    ac.clearance.speedAssignedOnApproach = true;
+    ac.clearance.speedReleaseDistanceNm = 4;
+
+    expect(approachSpeedKt(ac, 10)).toBe(160);
+    expect(approachSpeedKt(ac, 6)).toBe(160);
+    expect(approachSpeedKt(ac, 4.1)).toBe(160);
+    // Released: the crew slow for landing.
+    expect(approachSpeedKt(ac, 3.9)).toBe(ac.profile.speeds.approachIasKt);
+    expect(approachSpeedKt(ac, 1)).toBe(ac.profile.speeds.approachIasKt);
+  });
+
+  it('uses the default release distance when none was named', () => {
+    const ac = place({ distanceNm: 12, altitudeFt: 3000, iasKt: 180 });
+    ac.clearance.speedKt = 170;
+    ac.clearance.speedAssignedOnApproach = true;
+    ac.clearance.speedReleaseDistanceNm = null;
+    expect(approachSpeedKt(ac, DEFAULT_SPEED_RELEASE_NM + 1)).toBe(170);
+    expect(approachSpeedKt(ac, DEFAULT_SPEED_RELEASE_NM - 1)).toBe(ac.profile.speeds.approachIasKt);
+  });
+
+  it('will hold a fast speed all the way to the release, which is the point', () => {
+    const ac = place({ distanceNm: 12, altitudeFt: 3000, iasKt: 250 });
+    ac.clearance.speedKt = 250;
+    ac.clearance.speedAssignedOnApproach = true;
+    ac.clearance.speedReleaseDistanceNm = 4;
+    // Left like this the aircraft arrives at the gate far too fast.
+    expect(approachSpeedKt(ac, 5)).toBe(250);
+  });
+
+  it('never accepts an assigned speed below the final approach speed of the type', () => {
+    const ac = place({ distanceNm: 8, altitudeFt: 3000, iasKt: 160 });
+    ac.clearance.speedKt = 100;
+    ac.clearance.speedAssignedOnApproach = true;
+    ac.clearance.speedReleaseDistanceNm = 2;
+    expect(approachSpeedKt(ac, 6)).toBe(ac.profile.speeds.approachIasKt);
+  });
+
+  it('a release of zero means fly the final approach speed the whole way', () => {
+    const ac = place({ distanceNm: 12, altitudeFt: 3000, iasKt: 180 });
+    ac.clearance.speedKt = ac.profile.speeds.approachIasKt;
+    ac.clearance.speedAssignedOnApproach = true;
+    ac.clearance.speedReleaseDistanceNm = 0;
+    expect(approachSpeedKt(ac, 11)).toBe(ac.profile.speeds.approachIasKt);
   });
 });
 

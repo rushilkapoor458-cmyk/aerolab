@@ -3,7 +3,7 @@ import airspaceData from '../data/airspace.json';
 import aircraftData from '../data/aircraft.json';
 import wakeData from '../data/wake.json';
 import { Airspace, RawAirspace } from './airspace.js';
-import { crossTrackNm, distanceNm, movePoint, pointInPolygon } from './geo.js';
+import { alongTrackNm, crossTrackNm, distanceNm, movePoint, pointInPolygon } from './geo.js';
 import { seedInitialTraffic } from './testTraffic.js';
 import { PerformanceCatalogue, RawPerformance } from './performance.js';
 import { RawWakeMatrix, WakeMatrix } from './wake.js';
@@ -779,5 +779,121 @@ describe('the sector at rest', () => {
     for (const fix of airspace.fixes.filter((f) => f.type === 'boundary')) {
       expect(pointInPolygon(fix.position, airspace.sector.boundary)).toBe(true);
     }
+  });
+});
+
+/* ------------------------------------------------- speed control on final */
+
+describe('working the spacing on final', () => {
+  it('leaves an aircraft to manage its own speed if you say nothing', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST12', 12, 0, 3000, 0, 210);
+    sim.transmit('TEST12 ils 29');
+    expect(sim.find('TEST12')?.clearance.speedAssignedOnApproach).toBe(false);
+    sim.step(120);
+    // Slowing itself down without being asked.
+    expect(sim.find('TEST12')?.iasKt).toBeLessThan(210);
+  });
+
+  it('holds an assigned speed on final instead', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST13', 14, 0, 3200, 0, 210);
+    sim.transmit('TEST13 ils 29');
+    expect(sim.transmit('TEST13 s 180 to 4')).toBeNull();
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(false);
+    expect(last?.text).toMatch(/speed 180 to 4 miles/);
+
+    const ac = sim.find('TEST13');
+    expect(ac?.clearance.speedAssignedOnApproach).toBe(true);
+    expect(ac?.clearance.speedReleaseDistanceNm).toBe(4);
+
+    // Still doing what it was told at eight miles.
+    for (let i = 0; i < 40; i++) {
+      sim.step(5);
+      const now = sim.find('TEST13');
+      if (now === undefined) break;
+      const runway = sim.airspace.runway('29');
+      if (runway === undefined) break;
+      const range = -alongTrackNm(now.position, runway.threshold, runway.trueHeadingDeg);
+      if (range < 8) break;
+    }
+    expect(sim.find('TEST13')?.iasKt).toBeCloseTo(180, 0);
+  });
+
+  it('releases the speed at the distance named, and lands', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST14', 14, 0, 3200, 0, 200);
+    sim.transmit('TEST14 ils 29');
+    sim.transmit('TEST14 s 180 to 4');
+    for (let i = 0; i < 200 && sim.find('TEST14') !== undefined; i++) sim.step(5);
+    expect(sim.arrivals).toBe(1);
+    expect(sim.goArounds).toBe(0);
+  });
+
+  it('sends one around if you hold it fast all the way in', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST15', 14, 0, 3200, 0, 250);
+    sim.transmit('TEST15 ils 29');
+    sim.transmit('TEST15 s 250 to 2');
+    for (let i = 0; i < 200 && sim.goArounds === 0 && sim.arrivals === 0; i++) sim.step(5);
+    expect(sim.goArounds).toBe(1);
+    expect(sim.arrivals).toBe(0);
+    expect(sim.comms.some((c) => /too fast to be stable/.test(c.text))).toBe(true);
+  });
+
+  it('takes minimum approach speed', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST16', 12, 0, 3000, 0, 200);
+    sim.transmit('TEST16 ils 29');
+    expect(sim.transmit('TEST16 reduce to minimum approach speed')).toBeNull();
+    const ac = sim.find('TEST16');
+    expect(ac?.clearance.speedKt).toBe(ac?.profile.speeds.approachIasKt);
+    expect(ac?.clearance.speedReleaseDistanceNm).toBe(0);
+    expect(sim.comms[sim.comms.length - 1]?.text).toMatch(/minimum approach speed, 138 knots/);
+  });
+
+  it('refuses minimum approach speed to something not on an approach', () => {
+    const sim = build();
+    sim.transmit('AIC101 min');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(true);
+    expect(last?.text).toMatch(/not on an approach/);
+  });
+
+  it('refuses a held speed to something not on an approach', () => {
+    const sim = build();
+    // Inside the A320's envelope, so the refusal is about the hold, not the speed.
+    sim.transmit('AIC101 s 240 to 5');
+    const last = sim.comms[sim.comms.length - 1];
+    expect(last?.rejected).toBe(true);
+    expect(last?.text).toMatch(/nothing to hold that speed to/);
+  });
+
+  it('hands speed back to the crew when the approach is cleared again', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST17', 14, 0, 3200, 0, 210);
+    sim.transmit('TEST17 ils 29');
+    sim.transmit('TEST17 s 180 to 4');
+    expect(sim.find('TEST17')?.clearance.speedAssignedOnApproach).toBe(true);
+    sim.transmit('TEST17 ils 29');
+    expect(sim.find('TEST17')?.clearance.speedAssignedOnApproach).toBe(false);
+  });
+
+  it('drops the assignment when the aircraft leaves the approach', () => {
+    const sim = build();
+    sim.aircraft = [];
+    placeOnFinal(sim, 'TEST18', 12, 0, 3000, 0, 200);
+    sim.transmit('TEST18 ils 29');
+    sim.transmit('TEST18 s 180');
+    expect(sim.find('TEST18')?.clearance.speedAssignedOnApproach).toBe(true);
+    sim.transmit('TEST18 fh 180');
+    expect(sim.find('TEST18')?.clearance.speedAssignedOnApproach).toBe(false);
   });
 });

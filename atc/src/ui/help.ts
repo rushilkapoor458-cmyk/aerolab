@@ -28,6 +28,8 @@ const PROCEDURES: readonly Row[] = [
   { keys: 'AIC101 hold at GUDUR as published\nAIC101 hold GUDUR', description: 'Enter the published racetrack: published inbound course, turn direction and leg time.' },
   { keys: 'AIC101 hold at GUDUR expect further clearance 1420\nAIC101 hold GUDUR efc 1420', description: 'The same, with an EFC time the crew read back.' },
   { keys: 'AIC101 descend via the arrival\nAIC101 dv', description: 'Fly the published STAR restrictions — each fix\u2019s altitude and speed — instead of level-by-level clearances.' },
+  { keys: 'AIC101 maintain 160 knots to 4 miles\nAIC101 s 160 to 4', description: 'Hold a speed on final until four miles, then let the crew slow for landing. This is how you work the spacing.' },
+  { keys: 'AIC101 reduce to minimum approach speed\nAIC101 min', description: 'Straight to the type\u2019s final approach speed, the whole way in.' },
 ];
 
 const DEPARTURES: readonly Row[] = [
@@ -68,6 +70,7 @@ const APPROACH_NOTES: readonly Row[] = [
   { keys: 'Glideslope from below', description: 'The slope is captured only when it comes down to the aircraft. Hold one high and it will stay high, then go around at the missed approach point.' },
   { keys: 'The gate at 1000 ft', description: 'Off the centreline, off the slope, too fast, or the runway still occupied, and the crew go around on their own.' },
   { keys: 'Runway occupancy', description: 'A landing aircraft holds the runway for just under a minute. Sequence tighter than that and the one behind goes around.' },
+  { keys: 'Speed on final', description: 'Clearing an approach hands speed back to the crew, who slow themselves down. Assign a speed after that clearance and it holds until the distance you name — four miles if you name none. Hold one too fast for too long and it will not be stable at the gate.' },
 ];
 
 const MODEL: readonly Row[] = [

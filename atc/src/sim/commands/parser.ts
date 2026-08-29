@@ -30,7 +30,7 @@ const INSTRUCTION_WORDS = new Set([
   'CANCEL', 'RESUME', 'PROCEED', 'DIRECT', 'DCT', 'PD',
   'SQUAWK', 'SQ', 'SAY', 'CONTACT', 'CT',
   'CLEARED', 'ILS', 'HOLD', 'GO', 'GA', 'DV',
-  'LINE', 'LUW', 'LINEUP', 'TAKEOFF', 'CFT',
+  'LINE', 'LUW', 'LINEUP', 'TAKEOFF', 'CFT', 'MIN', 'MINIMUM',
 ]);
 
 class TokenCursor {
@@ -152,8 +152,15 @@ function parseOne(cursor: TokenCursor): OneResult {
       return { ok: true, command: { kind: 'descendVia' } };
     case 'MAINTAIN':
     case 'ALT':
-    case 'M':
+    case 'M': {
+      // "maintain 160 knots" is a speed; "maintain 6000" is a level.
+      const value = cursor.peek();
+      const unit = cursor.peek(1);
+      if (value !== undefined && /^\d{2,3}$/.test(value) && unit !== undefined && SPEED_UNITS.has(unit)) {
+        return parseSpeed(cursor);
+      }
       return parseAltitude(cursor, 'maintain', false);
+    }
     case 'EXPEDITE':
     case 'EX': {
       const what = cursor.next();
@@ -167,8 +174,19 @@ function parseOne(cursor: TokenCursor): OneResult {
     case 'REDUCE':
     case 'INCREASE': {
       cursor.accept('SPEED');
+      cursor.accept('TO');
+      if (cursor.accept('MINIMUM', 'MIN')) {
+        cursor.accept('APPROACH');
+        cursor.accept('SPEED');
+        return { ok: true, command: { kind: 'minimumApproachSpeed' } };
+      }
       return parseSpeed(cursor);
     }
+    case 'MIN':
+    case 'MINIMUM':
+      cursor.accept('APPROACH');
+      cursor.accept('SPEED');
+      return { ok: true, command: { kind: 'minimumApproachSpeed' } };
     case 'SPEED':
     case 'SPD':
     case 'S':
@@ -270,7 +288,8 @@ function parseOne(cursor: TokenCursor): OneResult {
     default:
       return fail(
         `I do not recognise "${word.toLowerCase()}". The simulator understands: turn left/right heading, fly heading, ` +
-          `climb, descend, descend via, maintain, expedite, speed, cancel speed restriction, proceed direct, ` +
+          `climb, descend, descend via, maintain, expedite, speed, minimum approach speed, ` +
+          `cancel speed restriction, proceed direct, ` +
           `cleared ILS, hold, go around, line up and wait, cleared for takeoff, squawk, say fuel ` +
           `and contact. Press ? for the full reference.`,
       );
@@ -320,13 +339,37 @@ function parseAltitude(
   return { ok: true, command: { kind: 'altitude', altitudeFt: altitude, sense, expedite } };
 }
 
+/** Words meaning knots, so a speed can be told apart from a level. */
+const SPEED_UNITS = new Set(['KNOTS', 'KNOT', 'KTS', 'KT']);
+
+/** The furthest out an assigned approach speed may be released. */
+export const MAX_SPEED_RELEASE_NM = 20;
+
+/**
+ * `s 210`, `reduce speed to 210`, and the form that does the real work on
+ * final: `maintain 160 knots to 4 miles`, or `s 160 to 4`.
+ */
 function parseSpeed(cursor: TokenCursor): OneResult {
   cursor.skipAll(new Set(['SPEED', 'TO', 'AT']));
   const token = cursor.next();
   if (token === undefined || !/^\d{2,3}$/.test(token)) {
     return fail('Expected a speed in knots, for example "s 210" or "reduce speed to 210".');
   }
-  return { ok: true, command: { kind: 'speed', speedKt: Number(token) } };
+  cursor.accept(...SPEED_UNITS);
+
+  let releaseDistanceNm: number | null = null;
+  if (cursor.peek() === 'TO' && /^\d{1,2}$/.test(cursor.peek(1) ?? '')) {
+    cursor.next();
+    releaseDistanceNm = Number(cursor.next());
+    cursor.accept('MILES', 'MILE', 'NM', 'DME', 'TRACK');
+    if (releaseDistanceNm < 1 || releaseDistanceNm > MAX_SPEED_RELEASE_NM) {
+      return fail(
+        `A speed can only be held to between 1 and ${MAX_SPEED_RELEASE_NM} miles, for example "s 160 to 4".`,
+      );
+    }
+  }
+
+  return { ok: true, command: { kind: 'speed', speedKt: Number(token), releaseDistanceNm } };
 }
 
 function parseDirect(cursor: TokenCursor): OneResult {

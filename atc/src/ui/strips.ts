@@ -33,9 +33,19 @@ export function stripState(ac: Aircraft): string {
   if (ac.ground === 'takeoff') return 'rolling';
   if (ac.emergency === 'radio') return 'no radio — last clearance';
   if (ac.approach !== null) {
-    if (ac.approach.glideslopeCaptured) return `ILS ${ac.approach.runway} G/S`;
-    if (ac.approach.localiserCaptured) return `ILS ${ac.approach.runway} LOC`;
-    return `ILS ${ac.approach.runway} vectors`;
+    const stage = ac.approach.glideslopeCaptured
+      ? 'G/S'
+      : ac.approach.localiserCaptured
+        ? 'LOC'
+        : 'vectors';
+    // A speed you are holding it to is the thing you need to see at a glance.
+    const held = ac.clearance.speedAssignedOnApproach
+      ? ` · ${Math.round(ac.clearance.speedKt)}` +
+        (ac.clearance.speedReleaseDistanceNm === null
+          ? ''
+          : ` to ${ac.clearance.speedReleaseDistanceNm}`)
+      : '';
+    return `ILS ${ac.approach.runway} ${stage}${held}`;
   }
   if (ac.hold !== null) return `hold ${ac.hold.fix}`;
   if (ac.handedOff) return `to ${ac.handedOffTo ?? 'next sector'}`;

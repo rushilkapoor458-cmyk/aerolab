@@ -178,6 +178,8 @@ export class Simulation {
       speedRestrictionCancelled: false,
       expedite: false,
       descendVia: false,
+      speedAssignedOnApproach: false,
+      speedReleaseDistanceNm: null,
     };
     const aircraft: Aircraft = {
       id: `ac${this.nextAircraftId++}`,

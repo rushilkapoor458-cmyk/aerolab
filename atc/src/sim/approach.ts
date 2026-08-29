@@ -123,12 +123,35 @@ export function glideslopeVerticalSpeedFpm(
 }
 
 /**
- * Speed to fly on the approach: cruise until ten miles, then progressively
- * back to the type's final approach speed by the final approach fix.
+ * Where an assigned approach speed is released if the controller named no
+ * distance: close enough in that the aircraft can still be configured and
+ * stable by the gate, and no closer.
+ */
+export const DEFAULT_SPEED_RELEASE_NM = 4;
+
+/**
+ * Speed to fly on the approach.
+ *
+ * Left alone, the aircraft manages its own: cruise speed until ten miles,
+ * then progressively back to the type's final approach speed. Assign a speed
+ * after clearing it for the approach and it holds that instead, until the
+ * distance at which it is released — which is how spacing on final is
+ * actually worked. Hold one fast too long and it will not be stable at the
+ * gate, and it will go around.
  */
 export function approachSpeedKt(ac: Aircraft, distanceToThresholdNm: number): number {
   const final = ac.profile.speeds.approachIasKt;
   const clean = ac.profile.speeds.minCleanIasKt;
+
+  if (ac.clearance.speedAssignedOnApproach) {
+    const release = ac.clearance.speedReleaseDistanceNm ?? DEFAULT_SPEED_RELEASE_NM;
+    if (distanceToThresholdNm > release) {
+      return clamp(ac.clearance.speedKt, final, ac.profile.speeds.maxIasKt);
+    }
+    // Released: the crew slow for landing at their own discretion.
+    return final;
+  }
+
   if (distanceToThresholdNm > 10) return Math.min(ac.clearance.speedKt, clean + 30);
   if (distanceToThresholdNm > 5) return clean;
   return final;

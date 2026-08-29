@@ -122,6 +122,8 @@ AIC101 tl 270 d 50 s 210
 | `AIC101 maintain 7000` | `AIC101 m 70`, `AIC101 alt 7000` | Stop a climb or descent at a level. |
 | `AIC101 expedite climb through 8000` | `AIC101 ex c 80` | Best rate through a level. `expedite descent` likewise. |
 | `AIC101 reduce speed to 210` | `AIC101 s 210`, `AIC101 spd 210` | Assign an indicated airspeed. `increase speed to` also works. |
+| `AIC101 maintain 160 knots to 4 miles` | `AIC101 s 160 to 4` | Hold a speed on final until four miles out, then let the crew slow for landing. |
+| `AIC101 reduce to minimum approach speed` | `AIC101 min` | Straight to the type's final approach speed, the whole way in. |
 | `AIC101 cancel speed restriction` | `AIC101 resume normal speed` | Release the 250 kt below 10,000 ft rule for that aircraft. |
 | `AIC101 proceed direct GUDUR` | `AIC101 dct GUDUR`, `AIC101 pd GUDUR` | Track to a published fix, then continue along the rest of its route. |
 | `AIC101 squawk 4271` | `AIC101 sq 4271` | Assign a transponder code. Refused while an emergency squawk is set. |
@@ -224,9 +226,14 @@ The whole point of the ILS here is that it can be flown badly.
   the crew go around without being asked.
 - **A landing aircraft holds the runway for 55 seconds.** Sequence tighter than that
   and the one behind goes around, on top of the wake turbulence minima below.
-- Speed is managed for you inside 10 NM: back to minimum clean by 5 NM, then to the
-  type's final approach speed. Once an aircraft is cleared for the approach you can
-  also assign speeds below its clean minimum, because it is configuring.
+- **Speed on final is yours if you want it.** Clearing an approach hands speed back
+  to the crew, who slow themselves: minimum clean by 5 NM, then the type's final
+  approach speed. Assign a speed *after* that clearance and it holds instead, until
+  the distance you name — `s 160 to 4` — or four miles if you name none. That is how
+  spacing on final is actually worked, and it is the one instruction that can put an
+  aircraft into the gate too fast to be stable. Once cleared for an approach an
+  aircraft will also accept speeds below its clean minimum, because it is
+  configuring; it will not go below its final approach speed.
 
 Holding is a published racetrack — inbound course, turn direction, one minute legs,
 maximum speed — flown as: track to the fix, turn outbound, run the leg, turn back
@@ -396,8 +403,6 @@ absent rather than broken.
   is no apron, no taxiway, and no runway crossing.
 - **Holding entries** are always direct entries; parallel and teardrop are not
   modelled.
-- **Speed control on final** is automatic inside 10 NM, so you cannot fine-tune the
-  spacing on the localiser the way a real approach controller would.
 - **The tower is not modelled.** You clear aircraft for the approach and for
   take-off yourself; there is no separate tower frequency doing it for you.
 - **One controller position.** There is no coordination with anyone: handing off is

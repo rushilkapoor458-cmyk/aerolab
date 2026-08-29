@@ -89,6 +89,17 @@ export interface Clearance {
   expedite: boolean;
   /** True once cleared to descend via the published arrival's restrictions. */
   descendVia: boolean;
+  /**
+   * True while a speed assigned since the approach clearance is still in
+   * force. Clearing an approach hands speed back to the crew; assigning one
+   * afterwards takes it back.
+   */
+  speedAssignedOnApproach: boolean;
+  /**
+   * Distance from the threshold at which an assigned approach speed is
+   * released and the crew slow at their own discretion. Null uses the default.
+   */
+  speedReleaseDistanceNm: number | null;
 }
 
 export interface Aircraft {
