@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<!-- Swapped before first paint, so the reveal animations only hide content
+     on browsers that will actually be able to bring it back. -->
+<script>document.documentElement.classList.replace('no-js', 'js');</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aurelia — Contemporary Fire Kitchen in Bandra West, Mumbai</title>
+<meta name="description" content="Aurelia is a contemporary fire kitchen in Bandra West, Mumbai. Wood, coal and clay; ninety-one partner farms; forty-four seats. Book a table or order online for delivery across Bandra, Khar, Santacruz and Juhu.">
+<meta name="theme-color" content="#F5F1E8">
+<meta name="color-scheme" content="light">
+<link rel="canonical" href="https://aurelia.example/">
+
+<!-- Open Graph / social -->
+<meta property="og:type" content="restaurant.restaurant">
+<meta property="og:site_name" content="Aurelia">
+<meta property="og:title" content="Aurelia — Contemporary Fire Kitchen, Mumbai">
+<meta property="og:description" content="Cooked over fire. Remembered far longer. Book a table or order online in Bandra West.">
+<meta property="og:image" content="https://aurelia.example/assets/img/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="720">
+<meta property="og:url" content="https://aurelia.example/">
+<meta property="og:locale" content="en_IN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Aurelia — Contemporary Fire Kitchen, Mumbai">
+<meta name="twitter:description" content="Cooked over fire. Remembered far longer.">
+<meta name="twitter:image" content="https://aurelia.example/assets/img/og.jpg">
+
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+
+<!-- The two faces that set almost all the visible text are preloaded so they are
+     in hand by first paint. The metric-matched fallbacks below still cover the
+     gap, but they depend on Georgia/Arial being installed, which is true on most
+     desktops and not on Android — preloading is what makes it deterministic. -->
+<link rel="preload" as="font" type="font/woff2" href="assets/fonts/cormorant-garamond-variable-latin.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="assets/fonts/inter-variable-latin.woff2" crossorigin>
+<link rel="preload" as="image" href="assets/img/hero-900.webp" type="image/webp"
+      imagesrcset="assets/img/hero-900.webp 900w, assets/img/hero-1400.webp 1400w, assets/img/hero-2000.webp 2000w"
+      imagesizes="100vw" fetchpriority="high">
+<link rel="stylesheet" href="assets/css/style.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Restaurant",
+  "@id": "https://aurelia.example/#restaurant",
+  "name": "Aurelia",
+  "alternateName": "Aurelia Fire Kitchen",
+  "description": "Contemporary fire kitchen in Bandra West, Mumbai. Wood, coal and clay cooking with produce from ninety-one partner farms.",
+  "url": "https://aurelia.example/",
+  "image": "https://aurelia.example/assets/img/og.jpg",
+  "telephone": "+91-22-4000-1890",
+  "email": "reservations@aurelia.example",
+  "priceRange": "₹₹₹₹",
+  "currenciesAccepted": "INR",
+  "paymentAccepted": "UPI, Credit Card, Debit Card, Net Banking, Cash",
+  "servesCuisine": ["Contemporary Indian", "Fine Dining", "Wood-fired"],
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "14 Ashford Lane, Off Carter Road",
+    "addressLocality": "Bandra West, Mumbai",
+    "addressRegion": "MH",
+    "postalCode": "400050",
+    "addressCountry": "IN"
+  },
+  "geo": { "@type": "GeoCoordinates", "latitude": 19.0596, "longitude": 72.8295 },
+  "hasMap": "https://www.google.com/maps?q=19.0596,72.8295",
+  "openingHoursSpecification": [
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Tuesday","Wednesday","Thursday"], "opens": "18:00", "closes": "23:30" },
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Friday","Saturday"], "opens": "12:30", "closes": "00:30" },
+    { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Sunday"], "opens": "12:30", "closes": "23:00" }
+  ],
+  "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "3412", "bestRating": "5" },
+  "acceptsReservations": "https://aurelia.example/#reserve",
+  "hasMenu": {
+    "@type": "Menu",
+    "name": "Aurelia Menu",
+    "hasMenuSection": [
+      { "@type": "MenuSection", "name": "Starters", "hasMenuItem": [
+        { "@type": "MenuItem", "name": "Charred Scallop, Coconut Malai", "offers": { "@type": "Offer", "price": "1450", "priceCurrency": "INR" } },
+        { "@type": "MenuItem", "name": "Wild Mushroom Galouti", "offers": { "@type": "Offer", "price": "840", "priceCurrency": "INR" } }
+      ]},
+      { "@type": "MenuSection", "name": "Main Course", "hasMenuItem": [
+        { "@type": "MenuItem", "name": "48-Hour Short Rib, Bone Marrow Dal", "offers": { "@type": "Offer", "price": "2150", "priceCurrency": "INR" } },
+        { "@type": "MenuItem", "name": "Black Truffle Khichdi", "offers": { "@type": "Offer", "price": "1650", "priceCurrency": "INR" } }
+      ]},
+      { "@type": "MenuSection", "name": "Desserts", "hasMenuItem": [
+        { "@type": "MenuItem", "name": "Valrhona & Cardamom Delice", "offers": { "@type": "Offer", "price": "680", "priceCurrency": "INR" } }
+      ]},
+      { "@type": "MenuSection", "name": "Beverages", "hasMenuItem": [
+        { "@type": "MenuItem", "name": "Aurelia Old Fashioned", "offers": { "@type": "Offer", "price": "950", "priceCurrency": "INR" } }
+      ]}
+    ]
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Do you cater to allergies and dietary restrictions?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Tell us in the booking notes and the kitchen builds around it. We run a separate vegetarian section with its own equipment, and every dish can be traced ingredient by ingredient." } },
+    { "@type": "Question", "name": "Are children welcome?", "acceptedAnswer": { "@type": "Answer", "text": "Very. We keep high chairs, a shorter early-evening menu for under-tens, and the 6.30pm sitting is deliberately quieter and quicker." } },
+    { "@type": "Question", "name": "Can you host a corporate dinner?", "acceptedAnswer": { "@type": "Answer", "text": "The private room seats sixteen, or twenty-four standing, with its own bar and screen." } },
+    { "@type": "Question", "name": "How far do you deliver?", "acceptedAnswer": { "@type": "Answer", "text": "Bandra, Khar, Santacruz and Juhu directly from our own riders, in insulated ceramic." } }
+  ]
+}
+</script>
+</head>
+
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="scroll-progress" aria-hidden="true"><i></i></div>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- ===================== icon sprite ===================== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2.2l2.3 11.2a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L21 8H6.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.3"/><circle cx="17.5" cy="20" r="1.3"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M16 16l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .85-4.35 4.2 1.05 5.95L12 16.9l-5.3 2.8 1.05-5.95L3.4 9.55l6-.85z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-5.5-6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 20V5m-6 6l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M4.5 4h3.2l1.6 4-2 1.4a12 12 0 0 0 5.3 5.3l1.4-2 4 1.6v3.2a1.6 1.6 0 0 1-1.8 1.6C9.6 18.6 5.4 14.4 3 6.3A1.6 1.6 0 0 1 4.5 4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3.8 6.6L12 12.6l8.2-6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M12 7.2V12l3.2 2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M12 2.8a9 9 0 0 0-7.7 13.7L3.2 21l4.7-1.2A9 9 0 1 0 12 2.8zm5 12.6c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.7s.6-1.9.9-2.1c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5s.8 2 .9 2.1c.1.2.1.3 0 .5s-.2.4-.3.5l-.4.5c-.2.2-.3.4-.1.7s.7 1.2 1.5 1.9c1 .9 1.8 1.2 2.1 1.3.3.1.4.1.6-.1l.8-1c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.4.3s.1.6-.1 1.2z"/></symbol>
+    <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="17.2" cy="6.8" r="1.1"/></symbol>
+    <symbol id="i-facebook" viewBox="0 0 24 24"><path d="M14.5 8.5h2.3V5.4h-2.6c-2.5 0-4 1.6-4 4.2v2H8v3.1h2.2V21h3.3v-6.3h2.4l.4-3.1h-2.8V9.8c0-.9.3-1.3 1-1.3z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M4 4l7.2 9.3L4.4 20h1.9l5.7-5.9L16.6 20H20l-7.5-9.7L19.4 4h-1.9l-5.3 5.5L8 4z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.8l4.5 4.4L19 7.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 4c0 9-5 13-11 13H5c0-8 5.5-11 15-13z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M4 21c2-6 6-9 12-11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 2.5c3.5 4.2 6.5 6.6 6.5 11a6.5 6.5 0 1 1-13 0c0-2.2 1-4 2.4-5.6.3 1.4 1 2.3 2 2.6-.4-3.3.5-6 2.1-8z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5.2a3.4 3.4 0 0 1 0 6.6M17.5 14.4A6.2 6.2 0 0 1 21.2 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3.5 10h17M8 3.2v3.6M16 3.2v3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5.2h4V7m-7.2 0l.9 12.2a1.6 1.6 0 0 0 1.6 1.5h5.4a1.6 1.6 0 0 0 1.6-1.5L17.2 7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bike" viewBox="0 0 24 24"><circle cx="5.5" cy="17" r="3.2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="18.5" cy="17" r="3.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 17l4-8h4l3 8M9 9h6M13.5 9l1.5-4h2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.5l1.9 6.2 6.1 1.9-6.1 1.9L12 18.7l-1.9-6.2-6.1-1.9 6.1-1.9z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ===================== header ===================== -->
+<header class="site-header" id="header">
+  <div class="shell header-inner">
+    <a class="brand" href="#home" aria-label="Aurelia Fire Kitchen, home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 40 40"><path d="M20 3l4.4 11.1L36 18l-11.6 3.9L20 33l-4.4-11.1L4 18l11.6-3.9z" fill="none" stroke="currentColor" stroke-width="1.1"/><circle cx="20" cy="18" r="2.2"/></svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">Aurelia</span>
+        <span class="brand-sub">Fire Kitchen</span>
+      </span>
+    </a>
+
+    <nav class="nav" id="nav" aria-label="Primary">
+      <ul>
+        <li><a href="#signatures" class="nav-link">Signatures</a></li>
+        <li><a href="#story" class="nav-link">Our Story</a></li>
+        <li><a href="#menu" class="nav-link">Menu</a></li>
+        <li><a href="#gallery" class="nav-link">Gallery</a></li>
+        <li><a href="#reviews" class="nav-link">Reviews</a></li>
+        <li><a href="#visit" class="nav-link">Visit</a></li>
+        <li class="nav-cta">
+          <a class="btn btn-outline btn-sm" href="#reserve">Book a Table</a>
+          <a class="btn btn-gold btn-sm" href="#menu">Order Online</a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="header-actions">
+      <button class="icon-btn cart-btn" id="cartBtn" aria-label="Open your order" aria-haspopup="dialog">
+        <svg class="i"><use href="#i-cart"/></svg>
+        <span class="cart-count" id="cartCount" data-empty="true">0</span>
+      </button>
+      <a class="btn btn-ghost btn-sm hide-sm" href="#reserve">Book a Table</a>
+      <a class="btn btn-gold btn-sm hide-xs" href="#menu" data-scroll>Order Online</a>
+      <button class="burger" id="burger" aria-label="Open menu" aria-expanded="false" aria-controls="nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ===================== 1. hero ===================== -->
+<section class="hero" id="home">
+  <div class="hero-media" aria-hidden="true">
+    <picture>
+      <source type="image/webp"
+              srcset="assets/img/hero-900.webp 900w, assets/img/hero-1400.webp 1400w, assets/img/hero-2000.webp 2000w"
+              sizes="100vw">
+      <img src="assets/img/hero-1400.jpg" alt="" width="2000" height="1200"
+           srcset="assets/img/hero-900.jpg 900w, assets/img/hero-1400.jpg 1400w, assets/img/hero-2000.jpg 2000w"
+           sizes="100vw" fetchpriority="high" decoding="async" id="heroImg">
+    </picture>
+    <div class="hero-scrim"></div>
+    <div class="hero-vignette"></div>
+  </div>
+
+  <div class="shell hero-inner">
+    <p class="eyebrow reveal" data-delay="0">
+      <span class="eyebrow-rule"></span> Bandra West &middot; Mumbai &middot; Est. 2022
+    </p>
+    <h1 class="hero-title" data-split-reveal data-stagger="62">
+      <span class="line">Cooked over fire.</span>
+      <span class="line"><em>Remembered</em> far longer.</span>
+    </h1>
+    <p class="hero-lede reveal" data-delay="240">
+      A contemporary fire kitchen where nothing touches an induction hob. Ninety-one
+      partner farms, four live fires, and forty-four seats that book out three weeks ahead.
+    </p>
+    <div class="hero-cta reveal" data-delay="320">
+      <a class="btn btn-gold btn-lg" href="#menu" data-scroll data-magnetic>
+        Order Online <svg class="i"><use href="#i-arrow"/></svg>
+      </a>
+      <a class="btn btn-outline btn-lg" href="#reserve" data-scroll data-magnetic>Book a Table</a>
+    </div>
+
+    <ul class="hero-facts reveal" data-delay="400">
+      <li>
+        <span class="stars" role="img" aria-label="Rated 4.9 out of 5">
+          <svg class="i"><use href="#i-star"/></svg><svg class="i"><use href="#i-star"/></svg><svg class="i"><use href="#i-star"/></svg><svg class="i"><use href="#i-star"/></svg><svg class="i"><use href="#i-star"/></svg>
+        </span>
+        <strong>4.9</strong> from 3,412 diners
+      </li>
+      <li><svg class="i"><use href="#i-bike"/></svg> <strong>34 min</strong> average delivery</li>
+      <!-- The published hours, so this reads correctly before the script has
+           resolved the restaurant's own clock, and if it never does. -->
+      <li id="heroHours"><svg class="i"><use href="#i-clock"/></svg> <span><strong>Dinner</strong> from 6.00pm, Tuesday to Sunday</span></li>
+    </ul>
+  </div>
+
+  <a class="scroll-cue" href="#signatures" aria-label="Scroll to signature dishes">
+    <span class="scroll-cue-line"></span><span class="scroll-cue-text">Scroll</span>
+  </a>
+</section>
+
+<!-- accolades marquee -->
+<div class="marquee" aria-label="Awards and recognition">
+  <div class="marquee-track" id="marquee"></div>
+</div>
+
+<!-- ===================== 2. signature dishes ===================== -->
+<section class="section" id="signatures">
+  <div class="shell">
+    <header class="section-head">
+      <p class="eyebrow reveal"><span class="eyebrow-rule"></span> What we are known for</p>
+      <h2 class="section-title reveal" data-split-reveal>Signature Dishes</h2>
+      <p class="section-lede reveal">
+        Six plates that account for more than half of everything that leaves this kitchen.
+        Each one has been on the menu since the day we opened, and each one has been quietly
+        rewritten a dozen times since.
+      </p>
+    </header>
+    <div class="signature-grid" id="signatureGrid"></div>
+    <p class="section-foot reveal">
+      <a class="link-arrow" href="#menu" data-scroll>See the full menu <svg class="i"><use href="#i-arrow"/></svg></a>
+    </p>
+  </div>
+</section>
+
+<!-- ===================== 3. about ===================== -->
+<section class="section section-story" id="story">
+  <div class="shell story-grid">
+    <div class="story-media reveal">
+      <div class="story-img story-img-main parallax" data-speed="0.08" data-reveal-media>
+        <picture>
+          <source srcset="assets/img/hearth.webp" type="image/webp">
+          <img src="assets/img/hearth.jpg" alt="The coal bed under the grill, mid-service" width="900" height="1100" loading="lazy" decoding="async">
+        </picture>
+      </div>
+      <div class="story-img story-img-inset parallax" data-speed="-0.06" data-reveal-media>
+        <picture>
+          <source srcset="assets/img/interior-dining.webp" type="image/webp">
+          <img src="assets/img/interior-dining.jpg" alt="The main dining room at Aurelia in the evening" width="1500" height="1000" loading="lazy" decoding="async">
+        </picture>
+      </div>
+      <div class="story-badge glass">
+        <span class="story-badge-num" data-count="4">0</span>
+        <span class="story-badge-label">years on<br>Ashford Lane</span>
+      </div>
+    </div>
+
+    <div class="story-copy">
+      <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Our story</p>
+      <h2 class="section-title reveal" data-split-reveal>A kitchen that only knows one heat source.</h2>
+      <p class="reveal">
+        Aurelia began as an argument. Ravi Menon had spent six years in a two-star kitchen in
+        Copenhagen learning to control temperature to the degree, and came home convinced that
+        the control was the problem — that the food he actually remembered had all been cooked
+        badly, over fire, by someone's grandmother.
+      </p>
+      <p class="reveal">
+        So there is no induction on our line. Wood, coal and clay, which are slower, harder to
+        hold steady, and the only way we know to get this flavour. The menu is written after the
+        morning delivery arrives rather than before, which means it is never quite the same twice.
+      </p>
+
+      <ol class="timeline" id="timeline"></ol>
+
+      <figure class="chef-card glass reveal">
+        <blockquote>“I am not trying to make food you have never seen. I am trying to make food you have already tasted once, a long time ago, and have been looking for ever since.”</blockquote>
+        <figcaption>
+          <span class="chef-name">Ravi Menon</span>
+          <span class="chef-role">Chef-Patron &middot; formerly Geranium, Copenhagen</span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 4. interactive menu ===================== -->
+<section class="section section-menu" id="menu">
+  <div class="shell">
+    <header class="section-head">
+      <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Order online or dine in</p>
+      <h2 class="section-title reveal" data-split-reveal>The Menu</h2>
+      <p class="section-lede reveal">
+        Twenty-four dishes, changing with what the farms send. Search it, filter it,
+        and add anything you like straight to your order.
+      </p>
+    </header>
+
+    <div class="menu-toolbar reveal" role="search">
+      <div class="search-field">
+        <svg class="i"><use href="#i-search"/></svg>
+        <label class="sr-only" for="menuSearch">Search the menu</label>
+        <input type="search" id="menuSearch" placeholder="Search dishes, ingredients…" autocomplete="off" spellcheck="false">
+        <button class="search-clear" id="searchClear" type="button" aria-label="Clear search" hidden>
+          <svg class="i"><use href="#i-close"/></svg>
+        </button>
+      </div>
+      <div class="sort-field">
+        <label class="sr-only" for="menuSort">Sort dishes</label>
+        <select id="menuSort">
+          <option value="popular">Most loved</option>
+          <option value="rating">Highest rated</option>
+          <option value="low">Price: low to high</option>
+          <option value="high">Price: high to low</option>
+          <option value="az">A – Z</option>
+        </select>
+        <svg class="i sort-chev"><use href="#i-chev"/></svg>
+      </div>
+    </div>
+
+    <div class="menu-tabs reveal" id="menuTabs" role="tablist" aria-label="Menu courses"></div>
+    <div class="menu-filters reveal" id="menuFilters" aria-label="Dietary filters"></div>
+
+    <p class="menu-count" id="menuCount" role="status" aria-live="polite"></p>
+    <div class="menu-grid" id="menuGrid"></div>
+    <div class="menu-empty" id="menuEmpty" hidden>
+      <p>Nothing matches that.</p>
+      <button class="btn btn-outline btn-sm" id="menuReset" type="button">Clear filters</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 5. why choose us ===================== -->
+<section class="section section-why" id="why" data-spotlight>
+  <div class="why-bg parallax" data-speed="0.10" aria-hidden="true">
+    <picture>
+      <source srcset="assets/img/kitchen-pass.webp" type="image/webp">
+      <img src="assets/img/kitchen-pass.jpg" alt="" width="1400" height="1000" loading="lazy" decoding="async">
+    </picture>
+  </div>
+  <div class="shell">
+    <header class="section-head">
+      <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Why Aurelia</p>
+      <h2 class="section-title reveal" data-split-reveal>Four things we refuse to compromise on.</h2>
+    </header>
+    <div class="pillar-grid" id="pillarGrid"></div>
+  </div>
+</section>
+
+<!-- ===================== 6. reviews ===================== -->
+<section class="section section-reviews" id="reviews">
+  <div class="shell">
+    <header class="section-head">
+      <p class="eyebrow reveal"><span class="eyebrow-rule"></span> 3,412 reviews &middot; 4.9 average</p>
+      <h2 class="section-title reveal" data-split-reveal>What the room says</h2>
+    </header>
+
+    <div class="review-stage">
+      <div class="review-viewport" id="reviewViewport">
+        <ul class="review-track" id="reviewTrack"></ul>
+      </div>
+      <div class="review-controls">
+        <button class="icon-btn round" id="reviewPrev" aria-label="Previous review">
+          <svg class="i flip"><use href="#i-chev"/></svg>
+        </button>
+        <div class="review-dots" id="reviewDots" role="tablist" aria-label="Choose a review"></div>
+        <button class="icon-btn round" id="reviewNext" aria-label="Next review">
+          <svg class="i"><use href="#i-chev"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 7. gallery ===================== -->
+<section class="section section-gallery" id="gallery">
+  <div class="shell">
+    <header class="section-head">
+      <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Inside Aurelia</p>
+      <h2 class="section-title reveal" data-split-reveal>The Gallery</h2>
+      <p class="section-lede reveal">The room, the pass, and the plates — photographed during service, never staged.</p>
+    </header>
+    <div class="gallery-filters reveal" id="galleryFilters"></div>
+    <div class="gallery-grid" id="galleryGrid"></div>
+  </div>
+</section>
+
+<!-- ===================== 8 + 9. reserve and order ===================== -->
+<section class="section section-reserve" id="reserve" data-spotlight>
+  <div class="shell reserve-grid">
+    <div class="reserve-copy">
+      <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Reservations</p>
+      <h2 class="section-title reveal" data-split-reveal>Book a table</h2>
+      <p class="reveal">
+        Forty-four seats, two sittings a night. The 6.30pm is quieter and quicker; the 9pm runs
+        long. Tell us what the evening is for and we will build it around that.
+      </p>
+
+      <ul class="reserve-notes reveal">
+        <li><svg class="i"><use href="#i-check"/></svg> Instant confirmation, free to cancel until noon on the day</li>
+        <li><svg class="i"><use href="#i-check"/></svg> Allergies and dietary needs handled by the kitchen, not the server</li>
+        <li><svg class="i"><use href="#i-check"/></svg> Private room for sixteen, or twenty-four standing</li>
+        <li><svg class="i"><use href="#i-check"/></svg> High chairs, and a shorter menu for under-tens</li>
+      </ul>
+
+      <div class="order-card glass reveal">
+        <div class="order-card-head">
+          <svg class="i"><use href="#i-bike"/></svg>
+          <h3>Would rather stay in?</h3>
+        </div>
+        <p>We deliver across Bandra, Khar, Santacruz and Juhu in insulated ceramic — thirty-four minutes on average. Free over ₹2,500.</p>
+        <a class="btn btn-gold" href="#menu" data-scroll>Start an order <svg class="i"><use href="#i-arrow"/></svg></a>
+      </div>
+    </div>
+
+    <div class="reserve-form-wrap glass reveal">
+      <form class="reserve-form" id="reserveForm" novalidate>
+        <h3 class="form-title">Your reservation</h3>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="rDate">Date</label>
+            <div class="field-input">
+              <svg class="i"><use href="#i-calendar"/></svg>
+              <input type="date" id="rDate" name="date" required>
+            </div>
+            <p class="field-error" data-for="rDate"></p>
+          </div>
+          <div class="field">
+            <label for="rTime">Time</label>
+            <div class="field-input">
+              <svg class="i"><use href="#i-clock"/></svg>
+              <select id="rTime" name="time" required></select>
+            </div>
+            <p class="field-error" data-for="rTime"></p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label id="guestLabel">Guests</label>
+          <div class="stepper" role="group" aria-labelledby="guestLabel">
+            <button type="button" class="stepper-btn" id="guestMinus" aria-label="One fewer guest">
+              <svg class="i"><use href="#i-minus"/></svg>
+            </button>
+            <span class="stepper-value">
+              <svg class="i"><use href="#i-users"/></svg>
+              <output id="guestOut" for="guestMinus guestPlus">2 guests</output>
+            </span>
+            <button type="button" class="stepper-btn" id="guestPlus" aria-label="One more guest">
+              <svg class="i"><use href="#i-plus"/></svg>
+            </button>
+          </div>
+          <p class="field-hint" id="guestHint">Tables of nine or more are handled by our events team.</p>
+        </div>
+
+        <div class="field">
+          <label id="occLabel">Occasion <span class="opt">optional</span></label>
+          <div class="chip-row" id="occasionRow" role="group" aria-labelledby="occLabel"></div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="rName">Full name</label>
+            <div class="field-input"><input type="text" id="rName" name="name" autocomplete="name" required placeholder="Your name"></div>
+            <p class="field-error" data-for="rName"></p>
+          </div>
+          <div class="field">
+            <label for="rPhone">Phone</label>
+            <div class="field-input"><input type="tel" id="rPhone" name="phone" autocomplete="tel" required placeholder="+91 98200 00000"></div>
+            <p class="field-error" data-for="rPhone"></p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="rEmail">Email</label>
+          <div class="field-input"><svg class="i"><use href="#i-mail"/></svg><input type="email" id="rEmail" name="email" autocomplete="email" required placeholder="you@example.com"></div>
+          <p class="field-error" data-for="rEmail"></p>
+        </div>
+
+        <div class="field">
+          <label for="rNotes">Anything we should know? <span class="opt">optional</span></label>
+          <textarea id="rNotes" name="notes" rows="3" placeholder="Allergies, a birthday, a seat you like…"></textarea>
+        </div>
+
+        <button class="btn btn-gold btn-block btn-lg" type="submit" id="reserveSubmit" data-magnetic>
+          Confirm reservation <svg class="i"><use href="#i-arrow"/></svg>
+        </button>
+        <p class="form-foot">No card needed. We hold the table for fifteen minutes past your time.</p>
+      </form>
+
+      <div class="reserve-done" id="reserveDone" hidden>
+        <div class="done-mark"><svg class="i"><use href="#i-check"/></svg></div>
+        <h3>Table confirmed</h3>
+        <p id="reserveSummary"></p>
+        <p class="done-note">A confirmation is on its way to your inbox. Reply to it with anything that changes.</p>
+        <button class="btn btn-outline" type="button" id="reserveAgain">Book another table</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 10. contact ===================== -->
+<section class="section section-visit" id="visit">
+  <div class="shell">
+    <header class="section-head">
+      <p class="eyebrow reveal"><span class="eyebrow-rule"></span> Find us</p>
+      <h2 class="section-title reveal" data-split-reveal>Visit Aurelia</h2>
+    </header>
+
+    <div class="visit-grid">
+      <div class="visit-map reveal">
+        <div class="map-facade" id="mapFacade">
+          <picture>
+            <source srcset="assets/img/texture-char.webp" type="image/webp">
+            <img src="assets/img/texture-char.jpg" alt="" width="700" height="700" loading="lazy" decoding="async" aria-hidden="true">
+          </picture>
+          <div class="map-facade-body">
+            <svg class="i map-pin"><use href="#i-pin"/></svg>
+            <p><strong>14 Ashford Lane</strong><br>Off Carter Road, Bandra West</p>
+            <button class="btn btn-outline btn-sm" type="button" id="loadMap">Load interactive map</button>
+            <p class="map-note">Loaded on request, so the page stays fast.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="visit-info">
+        <ul class="contact-list">
+          <li class="reveal">
+            <span class="contact-ico"><svg class="i"><use href="#i-pin"/></svg></span>
+            <div>
+              <h3>Address</h3>
+              <p>14 Ashford Lane, Off Carter Road<br>Bandra West, Mumbai 400050</p>
+              <a class="link-arrow" href="https://www.google.com/maps?q=19.0596,72.8295" target="_blank" rel="noopener">Get directions <svg class="i"><use href="#i-arrow"/></svg></a>
+            </div>
+          </li>
+          <li class="reveal">
+            <span class="contact-ico"><svg class="i"><use href="#i-phone"/></svg></span>
+            <div>
+              <h3>Phone</h3>
+              <p><a href="tel:+912240001890">+91 22 4000 1890</a></p>
+              <p class="contact-sub">Reservations from 10am daily</p>
+            </div>
+          </li>
+          <li class="reveal">
+            <span class="contact-ico"><svg class="i"><use href="#i-whatsapp"/></svg></span>
+            <div>
+              <h3>WhatsApp</h3>
+              <p><a href="https://wa.me/919820001890" target="_blank" rel="noopener">+91 98200 01890</a></p>
+              <p class="contact-sub">Fastest for changes to an existing booking</p>
+            </div>
+          </li>
+          <li class="reveal">
+            <span class="contact-ico"><svg class="i"><use href="#i-mail"/></svg></span>
+            <div>
+              <h3>Email</h3>
+              <p><a href="mailto:reservations@aurelia.example">reservations@aurelia.example</a></p>
+              <p class="contact-sub">Private dining: devika@aurelia.example</p>
+            </div>
+          </li>
+        </ul>
+
+        <div class="hours-card glass reveal">
+          <div class="hours-head">
+            <h3><svg class="i"><use href="#i-clock"/></svg> Opening hours</h3>
+            <span class="open-pill" id="openPill">—</span>
+          </div>
+          <ul class="hours-list" id="hoursList"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="faq reveal">
+      <h3 class="faq-title">Before you come</h3>
+      <div class="faq-list" id="faqList"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ===================== 11. footer ===================== -->
+<footer class="site-footer" id="footer">
+  <div class="shell">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a class="brand" href="#home" aria-label="Aurelia Fire Kitchen, home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40"><path d="M20 3l4.4 11.1L36 18l-11.6 3.9L20 33l-4.4-11.1L4 18l11.6-3.9z" fill="none" stroke="currentColor" stroke-width="1.1"/><circle cx="20" cy="18" r="2.2"/></svg>
+          </span>
+          <span class="brand-text">
+            <span class="brand-name">Aurelia</span>
+            <span class="brand-sub">Fire Kitchen</span>
+          </span>
+        </a>
+        <p class="footer-blurb">
+          Fire, season, memory. A contemporary fire kitchen on Ashford Lane, cooking
+          over wood, coal and clay since 2022.
+        </p>
+        <ul class="social">
+          <li><a href="https://instagram.com" target="_blank" rel="noopener" aria-label="Aurelia on Instagram"><svg class="i"><use href="#i-instagram"/></svg></a></li>
+          <li><a href="https://facebook.com" target="_blank" rel="noopener" aria-label="Aurelia on Facebook"><svg class="i"><use href="#i-facebook"/></svg></a></li>
+          <li><a href="https://x.com" target="_blank" rel="noopener" aria-label="Aurelia on X"><svg class="i"><use href="#i-x"/></svg></a></li>
+          <li><a href="https://wa.me/919820001890" target="_blank" rel="noopener" aria-label="Aurelia on WhatsApp"><svg class="i"><use href="#i-whatsapp"/></svg></a></li>
+        </ul>
+      </div>
+
+      <nav class="footer-links" aria-label="Footer">
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="#signatures">Signature dishes</a></li>
+            <li><a href="#menu">Full menu</a></li>
+            <li><a href="#story">Our story</a></li>
+            <li><a href="#gallery">Gallery</a></li>
+            <li><a href="#reviews">Reviews</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Visit</h4>
+          <ul>
+            <li><a href="#reserve">Book a table</a></li>
+            <li><a href="#menu">Order online</a></li>
+            <li><a href="#visit">Opening hours</a></li>
+            <li><a href="mailto:devika@aurelia.example">Private dining</a></li>
+            <li><a href="mailto:careers@aurelia.example">Careers</a></li>
+          </ul>
+        </div>
+      </nav>
+
+      <div class="footer-news">
+        <h4>The Saturday note</h4>
+        <p>One email a week: what the farms sent, what went on the menu because of it, and the tables we are holding back.</p>
+        <form class="news-form" id="newsForm" novalidate>
+          <label class="sr-only" for="newsEmail">Email address</label>
+          <input type="email" id="newsEmail" placeholder="you@example.com" autocomplete="email" required>
+          <button class="btn btn-gold" type="submit" aria-label="Subscribe">
+            <svg class="i"><use href="#i-arrow"/></svg>
+          </button>
+        </form>
+        <p class="news-msg" id="newsMsg" role="status" aria-live="polite"></p>
+        <p class="news-fine">No sharing, no selling. Unsubscribe in one click.</p>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>&copy; <span id="year">2026</span> Aurelia Fire Kitchen Pvt. Ltd. All rights reserved.</p>
+      <ul class="footer-legal">
+        <li><a href="#">Privacy</a></li>
+        <li><a href="#">Terms</a></li>
+        <li><a href="#">Accessibility</a></li>
+        <li><a href="#visit">Sitemap</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<!-- ===================== cart drawer ===================== -->
+<div class="drawer-scrim" id="drawerScrim" hidden></div>
+<div class="cart-drawer" id="cartDrawer" role="dialog" aria-modal="true" aria-labelledby="cartTitle" hidden>
+  <div class="cart-head">
+    <h2 id="cartTitle">Your order</h2>
+    <button class="icon-btn" id="cartClose" aria-label="Close your order"><svg class="i"><use href="#i-close"/></svg></button>
+  </div>
+
+  <div class="cart-body" id="cartBody">
+    <ul class="cart-items" id="cartItems"></ul>
+    <div class="cart-empty" id="cartEmpty">
+      <svg class="i big"><use href="#i-cart"/></svg>
+      <p>Nothing here yet.</p>
+      <button class="btn btn-outline btn-sm" type="button" id="cartBrowse">Browse the menu</button>
+    </div>
+  </div>
+
+  <div class="cart-foot" id="cartFoot" hidden>
+    <div class="promo-row">
+      <label class="sr-only" for="promoInput">Promo code</label>
+      <input type="text" id="promoInput" placeholder="Promo code" autocomplete="off">
+      <button class="btn btn-outline btn-sm" type="button" id="promoApply">Apply</button>
+    </div>
+    <p class="promo-msg" id="promoMsg" role="status" aria-live="polite"></p>
+
+    <dl class="totals" id="totals"></dl>
+    <button class="btn btn-gold btn-block btn-lg" type="button" id="checkoutBtn">
+      Checkout <svg class="i"><use href="#i-arrow"/></svg>
+    </button>
+    <p class="cart-fine">Delivery across Bandra, Khar, Santacruz and Juhu. Free over ₹2,500.</p>
+  </div>
+</div>
+
+<!-- ===================== checkout modal ===================== -->
+<div class="modal" id="checkoutModal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle" hidden>
+  <div class="modal-scrim" data-close></div>
+  <div class="modal-card glass">
+    <div class="modal-head">
+      <div>
+        <p class="eyebrow small" id="checkoutStepLabel">Step 1 of 3</p>
+        <h2 id="checkoutTitle">Delivery details</h2>
+      </div>
+      <button class="icon-btn" data-close aria-label="Close checkout"><svg class="i"><use href="#i-close"/></svg></button>
+    </div>
+
+    <div class="steps" id="checkoutSteps" aria-hidden="true">
+      <span class="step is-on"></span><span class="step"></span><span class="step"></span>
+    </div>
+
+    <div class="modal-body">
+      <!-- step 1 -->
+      <form class="checkout-step is-on" id="stepDetails" novalidate>
+        <div class="field-row">
+          <div class="field">
+            <label for="cName">Name</label>
+            <div class="field-input"><input type="text" id="cName" autocomplete="name" required placeholder="Your name"></div>
+            <p class="field-error" data-for="cName"></p>
+          </div>
+          <div class="field">
+            <label for="cPhone">Phone</label>
+            <div class="field-input"><input type="tel" id="cPhone" autocomplete="tel" required placeholder="+91 98200 00000"></div>
+            <p class="field-error" data-for="cPhone"></p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="cAddress">Delivery address</label>
+          <textarea id="cAddress" rows="3" required placeholder="Flat, building, street, landmark"></textarea>
+          <p class="field-error" data-for="cAddress"></p>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="cPin">PIN code</label>
+            <div class="field-input"><input type="text" id="cPin" inputmode="numeric" maxlength="6" required placeholder="400050"></div>
+            <p class="field-error" data-for="cPin"></p>
+          </div>
+          <div class="field">
+            <label for="cSlot">When</label>
+            <div class="field-input"><select id="cSlot"><option value="asap">As soon as possible</option><option value="60">In about an hour</option><option value="120">In about two hours</option></select></div>
+          </div>
+        </div>
+        <button class="btn btn-gold btn-block" type="submit">Continue to payment <svg class="i"><use href="#i-arrow"/></svg></button>
+      </form>
+
+      <!-- step 2 -->
+      <form class="checkout-step" id="stepPayment" novalidate>
+        <div class="pay-methods" id="payMethods" role="radiogroup" aria-label="Payment method"></div>
+
+        <div class="pay-panel" id="payCard" hidden>
+          <div class="field">
+            <label for="cardNum">Card number</label>
+            <div class="field-input"><input type="text" id="cardNum" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" maxlength="23"></div>
+            <p class="field-error" data-for="cardNum"></p>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="cardExp">Expiry</label>
+              <div class="field-input"><input type="text" id="cardExp" inputmode="numeric" autocomplete="cc-exp" placeholder="MM / YY" maxlength="7"></div>
+              <p class="field-error" data-for="cardExp"></p>
+            </div>
+            <div class="field">
+              <label for="cardCvc">CVC</label>
+              <div class="field-input"><input type="text" id="cardCvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4"></div>
+              <p class="field-error" data-for="cardCvc"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pay-panel" id="payUpi" hidden>
+          <div class="field">
+            <label for="upiId">UPI ID</label>
+            <div class="field-input"><input type="text" id="upiId" placeholder="yourname@bank" autocomplete="off"></div>
+            <p class="field-error" data-for="upiId"></p>
+          </div>
+          <p class="field-hint">You will get a collect request on your UPI app.</p>
+        </div>
+
+        <div class="pay-panel" id="payCash" hidden>
+          <p class="field-hint">Please keep the exact amount ready. Our riders carry a card machine as a backup.</p>
+        </div>
+
+        <dl class="totals compact" id="checkoutTotals"></dl>
+        <p class="demo-note"><svg class="i"><use href="#i-spark"/></svg> Demo checkout — no payment is taken and no card details leave this page.</p>
+        <div class="modal-actions">
+          <button class="btn btn-outline" type="button" data-back>Back</button>
+          <button class="btn btn-gold" type="submit" id="payBtn">Pay <span id="payAmount"></span></button>
+        </div>
+      </form>
+
+      <!-- step 3 -->
+      <div class="checkout-step" id="stepTrack">
+        <div class="track-head">
+          <div class="done-mark small"><svg class="i"><use href="#i-check"/></svg></div>
+          <div>
+            <h3>Order <span id="orderId">#—</span> confirmed</h3>
+            <p id="orderEta">Arriving in about 34 minutes</p>
+          </div>
+        </div>
+
+        <ol class="track" id="trackList"></ol>
+
+        <div class="rider glass" id="riderCard" hidden>
+          <div class="rider-avatar" aria-hidden="true">AK</div>
+          <div>
+            <strong>Arun K.</strong>
+            <span>On the way &middot; MH 02 · 4471</span>
+          </div>
+          <a class="icon-btn round" href="tel:+912240001890" aria-label="Call your rider"><svg class="i"><use href="#i-phone"/></svg></a>
+        </div>
+
+        <button class="btn btn-outline btn-block" type="button" id="trackDone">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== lightbox ===================== -->
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Gallery image" hidden>
+  <button class="icon-btn lb-close" data-close aria-label="Close gallery"><svg class="i"><use href="#i-close"/></svg></button>
+  <button class="icon-btn lb-nav lb-prev" id="lbPrev" aria-label="Previous image"><svg class="i flip"><use href="#i-chev"/></svg></button>
+  <figure class="lb-figure">
+    <img id="lbImg" alt="">
+    <figcaption id="lbCap"></figcaption>
+  </figure>
+  <button class="icon-btn lb-nav lb-next" id="lbNext" aria-label="Next image"><svg class="i"><use href="#i-chev"/></svg></button>
+</div>
+
+<!-- floating actions -->
+<aside class="fab-wrap" aria-label="Quick actions">
+<a class="fab fab-whatsapp" href="https://wa.me/919820001890" target="_blank" rel="noopener" aria-label="Message Aurelia on WhatsApp">
+  <svg class="i"><use href="#i-whatsapp"/></svg>
+  <span class="fab-label">Chat with us</span>
+</a>
+<button class="fab fab-top" id="toTop" aria-label="Back to top" hidden><svg class="i"><use href="#i-up"/></svg></button>
+</aside>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script src="assets/js/data.js" defer></script>
+<script src="assets/js/motion.js" defer></script>
+<script src="assets/js/main.js" defer></script>
+</body>
+</html>

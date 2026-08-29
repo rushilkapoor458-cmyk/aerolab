@@ -25,3 +25,8 @@ coverage/
 docs/_build/
 *.pdf
 !docs/reference/*.pdf
+
+# Website production build — regenerates from source with
+# `python3 website/tools/build.py`, so it is not tracked.
+website/dist/
+website/dist-single/
