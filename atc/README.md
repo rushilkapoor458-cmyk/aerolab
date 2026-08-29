@@ -81,7 +81,7 @@ starts a fresh session at `?scenario=<id>`.
 | Scenario | What it is |
 | --- | --- |
 | **Tutorial** | Two scripted arrivals, no departures, light wind. Prompts in the comms panel tell you what to type. |
-| **Standard day** | 20 movements an hour, runway 29 both ways. A normal shift. |
+| **Standard day** | 20 movements an hour, runway 29R for both arrivals and departures. A normal shift. |
 | **Evening rush** | 45 movements an hour with heavies mixed in, arrivals 29 and departures 28. The wake matrix will bite. |
 | **Runway change** | The wind backs through the session, the ATIS rolls, and at 22 minutes the runway changes to 11. Traffic arrives short of fuel. |
 | **Emergencies** | A normal flow, then an engine failure on a departure, and later a radio failure on an arrival that keeps flying its last clearance. |
@@ -136,12 +136,16 @@ AIC101 tl 270 d 50 s 210
 
 | Instruction | Abbreviated | Effect |
 | --- | --- | --- |
-| `AIC101 cleared ILS runway 29 approach` | `AIC101 ils 29` | Clear it for the approach. It keeps flying your heading until the localiser captures — and it only captures on a good intercept. |
+| `AIC101 cleared ILS runway 29R approach` | `AIC101 ils 29R` | Clear it for the approach. It keeps flying your heading until the localiser captures — and it only captures on a good intercept. |
 | `AIC101 cancel approach` | — | Back onto vectors. Any heading, direct or hold does the same on its own. |
 | `AIC101 go around` | `AIC101 ga` | Send it around: missed approach altitude, runway heading. |
 | `AIC101 hold at GUDUR as published` | `AIC101 hold GUDUR` | Enter the published racetrack — published inbound course, turn direction, leg time and maximum speed. |
 | `AIC101 hold at GUDUR expect further clearance 1420` | `AIC101 hold GUDUR efc 1420` | The same, with an EFC time the crew read back. |
 | `AIC101 descend via the arrival` | `AIC101 dv` | Fly the published STAR restrictions — each fix's altitude and speed — rather than level-by-level clearances. |
+
+Runways are named the way the chart names them, parallels and all: **`29R`, not `29`**.
+VIDP has four pairs — `09/27`, `10/28`, `11L/29R` and `11R/29L` — and a clearance to a
+runway that does not exist comes back as *unable, 29 is not a runway here*.
 
 Altitudes take either form: anything **600 or less is read as hundreds of feet**, so
 `50` and `5000` both mean five thousand, and `FL150` means 15,000 ft. Headings are
