@@ -1,0 +1,104 @@
+{
+  "id": "weather",
+  "name": "Runway change",
+  "description": "The wind backs through the session and the runway has to change. Traffic already on the ILS for 29 has to go somewhere, and some of it is short of fuel.",
+  "seed": 20260903,
+  "startTimeUtc": "14:10",
+  "durationMin": 60,
+  "runways": { "arrival": "29", "departure": "29" },
+  "traffic": {
+    "arrivalsPerHour": 16,
+    "departuresPerHour": 8,
+    "fleet": [
+      { "type": "A320", "weight": 28 },
+      { "type": "B738", "weight": 24 },
+      { "type": "B77W", "weight": 8 },
+      { "type": "A359", "weight": 6 },
+      { "type": "Q400", "weight": 8 },
+      { "type": "ATR72", "weight": 6 }
+    ],
+    "airlines": [
+      { "prefix": "AIC", "name": "Air India", "weight": 8 },
+      { "prefix": "IGO", "name": "IndiGo", "weight": 12 },
+      { "prefix": "VTI", "name": "Vistara", "weight": 5 },
+      { "prefix": "SEJ", "name": "SpiceJet", "weight": 5 },
+      { "prefix": "UAE", "name": "Emirates", "weight": 2 }
+    ],
+    "entryFixes": ["GUDUR", "SITAX", "RAKMO", "NOMAN", "BUXOR"],
+    "entryAltitudeFt": { "min": 9000, "max": 14000 },
+    "entrySpeedKt": 280,
+    "fuelFactor": { "min": 0.45, "max": 0.9 },
+    "departureSids": ["GUDUR1D", "RAKMO2E", "NOMAN1F", "BUXOR1G"]
+  },
+  "weather": {
+    "windDirectionDeg": 285,
+    "windSpeedKt": 10,
+    "windGustKt": null,
+    "visibilityM": 6000,
+    "cloudBaseFt": 2500,
+    "cloudCover": "BKN",
+    "qnhHpa": 1006,
+    "temperatureC": 26,
+    "dewpointC": 22,
+    "atisLetter": "F",
+    "windAloftDirectionDeg": 290,
+    "windAloftSpeedKt": 35,
+    "windAloftAltitudeFt": 15000
+  },
+  "events": [
+    {
+      "atMin": 0,
+      "kind": "message",
+      "text": "Runway 29 in use. A squall line is forecast to cross the field in the next half hour."
+    },
+    {
+      "atMin": 12,
+      "kind": "weather",
+      "weather": {
+        "windDirectionDeg": 340,
+        "windSpeedKt": 16,
+        "windGustKt": 26,
+        "visibilityM": 3500,
+        "cloudBaseFt": 1500,
+        "cloudCover": "OVC",
+        "windAloftDirectionDeg": 350,
+        "windAloftSpeedKt": 45
+      }
+    },
+    {
+      "atMin": 20,
+      "kind": "weather",
+      "weather": {
+        "windDirectionDeg": 100,
+        "windSpeedKt": 18,
+        "windGustKt": 30,
+        "visibilityM": 2500,
+        "cloudBaseFt": 1200,
+        "qnhHpa": 1003,
+        "windAloftDirectionDeg": 110,
+        "windAloftSpeedKt": 40
+      }
+    },
+    {
+      "atMin": 22,
+      "kind": "runway-change",
+      "arrival": "11",
+      "departure": "11"
+    },
+    {
+      "atMin": 22,
+      "kind": "message",
+      "text": "Runway change to 11. Anything already established on 29 now has a tailwind — break it off and re-sequence."
+    },
+    {
+      "atMin": 45,
+      "kind": "weather",
+      "weather": {
+        "windGustKt": null,
+        "visibilityM": 6000,
+        "cloudBaseFt": 2500,
+        "cloudCover": "SCT"
+      }
+    }
+  ]
+}

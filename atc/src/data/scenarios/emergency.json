@@ -1,0 +1,76 @@
+{
+  "id": "emergency",
+  "name": "Emergencies",
+  "description": "A normal flow, then an engine failure and, later, a radio failure that keeps flying its last clearance and expects you to work around it.",
+  "seed": 20260904,
+  "startTimeUtc": "07:40",
+  "durationMin": 60,
+  "runways": { "arrival": "29", "departure": "29" },
+  "traffic": {
+    "arrivalsPerHour": 14,
+    "departuresPerHour": 10,
+    "fleet": [
+      { "type": "A320", "weight": 30 },
+      { "type": "B738", "weight": 24 },
+      { "type": "B77W", "weight": 8 },
+      { "type": "A359", "weight": 6 },
+      { "type": "Q400", "weight": 8 }
+    ],
+    "airlines": [
+      { "prefix": "AIC", "name": "Air India", "weight": 8 },
+      { "prefix": "IGO", "name": "IndiGo", "weight": 12 },
+      { "prefix": "VTI", "name": "Vistara", "weight": 5 },
+      { "prefix": "SEJ", "name": "SpiceJet", "weight": 4 },
+      { "prefix": "QTR", "name": "Qatari", "weight": 2 }
+    ],
+    "entryFixes": ["GUDUR", "SITAX", "RAKMO", "NOMAN", "BUXOR"],
+    "entryAltitudeFt": { "min": 9000, "max": 14000 },
+    "entrySpeedKt": 280,
+    "fuelFactor": { "min": 0.8, "max": 1.3 },
+    "departureSids": ["GUDUR1D", "RAKMO2E", "NOMAN1F", "BUXOR1G"]
+  },
+  "weather": {
+    "windDirectionDeg": 295,
+    "windSpeedKt": 9,
+    "windGustKt": null,
+    "visibilityM": 4000,
+    "cloudBaseFt": 2000,
+    "cloudCover": "BKN",
+    "qnhHpa": 1014,
+    "temperatureC": 19,
+    "dewpointC": 15,
+    "atisLetter": "B",
+    "windAloftDirectionDeg": 300,
+    "windAloftSpeedKt": 30,
+    "windAloftAltitudeFt": 15000
+  },
+  "events": [
+    {
+      "atMin": 0,
+      "kind": "message",
+      "text": "Morning bank, runway 29. Build the picture while it is quiet."
+    },
+    {
+      "atMin": 8,
+      "kind": "emergency",
+      "emergency": "engine",
+      "target": "random-departure"
+    },
+    {
+      "atMin": 8,
+      "kind": "message",
+      "text": "A departure has lost an engine. It will climb badly and will not accept speed — give it the shortest track back to the ILS and keep everything else out of the way."
+    },
+    {
+      "atMin": 26,
+      "kind": "emergency",
+      "emergency": "radio",
+      "target": "random-arrival"
+    },
+    {
+      "atMin": 26,
+      "kind": "message",
+      "text": "One arrival is squawking 7600. It will fly its last clearance and answer nothing. Move everyone else."
+    }
+  ]
+}

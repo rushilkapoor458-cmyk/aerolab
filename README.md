@@ -7,6 +7,11 @@ tunnel; Phase 7 is the bridge between them.
 The goal is not "code that produces plots". It is a solver whose error bounds
 are known, stated, and validated against published data.
 
+> **Also in this repository:** [`atc/`](atc/README.md) holds an unrelated second
+> project — a terminal radar control simulation for Delhi approach, written in
+> TypeScript. It is entirely self-contained: separate build, separate dependencies,
+> no shared code. Nothing below applies to it, and nothing in it applies here.
+
 ## Status
 
 | Phase | Scope | State |

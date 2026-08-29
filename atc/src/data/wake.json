@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "notes": "Wake turbulence separation minima applied to aircraft in trail on final approach, in nautical miles. Categories are the ICAO legacy ones: L light, M medium, H heavy, J super. The figures follow ICAO Doc 4444 distance-based wake turbulence radar separation minima; where Doc 4444 gives no figure the radar minimum applies instead. Rows are the aircraft in front, columns the one behind.",
+  "radarMinimumNm": 3,
+  "categories": [
+    { "code": "L", "name": "Light", "maximumMassKg": 7000 },
+    { "code": "M", "name": "Medium", "maximumMassKg": 136000 },
+    { "code": "H", "name": "Heavy", "maximumMassKg": 560000 },
+    { "code": "J", "name": "Super", "maximumMassKg": null }
+  ],
+  "minimaNm": {
+    "J": { "J": 4, "H": 6, "M": 7, "L": 8 },
+    "H": { "J": 3, "H": 4, "M": 5, "L": 6 },
+    "M": { "J": 3, "H": 3, "M": 3, "L": 5 },
+    "L": { "J": 3, "H": 3, "M": 3, "L": 3 }
+  },
+  "approximated": {
+    "J_behind_J": true,
+    "note": "Super behind super is taken as 4 NM; Doc 4444 does not publish a figure for it. Everything else in minimaNm is the published table."
+  }
+}

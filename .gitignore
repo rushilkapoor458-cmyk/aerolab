@@ -11,6 +11,12 @@ dist/
 .venv/
 venv/
 
+# Node — the simulator in atc/
+node_modules/
+.vite/
+coverage/
+*.log
+
 # macOS
 .DS_Store
 

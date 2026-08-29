@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2303110a'/%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%2378ffb8'/%3E%3Cpath d='M8 8 L13 4' stroke='%2378ffb8'/%3E%3C/svg%3E"
+    />
+    <title>VIDP Approach — radar simulation</title>
+  </head>
+  <body>
+    <div id="app">
+      <header id="status-bar">
+        <div class="identity">
+          <span class="identity-icao">VIDP</span>
+          <span class="identity-role">Approach</span>
+        </div>
+
+        <div class="field field-wide">
+          <span class="field-label">Scenario</span>
+          <span class="field-value" id="status-scenario">-</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Left</span>
+          <span class="field-value" id="status-remaining">--:--</span>
+        </div>
+
+        <div class="field field-wide">
+          <span class="field-label">UTC</span>
+          <span class="field-value" id="status-clock">--:--:--</span>
+        </div>
+        <div class="field">
+          <span class="field-label">ATIS</span>
+          <span class="field-value" id="status-atis">-</span>
+        </div>
+        <div class="field">
+          <span class="field-label">ARR</span>
+          <span class="field-value" id="status-arr">--</span>
+        </div>
+        <div class="field">
+          <span class="field-label">DEP</span>
+          <span class="field-value" id="status-dep">--</span>
+        </div>
+        <div class="field field-wide">
+          <span class="field-label">Wind</span>
+          <span class="field-value" id="status-wind">-----</span>
+        </div>
+        <div class="field">
+          <span class="field-label">QNH</span>
+          <span class="field-value" id="status-qnh">----</span>
+        </div>
+
+        <div class="field-divider"></div>
+
+        <div class="field">
+          <span class="field-label">Landed</span>
+          <span class="field-value" id="status-arrivals">0</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Go-ar</span>
+          <span class="field-value" id="status-goarounds">0</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Losses</span>
+          <span class="field-value" id="status-losses">0</span>
+        </div>
+
+        <div class="status-spacer"></div>
+
+        <div class="rate-group" id="rate-buttons">
+          <button type="button" data-rate="0" class="rate" title="Pause (space)">&#10073;&#10073;</button>
+          <button type="button" data-rate="1" class="rate">1&times;</button>
+          <button type="button" data-rate="2" class="rate">2&times;</button>
+          <button type="button" data-rate="4" class="rate">4&times;</button>
+        </div>
+        <button type="button" id="scenario-toggle" class="flat" title="Choose a scenario">Scenarios</button>
+        <button type="button" id="score-toggle" class="flat" title="Session report">Score</button>
+        <button type="button" id="debug-toggle" class="flat" title="Weather">WX</button>
+        <button type="button" id="help-toggle" class="flat" title="Help (?)">?</button>
+      </header>
+
+      <main id="main">
+        <canvas id="scope"></canvas>
+
+        <aside id="side-panel">
+          <section class="panel">
+            <h2>Automatic terminal information</h2>
+            <pre id="atis-text"></pre>
+          </section>
+
+          <section class="panel panel-alerts">
+            <h2>Safety net</h2>
+            <div id="alerts-list"></div>
+          </section>
+
+          <section class="panel panel-strips">
+            <h2>Arrivals — drag to set your sequence</h2>
+            <div id="arrival-strips" class="strip-list"></div>
+          </section>
+
+          <section class="panel panel-strips panel-departures">
+            <h2>Departures</h2>
+            <div id="departure-strips" class="strip-list"></div>
+          </section>
+
+          <section class="panel panel-grow">
+            <h2>Communications</h2>
+            <div id="comms-log"></div>
+          </section>
+        </aside>
+      </main>
+
+      <footer id="command-bar">
+        <span id="command-prompt">&rsaquo;</span>
+        <input
+          id="command-input"
+          type="text"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="AIC101 tl 270 d 50 s 210          Tab completes · ↑ recalls · ? for help"
+        />
+      </footer>
+      <div id="command-error" hidden></div>
+
+      <div id="debug-panel" hidden>
+        <h2>Weather</h2>
+        <label>Surface wind (°M)<input id="wx-dir" type="number" min="0" max="360" step="10" /></label>
+        <label>Surface speed (kt)<input id="wx-speed" type="number" min="0" max="80" step="1" /></label>
+        <label>Gusting to (kt)<input id="wx-gust" type="number" min="0" max="99" step="1" /></label>
+        <label>Wind aloft (°M)<input id="wx-aloft-dir" type="number" min="0" max="360" step="10" /></label>
+        <label>Aloft speed (kt)<input id="wx-aloft-speed" type="number" min="0" max="150" step="1" /></label>
+        <label>Aloft altitude (ft)<input id="wx-aloft-alt" type="number" min="1000" max="45000" step="1000" /></label>
+        <label>Visibility (m)<input id="wx-vis" type="number" min="50" max="9999" step="50" /></label>
+        <label>Cloud base (ft)<input id="wx-cloud" type="number" min="100" max="20000" step="100" /></label>
+        <label>Cloud cover
+          <select id="wx-cover">
+            <option>SKC</option><option>FEW</option><option>SCT</option>
+            <option>BKN</option><option>OVC</option>
+          </select>
+        </label>
+        <label>QNH (hPa)<input id="wx-qnh" type="number" min="940" max="1060" step="1" /></label>
+        <label>Temperature (°C)<input id="wx-temp" type="number" min="-30" max="55" step="1" /></label>
+        <label>Dewpoint (°C)<input id="wx-dew" type="number" min="-40" max="40" step="1" /></label>
+        <label>ATIS letter<input id="wx-atis" type="text" maxlength="1" /></label>
+        <p id="wx-suggestion"></p>
+        <button type="button" id="wx-apply-runway">Use the suggested runway</button>
+      </div>
+
+      <div id="help-overlay" hidden></div>
+      <div id="score-overlay" hidden></div>
+      <div id="scenario-overlay" hidden></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,1616 @@
+{
+  "schemaVersion": 1,
+  "notes": "All courses and bearings in this file are TRUE degrees. The simulation converts to magnetic for display and for controller instructions using airport.magneticVariationDeg. Every object carrying \"approximated\": true holds a plausible value invented for the simulation, not published chart data.",
+  "airport": {
+    "icao": "VIDP",
+    "iata": "DEL",
+    "name": "Indira Gandhi International",
+    "city": "Delhi",
+    "elevationFt": 777,
+    "magneticVariationDeg": 0.6,
+    "referencePoint": {
+      "lat": 28.5665,
+      "lon": 77.1031
+    },
+    "transitionAltitudeFt": 4000,
+    "approachFrequencyMhz": 127.9,
+    "towerFrequencyMhz": 118.1,
+    "approximated": true
+  },
+  "sector": {
+    "name": "Delhi Approach",
+    "radiusNm": 60,
+    "floorFt": 0,
+    "ceilingFt": 15000,
+    "boundary": [
+      {
+        "lat": 29.649833,
+        "lon": 77.1031
+      },
+      {
+        "lat": 29.598116,
+        "lon": 77.417836
+      },
+      {
+        "lat": 29.46861,
+        "lon": 77.696127
+      },
+      {
+        "lat": 29.28051,
+        "lon": 77.91608
+      },
+      {
+        "lat": 29.056233,
+        "lon": 78.068918
+      },
+      {
+        "lat": 28.814406,
+        "lon": 78.15654
+      },
+      {
+        "lat": 28.5665,
+        "lon": 78.184781
+      },
+      {
+        "lat": 28.318594,
+        "lon": 78.15654
+      },
+      {
+        "lat": 28.076767,
+        "lon": 78.068918
+      },
+      {
+        "lat": 27.85249,
+        "lon": 77.91608
+      },
+      {
+        "lat": 27.66439,
+        "lon": 77.696127
+      },
+      {
+        "lat": 27.534884,
+        "lon": 77.417836
+      },
+      {
+        "lat": 27.483167,
+        "lon": 77.1031
+      },
+      {
+        "lat": 27.518217,
+        "lon": 76.783279
+      },
+      {
+        "lat": 27.635523,
+        "lon": 76.491096
+      },
+      {
+        "lat": 27.819156,
+        "lon": 76.252166
+      },
+      {
+        "lat": 28.0479,
+        "lon": 76.080351
+      },
+      {
+        "lat": 28.301928,
+        "lon": 75.978837
+      },
+      {
+        "lat": 28.5665,
+        "lon": 75.945512
+      },
+      {
+        "lat": 28.831072,
+        "lon": 75.978837
+      },
+      {
+        "lat": 29.0851,
+        "lon": 76.080351
+      },
+      {
+        "lat": 29.313844,
+        "lon": 76.252166
+      },
+      {
+        "lat": 29.497477,
+        "lon": 76.491096
+      },
+      {
+        "lat": 29.614783,
+        "lon": 76.783279
+      }
+    ],
+    "approximated": true
+  },
+  "runways": [
+    {
+      "ident": "09",
+      "trueHeadingDeg": 92.6,
+      "threshold": {
+        "lat": 28.549776,
+        "lon": 77.086502
+      },
+      "thresholdElevationFt": 777,
+      "lengthFt": 12467,
+      "widthFt": 150,
+      "ilsFrequencyMhz": 109.9,
+      "glideslopeAngleDeg": 3,
+      "category": "CAT I",
+      "approximated": true
+    },
+    {
+      "ident": "27",
+      "trueHeadingDeg": 272.6,
+      "threshold": {
+        "lat": 28.548224,
+        "lon": 77.125392
+      },
+      "thresholdElevationFt": 777,
+      "lengthFt": 12467,
+      "widthFt": 150,
+      "ilsFrequencyMhz": 110.75,
+      "glideslopeAngleDeg": 3,
+      "category": "CAT IIIB",
+      "approximated": true
+    },
+    {
+      "ident": "10",
+      "trueHeadingDeg": 102.6,
+      "threshold": {
+        "lat": 28.584407,
+        "lon": 77.092588
+      },
+      "thresholdElevationFt": 777,
+      "lengthFt": 12500,
+      "widthFt": 200,
+      "ilsFrequencyMhz": 111.15,
+      "glideslopeAngleDeg": 3,
+      "category": "CAT I",
+      "approximated": true
+    },
+    {
+      "ident": "28",
+      "trueHeadingDeg": 282.6,
+      "threshold": {
+        "lat": 28.576927,
+        "lon": 77.130692
+      },
+      "thresholdElevationFt": 777,
+      "lengthFt": 12500,
+      "widthFt": 200,
+      "ilsFrequencyMhz": 109.5,
+      "glideslopeAngleDeg": 3,
+      "category": "CAT IIIB",
+      "approximated": true
+    },
+    {
+      "ident": "11",
+      "trueHeadingDeg": 112.6,
+      "threshold": {
+        "lat": 28.57666,
+        "lon": 77.052732
+      },
+      "thresholdElevationFt": 777,
+      "lengthFt": 14534,
+      "widthFt": 200,
+      "ilsFrequencyMhz": 110.3,
+      "glideslopeAngleDeg": 3,
+      "category": "CAT I",
+      "approximated": true
+    },
+    {
+      "ident": "29",
+      "trueHeadingDeg": 292.6,
+      "threshold": {
+        "lat": 28.56134,
+        "lon": 77.09464
+      },
+      "thresholdElevationFt": 777,
+      "lengthFt": 14534,
+      "widthFt": 200,
+      "ilsFrequencyMhz": 111.9,
+      "glideslopeAngleDeg": 3,
+      "category": "CAT IIIB",
+      "approximated": true
+    }
+  ],
+  "fixes": [
+    {
+      "name": "GUDUR",
+      "lat": 28.254328,
+      "lon": 77.982852,
+      "type": "boundary",
+      "approximated": true
+    },
+    {
+      "name": "TUMSA",
+      "lat": 28.36671,
+      "lon": 77.666141,
+      "type": "terminal",
+      "approximated": true
+    },
+    {
+      "name": "SITAX",
+      "lat": 27.745827,
+      "lon": 76.938335,
+      "type": "boundary",
+      "approximated": true
+    },
+    {
+      "name": "SOKAT",
+      "lat": 28.041269,
+      "lon": 76.997651,
+      "type": "terminal",
+      "approximated": true
+    },
+    {
+      "name": "RAKMO",
+      "lat": 28.281484,
+      "lon": 76.211479,
+      "type": "boundary",
+      "approximated": true
+    },
+    {
+      "name": "KIRAN",
+      "lat": 28.384089,
+      "lon": 76.532463,
+      "type": "terminal",
+      "approximated": true
+    },
+    {
+      "name": "NOMAN",
+      "lat": 28.983167,
+      "lon": 76.281378,
+      "type": "boundary",
+      "approximated": true
+    },
+    {
+      "name": "ROHTA",
+      "lat": 28.833167,
+      "lon": 76.577198,
+      "type": "terminal",
+      "approximated": true
+    },
+    {
+      "name": "BUXOR",
+      "lat": 29.349577,
+      "lon": 77.427624,
+      "type": "boundary",
+      "approximated": true
+    },
+    {
+      "name": "ALGAN",
+      "lat": 29.067669,
+      "lon": 77.310795,
+      "type": "terminal",
+      "approximated": true
+    },
+    {
+      "name": "PARAS",
+      "lat": 28.883464,
+      "lon": 77.877049,
+      "type": "enroute",
+      "approximated": true
+    },
+    {
+      "name": "LOHAT",
+      "lat": 27.916981,
+      "lon": 77.530079,
+      "type": "enroute",
+      "approximated": true
+    },
+    {
+      "name": "VEDAN",
+      "lat": 27.991967,
+      "lon": 76.554186,
+      "type": "enroute",
+      "approximated": true
+    },
+    {
+      "name": "MEHUL",
+      "lat": 29.246231,
+      "lon": 76.742201,
+      "type": "enroute",
+      "approximated": true
+    },
+    {
+      "name": "DAULA",
+      "lat": 28.911054,
+      "lon": 76.96031,
+      "type": "terminal",
+      "approximated": true
+    },
+    {
+      "name": "SAHIB",
+      "lat": 28.221946,
+      "lon": 77.24589,
+      "type": "terminal",
+      "approximated": true
+    },
+    {
+      "name": "DIVEK",
+      "lat": 28.510101,
+      "lon": 77.23479,
+      "type": "faf",
+      "approximated": true
+    },
+    {
+      "name": "MOKAL",
+      "lat": 28.547841,
+      "lon": 77.278865,
+      "type": "faf",
+      "approximated": true
+    },
+    {
+      "name": "TARIL",
+      "lat": 28.542176,
+      "lon": 77.277024,
+      "type": "faf",
+      "approximated": true
+    },
+    {
+      "name": "SEKUR",
+      "lat": 28.627899,
+      "lon": 76.912561,
+      "type": "faf",
+      "approximated": true
+    },
+    {
+      "name": "BAGAN",
+      "lat": 28.613493,
+      "lon": 76.944404,
+      "type": "faf",
+      "approximated": true
+    },
+    {
+      "name": "NOPIL",
+      "lat": 28.555824,
+      "lon": 76.934868,
+      "type": "faf",
+      "approximated": true
+    }
+  ],
+  "airways": [
+    {
+      "ident": "W20",
+      "fixes": [
+        "GUDUR",
+        "TUMSA",
+        "SAHIB"
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "A201",
+      "fixes": [
+        "SITAX",
+        "LOHAT",
+        "SOKAT"
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "G452",
+      "fixes": [
+        "RAKMO",
+        "VEDAN",
+        "KIRAN",
+        "DAULA"
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "N563",
+      "fixes": [
+        "NOMAN",
+        "MEHUL",
+        "ROHTA",
+        "DAULA"
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "L507",
+      "fixes": [
+        "BUXOR",
+        "PARAS",
+        "ALGAN"
+      ],
+      "approximated": true
+    }
+  ],
+  "sids": [
+    {
+      "ident": "GUDUR1D",
+      "runways": [
+        "09",
+        "10",
+        "11"
+      ],
+      "legs": [
+        {
+          "fix": "SAHIB",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 4000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "TUMSA",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 8000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "GUDUR",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 13000
+          },
+          "speedConstraint": null
+        }
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "RAKMO2E",
+      "runways": [
+        "27",
+        "28",
+        "29"
+      ],
+      "legs": [
+        {
+          "fix": "DAULA",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 3500
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "KIRAN",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 9000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "RAKMO",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 14000
+          },
+          "speedConstraint": null
+        }
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "NOMAN1F",
+      "runways": [
+        "27",
+        "28",
+        "29"
+      ],
+      "legs": [
+        {
+          "fix": "DAULA",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 3500
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "ROHTA",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 8000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "NOMAN",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 13000
+          },
+          "speedConstraint": null
+        }
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "BUXOR1G",
+      "runways": [
+        "09",
+        "10",
+        "11",
+        "27",
+        "28",
+        "29"
+      ],
+      "legs": [
+        {
+          "fix": "DAULA",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 3500
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "ALGAN",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 8000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "BUXOR",
+          "altitudeConstraint": {
+            "type": "at_or_above",
+            "altitudeFt": 13000
+          },
+          "speedConstraint": null
+        }
+      ],
+      "approximated": true
+    }
+  ],
+  "stars": [
+    {
+      "ident": "GUDUR1A",
+      "boundaryFix": "GUDUR",
+      "legs": [
+        {
+          "fix": "GUDUR",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 13000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "TUMSA",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 10000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "SAHIB",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 7000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 230
+          }
+        }
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "SITAX1B",
+      "boundaryFix": "SITAX",
+      "legs": [
+        {
+          "fix": "SITAX",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 13000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "SOKAT",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 10000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "SAHIB",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 7000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 230
+          }
+        }
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "RAKMO1C",
+      "boundaryFix": "RAKMO",
+      "legs": [
+        {
+          "fix": "RAKMO",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 13000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "KIRAN",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 10000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "DAULA",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 7000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 230
+          }
+        }
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "NOMAN1H",
+      "boundaryFix": "NOMAN",
+      "legs": [
+        {
+          "fix": "NOMAN",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 13000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "ROHTA",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 10000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "DAULA",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 7000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 230
+          }
+        }
+      ],
+      "approximated": true
+    },
+    {
+      "ident": "BUXOR1J",
+      "boundaryFix": "BUXOR",
+      "legs": [
+        {
+          "fix": "BUXOR",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 13000
+          },
+          "speedConstraint": null
+        },
+        {
+          "fix": "ALGAN",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 10000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 250
+          }
+        },
+        {
+          "fix": "DAULA",
+          "altitudeConstraint": {
+            "type": "at_or_below",
+            "altitudeFt": 7000
+          },
+          "speedConstraint": {
+            "type": "at_or_below",
+            "speedKt": 230
+          }
+        }
+      ],
+      "approximated": true
+    }
+  ],
+  "approaches": [
+    {
+      "ident": "ILS29",
+      "runway": "29",
+      "type": "ILS",
+      "localiserCourseTrueDeg": 292.6,
+      "finalApproachFix": "DIVEK",
+      "fafAltitudeFt": 2600,
+      "interceptAltitudeFt": 3000,
+      "interceptRangeNm": 18,
+      "maxInterceptAngleDeg": 30,
+      "glideslopeAngleDeg": 3,
+      "decisionHeightFt": 977,
+      "missedApproachAltitudeFt": 4000,
+      "approximated": true
+    },
+    {
+      "ident": "ILS28",
+      "runway": "28",
+      "type": "ILS",
+      "localiserCourseTrueDeg": 282.6,
+      "finalApproachFix": "MOKAL",
+      "fafAltitudeFt": 2600,
+      "interceptAltitudeFt": 3000,
+      "interceptRangeNm": 18,
+      "maxInterceptAngleDeg": 30,
+      "glideslopeAngleDeg": 3,
+      "decisionHeightFt": 977,
+      "missedApproachAltitudeFt": 4000,
+      "approximated": true
+    },
+    {
+      "ident": "ILS27",
+      "runway": "27",
+      "type": "ILS",
+      "localiserCourseTrueDeg": 272.6,
+      "finalApproachFix": "TARIL",
+      "fafAltitudeFt": 2600,
+      "interceptAltitudeFt": 3000,
+      "interceptRangeNm": 18,
+      "maxInterceptAngleDeg": 30,
+      "glideslopeAngleDeg": 3,
+      "decisionHeightFt": 977,
+      "missedApproachAltitudeFt": 4000,
+      "approximated": true
+    },
+    {
+      "ident": "ILS11",
+      "runway": "11",
+      "type": "ILS",
+      "localiserCourseTrueDeg": 112.6,
+      "finalApproachFix": "SEKUR",
+      "fafAltitudeFt": 2600,
+      "interceptAltitudeFt": 3000,
+      "interceptRangeNm": 18,
+      "maxInterceptAngleDeg": 30,
+      "glideslopeAngleDeg": 3,
+      "decisionHeightFt": 1027,
+      "missedApproachAltitudeFt": 4000,
+      "approximated": true
+    },
+    {
+      "ident": "ILS10",
+      "runway": "10",
+      "type": "ILS",
+      "localiserCourseTrueDeg": 102.6,
+      "finalApproachFix": "BAGAN",
+      "fafAltitudeFt": 2600,
+      "interceptAltitudeFt": 3000,
+      "interceptRangeNm": 18,
+      "maxInterceptAngleDeg": 30,
+      "glideslopeAngleDeg": 3,
+      "decisionHeightFt": 1027,
+      "missedApproachAltitudeFt": 4000,
+      "approximated": true
+    },
+    {
+      "ident": "ILS09",
+      "runway": "09",
+      "type": "ILS",
+      "localiserCourseTrueDeg": 92.6,
+      "finalApproachFix": "NOPIL",
+      "fafAltitudeFt": 2600,
+      "interceptAltitudeFt": 3000,
+      "interceptRangeNm": 18,
+      "maxInterceptAngleDeg": 30,
+      "glideslopeAngleDeg": 3,
+      "decisionHeightFt": 1027,
+      "missedApproachAltitudeFt": 4000,
+      "approximated": true
+    }
+  ],
+  "holds": [
+    {
+      "fix": "GUDUR",
+      "inboundCourseTrueDeg": 292.6,
+      "turnDirection": "right",
+      "legTimeSec": 60,
+      "maxSpeedKt": 230,
+      "minAltitudeFt": 6000,
+      "maxAltitudeFt": 15000,
+      "approximated": true
+    },
+    {
+      "fix": "SITAX",
+      "inboundCourseTrueDeg": 10,
+      "turnDirection": "right",
+      "legTimeSec": 60,
+      "maxSpeedKt": 230,
+      "minAltitudeFt": 6000,
+      "maxAltitudeFt": 15000,
+      "approximated": true
+    },
+    {
+      "fix": "RAKMO",
+      "inboundCourseTrueDeg": 70,
+      "turnDirection": "left",
+      "legTimeSec": 60,
+      "maxSpeedKt": 230,
+      "minAltitudeFt": 6000,
+      "maxAltitudeFt": 15000,
+      "approximated": true
+    },
+    {
+      "fix": "NOMAN",
+      "inboundCourseTrueDeg": 120,
+      "turnDirection": "right",
+      "legTimeSec": 60,
+      "maxSpeedKt": 230,
+      "minAltitudeFt": 6000,
+      "maxAltitudeFt": 15000,
+      "approximated": true
+    },
+    {
+      "fix": "BUXOR",
+      "inboundCourseTrueDeg": 200,
+      "turnDirection": "left",
+      "legTimeSec": 60,
+      "maxSpeedKt": 230,
+      "minAltitudeFt": 6000,
+      "maxAltitudeFt": 15000,
+      "approximated": true
+    },
+    {
+      "fix": "TUMSA",
+      "inboundCourseTrueDeg": 292.6,
+      "turnDirection": "right",
+      "legTimeSec": 60,
+      "maxSpeedKt": 230,
+      "minAltitudeFt": 6000,
+      "maxAltitudeFt": 15000,
+      "approximated": true
+    },
+    {
+      "fix": "DAULA",
+      "inboundCourseTrueDeg": 160,
+      "turnDirection": "right",
+      "legTimeSec": 60,
+      "maxSpeedKt": 230,
+      "minAltitudeFt": 6000,
+      "maxAltitudeFt": 15000,
+      "approximated": true
+    }
+  ],
+  "msaGrid": {
+    "originLat": 27.524833,
+    "originLon": 75.917046,
+    "cellSizeNm": 5,
+    "rows": 25,
+    "cols": 25,
+    "description": "Row 0 is the southernmost band, column 0 the westernmost. Values are minimum safe altitudes in feet AMSL used for MSAW.",
+    "minimumSafeAltitudeFt": [
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3000,
+        3000,
+        3000,
+        3000,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000
+      ],
+      [
+        4300,
+        4300,
+        4300,
+        4300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000
+      ],
+      [
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000
+      ],
+      [
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000
+      ],
+      [
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000
+      ],
+      [
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        3300,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        2500,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ],
+      [
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000,
+        3000
+      ]
+    ],
+    "approximated": true
+  }
+}
