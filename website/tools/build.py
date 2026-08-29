@@ -39,7 +39,41 @@ def minify_css(css: str) -> str:
         vault.append(m.group(0))
         return f"\x00{len(vault) - 1}\x00"
 
+    def stash_calc(text: str) -> str:
+        """
+        Put every calc() expression in the vault before the combinator pass.
+
+        `calc(1.2rem + env(safe-area-inset-bottom))` contains a `+` that the
+        combinator rule below would happily strip the spaces from, and
+        `calc(1.2rem+env(...))` is invalid: the operators inside calc() have
+        to keep their whitespace. calc() nests, so this scans for the matching
+        parenthesis rather than trying to match it with a regular expression.
+        """
+        out: list[str] = []
+        i = 0
+        while True:
+            at = text.find("calc(", i)
+            if at == -1:
+                out.append(text[i:])
+                return "".join(out)
+            out.append(text[i:at])
+            depth = 0
+            j = at + len("calc")
+            while j < len(text):
+                if text[j] == "(":
+                    depth += 1
+                elif text[j] == ")":
+                    depth -= 1
+                    if depth == 0:
+                        j += 1
+                        break
+                j += 1
+            vault.append(text[at:j])
+            out.append(f"\x00{len(vault) - 1}\x00")
+            i = j
+
     css = re.sub(r'"[^"\n]*"|\'[^\'\n]*\'|url\([^)]*\)', stash, css)
+    css = stash_calc(css)
     css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)          # comments
     css = re.sub(r"\s+", " ", css)                            # runs of whitespace
     css = re.sub(r"\s*([{}:;,>])\s*", r"\1", css)             # around delimiters

@@ -58,22 +58,37 @@ window.AureliaMotion = (function () {
     el.classList.add('is-lit');
   }
 
+  /*
+   * init() is called again for anything injected after first paint, and
+   * main.js drives that from a MutationObserver — which countUp's per-frame
+   * text writes trigger. One observer is built once and reused, or the page
+   * would accumulate a fresh one on every animated frame.
+   */
+  let splitIO = null;
+
   function initSplitReveal() {
     const targets = $$('[data-split-reveal]');
     if (reduced) { targets.forEach(t => t.classList.add('is-lit')); return; }
-    targets.forEach(splitWords);
     if (!('IntersectionObserver' in window)) {
       targets.forEach(t => t.classList.add('is-lit'));
       return;
     }
-    const io = new IntersectionObserver((entries, obs) => {
-      entries.forEach(e => {
-        if (!e.isIntersecting) return;
-        playWords(e.target, { stagger: +(e.target.dataset.stagger || 46) });
-        obs.unobserve(e.target);
-      });
-    }, { threshold: 0.25, rootMargin: '0px 0px -10% 0px' });
-    targets.forEach(t => io.observe(t));
+    if (!splitIO) {
+      splitIO = new IntersectionObserver((entries, obs) => {
+        entries.forEach(e => {
+          if (!e.isIntersecting) return;
+          playWords(e.target, { stagger: +(e.target.dataset.stagger || 46) });
+          obs.unobserve(e.target);
+        });
+      }, { threshold: 0.25, rootMargin: '0px 0px -10% 0px' });
+    }
+    targets.forEach(t => {
+      // Splitting twice would shred the words already in the DOM.
+      if (t.dataset.splitDone === '1') return;
+      splitWords(t);
+      t.dataset.splitDone = '1';
+      splitIO.observe(t);
+    });
   }
 
   /* ---------------------------------------------------------------------- */

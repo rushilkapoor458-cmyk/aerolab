@@ -26,9 +26,21 @@ for sub, body in blocks:
         subprocess.run(['curl', '-sS', '-o', str(fonts / name), url], check=True)
         seen[url] = name
     out.append('@font-face {' + body.replace(url, f'../fonts/{seen[url]}') + '}')
-pathlib.Path('assets/css/fonts.css').write_text(
-    "/* Self-hosted webfonts — latin and latin-ext subsets only.\n"
-    "   Served from our own origin so there is no third-party request on first paint.\n"
-    "   Regenerate with website/tools/fetch_fonts.sh. */\n\n" + '\n'.join(out) + '\n')
-print(f'{len(out)} faces written')
+# The @font-face rules live in style.css, between the markers below, so the
+# site keeps to a single stylesheet and a single request. Writing them to a
+# fonts.css nobody links would leave the live rules stale.
+START = '/* --- generated font faces: fetch_fonts.sh --- */'
+END = '/* --- end generated font faces --- */'
+style = pathlib.Path('assets/css/style.css')
+css = style.read_text()
+block = START + '\n' + '\n'.join(out) + '\n' + END
+if START in css and END in css:
+    head, _, rest = css.partition(START)
+    _, _, tail = rest.partition(END)
+    style.write_text(head + block + tail)
+    print(f'{len(out)} faces written into assets/css/style.css')
+else:
+    raise SystemExit(
+        'assets/css/style.css has no generated-font-faces markers.\n'
+        f'Add these around the @font-face rules and run this again:\n  {START}\n  {END}')
 PY

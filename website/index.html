@@ -1,7 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
 <meta charset="utf-8">
+<!-- Swapped before first paint, so the reveal animations only hide content
+     on browsers that will actually be able to bring it back. -->
+<script>document.documentElement.classList.replace('no-js', 'js');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Aurelia — Contemporary Fire Kitchen in Bandra West, Mumbai</title>
 <meta name="description" content="Aurelia is a contemporary fire kitchen in Bandra West, Mumbai. Wood, coal and clay; ninety-one partner farms; forty-four seats. Book a table or order online for delivery across Bandra, Khar, Santacruz and Juhu.">
@@ -230,7 +233,9 @@
         <strong>4.9</strong> from 3,412 diners
       </li>
       <li><svg class="i"><use href="#i-bike"/></svg> <strong>34 min</strong> average delivery</li>
-      <li id="heroHours"><svg class="i"><use href="#i-clock"/></svg> <span>Checking hours…</span></li>
+      <!-- The published hours, so this reads correctly before the script has
+           resolved the restaurant's own clock, and if it never does. -->
+      <li id="heroHours"><svg class="i"><use href="#i-clock"/></svg> <span><strong>Dinner</strong> from 6.00pm, Tuesday to Sunday</span></li>
     </ul>
   </div>
 

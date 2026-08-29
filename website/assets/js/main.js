@@ -370,8 +370,16 @@
     ASHFORD20: { off: .20, label: '20% off, Ashford Lane regulars' }
   };
 
-  try { cart = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { cart = []; }
-  cart = cart.filter(l => D.MENU.some(m => m.id === l.id) && l.qty > 0);
+  // Anything at all could be under that key: another origin's leftovers, a
+  // half-written value, an older schema. None of it may reach the page.
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY));
+    cart = Array.isArray(stored)
+      ? stored.filter(l => l && D.MENU.some(m => m.id === l.id) && l.qty > 0)
+      : [];
+  } catch (e) {
+    cart = [];
+  }
 
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cart)); } catch (e) {} };
   const itemOf = id => D.MENU.find(m => m.id === id);
@@ -538,8 +546,12 @@
   const drawer = $('#cartDrawer');
   const scrim  = $('#drawerScrim');
   let drawerTrap = null;
+  let drawerHideTimer = null;
 
   function openDrawer() {
+    // The close animation defers hidden = true; reopening inside that window
+    // would otherwise hide the drawer while the page stayed locked.
+    if (drawerHideTimer !== null) { clearTimeout(drawerHideTimer); drawerHideTimer = null; }
     lastFocus = document.activeElement;
     scrim.hidden = false; drawer.hidden = false;
     requestAnimationFrame(() => drawer.classList.add('is-open'));
@@ -552,7 +564,9 @@
     drawer.classList.remove('is-open');
     document.body.classList.remove('is-locked');
     drawer.removeEventListener('keydown', drawerTrap);
-    setTimeout(() => { drawer.hidden = true; scrim.hidden = true; }, 560);
+    drawerHideTimer = setTimeout(() => {
+      drawer.hidden = true; scrim.hidden = true; drawerHideTimer = null;
+    }, 560);
     restoreFocus();
   }
   cartBtn && cartBtn.addEventListener('click', openDrawer);
@@ -743,6 +757,11 @@
     $('#orderEta').textContent = 'Arriving in about 34 minutes';
     rider.hidden = true;
 
+    // The order is placed the moment tracking begins. Emptying the cart on
+    // the last tracking timer instead would leave a paid-for order sitting in
+    // the cart, and in localStorage, for anyone who closed the modal early.
+    cart = []; promo = null; renderCart();
+
     list.innerHTML = `<span class="track-fill" aria-hidden="true"></span>` + TRACK.map((s, i) => `
       <li${i === 0 ? ' class="is-now"' : ''}>
         <span class="track-label">${esc(s.label)}</span>
@@ -765,7 +784,6 @@
           lis[i].classList.remove('is-now');
           lis[i].classList.add('is-done');
           $('#orderEta').textContent = 'Delivered — thank you';
-          cart = []; promo = null; renderCart();
         }
       }, gap * i));
     });
@@ -889,18 +907,24 @@
     $('#lbImg').alt = g.caption;
     $('#lbCap').textContent = g.caption;
   }
+  let lightboxTrap = null;
+
   function openLightbox(i) {
     lbList = visibleGallery();
     lbIndex = Math.max(0, lbList.indexOf(i));
     lastFocus = document.activeElement;
     lightbox.hidden = false;
     document.body.classList.add('is-locked');
+    // aria-modal="true" is a promise that Tab cannot reach the page behind.
+    lightboxTrap = trap(lightbox);
+    lightbox.addEventListener('keydown', lightboxTrap);
     paintLightbox();
     $('.lb-close', lightbox).focus();
   }
   function closeLightbox() {
     lightbox.hidden = true;
     document.body.classList.remove('is-locked');
+    lightbox.removeEventListener('keydown', lightboxTrap);
     restoreFocus();
   }
   if (lightbox) {
@@ -941,11 +965,12 @@
   };
 
   if (rDate) {
-    const today = new Date();
-    const iso = d => d.toISOString().slice(0, 10);
-    rDate.min = iso(today);
-    rDate.max = iso(new Date(today.getTime() + 120 * 864e5));
-    rDate.value = iso(new Date(today.getTime() + 864e5));
+    // toISOString() reports the UTC date, so in Mumbai between midnight and
+    // 05:30 IST it names yesterday. The restaurant's own day is what counts.
+    const today = mumbaiNow();
+    rDate.min = localDate(today);
+    rDate.max = localDate(addDays(today, 120));
+    rDate.value = localDate(addDays(today, 1));
   }
   if (rTime) {
     rTime.innerHTML = SLOTS.map(s =>
@@ -1026,7 +1051,7 @@
     $('#reserveDone').hidden = true;
     guests = 2; paintGuests();
     if (rTime) rTime.value = '20:00';
-    if (rDate) rDate.value = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+    if (rDate) rDate.value = localDate(addDays(mumbaiNow(), 1));
     $$('.field.is-invalid', reserveForm).forEach(f => f.classList.remove('is-invalid'));
     reserveForm.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
   });
@@ -1039,6 +1064,17 @@
     try {
       return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     } catch (e) { return new Date(); }
+  }
+  /** A date input wants YYYY-MM-DD in the date's own terms, not in UTC. */
+  function localDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-` +
+           `${String(d.getDate()).padStart(2, '0')}`;
+  }
+  /** Add whole days without dragging daylight saving into it. */
+  function addDays(d, n) {
+    const out = new Date(d.getTime());
+    out.setDate(out.getDate() + n);
+    return out;
   }
   const mins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
@@ -1054,10 +1090,30 @@
     if (yday.open && mins(yday.close) < mins(yday.open) && cur < mins(yday.close)) {
       return { open: true, today, idx, closes: yday.close };
     }
-    if (!today.open) return { open: false, today, idx };
+    if (!today.open) return { open: false, today, idx, next: nextOpening(idx, cur) };
     const o = mins(today.open), c = mins(today.close);
     const isOpen = c < o ? cur >= o : (cur >= o && cur < c);
-    return { open: isOpen, today, idx, closes: today.close };
+    return { open: isOpen, today, idx, closes: today.close, next: nextOpening(idx, cur) };
+  }
+
+  /**
+   * When the doors next open, and whether that is today. Once today's service
+   * has finished, "opens 6pm today" is simply wrong — it is tomorrow's.
+   */
+  function nextOpening(idx, cur) {
+    const hours = D.RESTAURANT.hours;
+    for (let ahead = 0; ahead < 8; ahead++) {
+      const day = hours[(idx + ahead) % 7];
+      if (!day.open) continue;
+      // Today only counts if service has not already ended.
+      if (ahead === 0) {
+        const o = mins(day.open), c = mins(day.close);
+        const finished = c < o ? false : cur >= c;
+        if (finished) continue;
+      }
+      return { open: day.open, day: day.day, today: ahead === 0, tomorrow: ahead === 1 };
+    }
+    return null;
   }
 
   const hoursList = $('#hoursList');
@@ -1083,8 +1139,9 @@
       if (span) {
         span.innerHTML = st.open
           ? `<strong>Open now</strong> until ${pretty(st.closes)}`
-          : (st.today.open
-              ? `<strong>Opens</strong> ${pretty(st.today.open)} today`
+          : (st.next
+              ? `<strong>Opens</strong> ${pretty(st.next.open)} ` +
+                (st.next.today ? 'today' : st.next.tomorrow ? 'tomorrow' : esc(st.next.day))
               : `<strong>Closed</strong> Mondays`);
       }
     }
