@@ -16,7 +16,7 @@ export class StatusBar {
   private readonly atisText: HTMLElement;
   private readonly arrivals: HTMLElement;
   private readonly goArounds: HTMLElement;
-  private readonly losses: HTMLElement;
+  private readonly violations: HTMLElement;
   private readonly scenarioName: HTMLElement;
   private readonly remaining: HTMLElement;
   private readonly rateButtons: HTMLButtonElement[];
@@ -34,7 +34,7 @@ export class StatusBar {
     this.atisText = requireElement('atis-text');
     this.arrivals = requireElement('status-arrivals');
     this.goArounds = requireElement('status-goarounds');
-    this.losses = requireElement('status-losses');
+    this.violations = requireElement('status-violations');
     this.scenarioName = requireElement('status-scenario');
     this.remaining = requireElement('status-remaining');
 
@@ -63,9 +63,14 @@ export class StatusBar {
     this.remaining.textContent = left === null ? '--:--' : formatDuration(left);
     this.remaining.style.color = left !== null && left <= 300 ? 'var(--caution)' : '';
 
-    const losses = this.sim.safety.violations.length;
-    this.losses.textContent = String(losses);
-    this.losses.style.color = losses > 0 ? 'var(--danger)' : '';
+    // Every kind of violation, not just separation. It was labelled "losses"
+    // before, which in this trade means a loss of separation specifically —
+    // so a sector exit lit the field red and read as though two aircraft had
+    // come together. The session report breaks the kinds apart; this is the
+    // at-a-glance total, and is now named for what it counts.
+    const violations = this.sim.safety.violations.length;
+    this.violations.textContent = String(violations);
+    this.violations.style.color = violations > 0 ? 'var(--danger)' : '';
 
     const metar = formatMetar(this.sim.airspace.airport.icao, this.sim.timeSec, w);
     const runway = this.sim.airspace.runway(this.sim.runways.arrival);
