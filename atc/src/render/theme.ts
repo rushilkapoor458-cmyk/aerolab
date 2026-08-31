@@ -38,6 +38,18 @@ export const THEME = {
   fafMark: '#5b8cff',
   chartLabel: '#7d8bb8',
 
+  /* aerodrome ground chart */
+  pavement: '#c9d3e6',
+  pavementEdge: '#8493b8',
+  pavementActive: '#ffffff',
+  runwayMarking: '#6b7899',
+  taxiway: '#3d4d7d',
+  taxiwayLabel: '#7886ae',
+  apronFill: 'rgba(45, 76, 152, 0.18)',
+  apronEdge: '#33529c',
+  standMark: '#5b8cff',
+  northArrow: '#616f9c',
+
   /* navigation */
   fix: '#4a5680',
   fixLabel: '#7886ae',
