@@ -5,30 +5,86 @@
   "seed": 20260904,
   "startTimeUtc": "07:40",
   "durationMin": 60,
-  "runways": { "arrival": "29R", "departure": "29R" },
+  "runways": {
+    "arrival": "29R",
+    "departure": "29R"
+  },
   "traffic": {
     "arrivalsPerHour": 14,
     "departuresPerHour": 10,
     "fleet": [
-      { "type": "A320", "weight": 30 },
-      { "type": "B738", "weight": 24 },
-      { "type": "B77W", "weight": 8 },
-      { "type": "A359", "weight": 6 },
-      { "type": "Q400", "weight": 8 }
+      {
+        "type": "A320",
+        "weight": 30
+      },
+      {
+        "type": "B738",
+        "weight": 24
+      },
+      {
+        "type": "B77W",
+        "weight": 8
+      },
+      {
+        "type": "A359",
+        "weight": 6
+      },
+      {
+        "type": "Q400",
+        "weight": 8
+      }
     ],
     "airlines": [
-      { "prefix": "AIC", "name": "Air India", "weight": 8 },
-      { "prefix": "IGO", "name": "IndiGo", "weight": 12 },
-      { "prefix": "VTI", "name": "Vistara", "weight": 5 },
-      { "prefix": "SEJ", "name": "SpiceJet", "weight": 4 },
-      { "prefix": "QTR", "name": "Qatari", "weight": 2 }
+      {
+        "prefix": "AIC",
+        "name": "Air India",
+        "weight": 8
+      },
+      {
+        "prefix": "IGO",
+        "name": "IndiGo",
+        "weight": 12
+      },
+      {
+        "prefix": "VTI",
+        "name": "Vistara",
+        "weight": 5
+      },
+      {
+        "prefix": "SEJ",
+        "name": "SpiceJet",
+        "weight": 4
+      },
+      {
+        "prefix": "QTR",
+        "name": "Qatari",
+        "weight": 2
+      }
     ],
-    "entryFixes": ["GUDUR", "SITAX", "RAKMO", "NOMAN", "BUXOR"],
-    "entryAltitudeFt": { "min": 9000, "max": 14000 },
+    "entryFixes": [
+      "GUDUR",
+      "SITAX",
+      "RAKMO",
+      "NOMAN",
+      "BUXOR"
+    ],
+    "entryAltitudeFt": {
+      "min": 9000,
+      "max": 14000
+    },
     "entrySpeedKt": 280,
-    "fuelFactor": { "min": 0.8, "max": 1.3 },
-    "departureSids": ["GUDUR1D", "RAKMO2E", "NOMAN1F", "BUXOR1G"]
+    "fuelFactor": {
+      "min": 0.8,
+      "max": 1.3
+    },
+    "departureSids": [
+      "GUDUR1D",
+      "RAKMO2E",
+      "NOMAN1F",
+      "BUXOR1G"
+    ]
   },
+  "initialTraffic": [],
   "weather": {
     "windDirectionDeg": 295,
     "windSpeedKt": 9,
@@ -59,7 +115,7 @@
     {
       "atMin": 8,
       "kind": "message",
-      "text": "A departure has lost an engine. It will climb badly and will not accept speed — give it the shortest track back to the ILS and keep everything else out of the way."
+      "text": "A departure has lost an engine. It will climb badly and will not accept speed \u2014 give it the shortest track back to the ILS and keep everything else out of the way."
     },
     {
       "atMin": 26,

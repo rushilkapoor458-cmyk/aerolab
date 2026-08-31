@@ -4,7 +4,7 @@
  */
 
 import { Airspace } from './airspace.js';
-import { Point, angleDiff, distanceNm, normalizeDeg, pointInPolygon } from './geo.js';
+import { Point, angleDiff, bearingDeg, distanceNm, movePoint, normalizeDeg, pointInPolygon } from './geo.js';
 import { RADAR_SWEEP_SEC, Wind } from './flight.js';
 import { stepAircraft } from './flight.js';
 import { NavContext, goAround, updateAutoflight } from './autoflight.js';
@@ -120,7 +120,54 @@ export class Simulation {
     // Sorted here, so an event list need not be written in time order.
     this.pendingEvents = [...scenario.events].sort((a, b) => a.atMin - b.atMin);
     this.deferredEvents = [];
+    this.seedInitialTraffic(scenario);
     this.say('system', null, `${scenario.name} — ${scenario.description}`, false);
+  }
+
+  /**
+   * Place the traffic the scenario opens with.
+   *
+   * Each aircraft is positioned along the outbound radial from the field
+   * through its reference fix, so the picture is geometrically honest: the
+   * aircraft is where something that entered over that fix would actually be,
+   * tracking inbound, rather than dropped onto the scope at a random point.
+   */
+  private seedInitialTraffic(scenario: Scenario): void {
+    const field: Point = { x: 0, y: 0 };
+
+    for (const placement of scenario.initialTraffic ?? []) {
+      const fix = this.airspace.fix(placement.atFix);
+      if (fix === undefined) {
+        throw new Error(
+          `scenario ${scenario.id} places ${placement.callsign} at unknown fix ${placement.atFix}`,
+        );
+      }
+
+      const outbound = bearingDeg(field, fix.position);
+      const position = movePoint(fix.position, outbound, placement.beyondNm);
+      const inboundMagnetic = this.airspace.toMagnetic(bearingDeg(position, field));
+
+      const route = [...placement.route];
+      const directFix = route.shift();
+
+      this.add({
+        callsign: placement.callsign,
+        type: placement.type,
+        role: 'arrival',
+        position,
+        altitudeFt: placement.altitudeFt,
+        headingDeg: placement.headingDeg ?? inboundMagnetic,
+        iasKt: placement.iasKt,
+        clearedAltitudeFt: placement.clearedAltitudeFt,
+        clearedSpeedKt: placement.clearedSpeedKt,
+        squawk: placement.squawk,
+        route,
+        ...(placement.procedure === undefined ? {} : { procedure: placement.procedure }),
+        ...(placement.fuelKg === undefined ? {} : { fuelKg: placement.fuelKg }),
+        ...(placement.massKg === undefined ? {} : { massKg: placement.massKg }),
+        ...(placement.headingDeg === undefined && directFix !== undefined ? { directFix } : {}),
+      });
+    }
   }
 
   /** Simulated seconds remaining in the scenario, or null if it has none. */

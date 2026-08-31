@@ -130,6 +130,37 @@ export interface MsaGrid {
   readonly values: readonly (readonly number[])[];
 }
 
+/**
+ * The aerodrome layout, for the ground chart.
+ *
+ * Runway positions and dimensions are real; the taxiway, apron and stand
+ * geometry is a plausible schematic derived from them rather than the
+ * published VIDP chart, and is flagged as approximated in the data.
+ */
+export interface Taxiway {
+  readonly ident: string;
+  readonly centreline: readonly Point[];
+}
+
+export interface Apron {
+  readonly ident: string;
+  readonly outline: readonly Point[];
+}
+
+export interface Stand {
+  readonly ident: string;
+  readonly position: Point;
+  readonly apron: string;
+}
+
+export interface GroundChart {
+  readonly approximated: boolean;
+  readonly note: string;
+  readonly taxiways: readonly Taxiway[];
+  readonly aprons: readonly Apron[];
+  readonly stands: readonly Stand[];
+}
+
 export class Airspace {
   readonly projection: Projection;
   readonly airport: Airport;
@@ -142,6 +173,7 @@ export class Airspace {
   readonly approaches: readonly Approach[];
   readonly holds: readonly Hold[];
   readonly msaGrid: MsaGrid;
+  readonly groundChart: GroundChart;
 
   private readonly fixIndex: ReadonlyMap<string, Fix>;
   private readonly runwayIndex: ReadonlyMap<string, Runway>;
@@ -207,6 +239,25 @@ export class Airspace {
     }));
 
     this.holds = raw.holds.map((h) => ({ ...h }));
+
+    const ground = raw.groundChart;
+    this.groundChart = {
+      approximated: ground.approximated,
+      note: ground.note,
+      taxiways: ground.taxiways.map((w) => ({
+        ident: w.ident,
+        centreline: w.centreline.map((ll) => this.projection.toLocal(ll)),
+      })),
+      aprons: ground.aprons.map((a) => ({
+        ident: a.ident,
+        outline: a.outline.map((ll) => this.projection.toLocal(ll)),
+      })),
+      stands: ground.stands.map((s) => ({
+        ident: s.ident,
+        position: this.projection.toLocal(s.position),
+        apron: s.apron,
+      })),
+    };
 
     this.msaGrid = {
       origin: this.projection.toLocal({ lat: raw.msaGrid.originLat, lon: raw.msaGrid.originLon }),
@@ -366,6 +417,13 @@ export interface RawAirspace {
   stars: { ident: string; boundaryFix: string; legs: ProcedureLeg[] }[];
   approaches: Omit<Approach, 'localiserCourseMagneticDeg'>[];
   holds: Hold[];
+  groundChart: {
+    approximated: boolean;
+    note: string;
+    taxiways: { ident: string; centreline: LatLon[] }[];
+    aprons: { ident: string; outline: LatLon[] }[];
+    stands: { ident: string; position: LatLon; apron: string }[];
+  };
   msaGrid: {
     originLat: number;
     originLon: number;

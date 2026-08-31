@@ -1685,5 +1685,366 @@
       ]
     ],
     "approximated": true
+  },
+  "groundChart": {
+    "approximated": true,
+    "note": "Taxiway, apron and stand layout is a plausible schematic squared to the real runway geometry, not the published VIDP aerodrome chart. Runway positions and dimensions are real; everything else here is invented to scale.",
+    "taxiways": [
+      {
+        "ident": "A",
+        "centreline": [
+          {
+            "lat": 28.583217,
+            "lon": 77.078167
+          },
+          {
+            "lat": 28.567365,
+            "lon": 77.119483
+          }
+        ]
+      },
+      {
+        "ident": "B",
+        "centreline": [
+          {
+            "lat": 28.579857,
+            "lon": 77.076495
+          },
+          {
+            "lat": 28.564005,
+            "lon": 77.117811
+          }
+        ]
+      },
+      {
+        "ident": "C",
+        "centreline": [
+          {
+            "lat": 28.568116,
+            "lon": 77.072263
+          },
+          {
+            "lat": 28.55216,
+            "lon": 77.113849
+          }
+        ]
+      },
+      {
+        "ident": "D",
+        "centreline": [
+          {
+            "lat": 28.583696,
+            "lon": 77.106855
+          },
+          {
+            "lat": 28.578564,
+            "lon": 77.145487
+          }
+        ]
+      },
+      {
+        "ident": "E",
+        "centreline": [
+          {
+            "lat": 28.544851,
+            "lon": 77.117813
+          },
+          {
+            "lat": 28.543701,
+            "lon": 77.146639
+          }
+        ]
+      },
+      {
+        "ident": "L1",
+        "centreline": [
+          {
+            "lat": 28.578461,
+            "lon": 77.090561
+          },
+          {
+            "lat": 28.571589,
+            "lon": 77.087143
+          }
+        ]
+      },
+      {
+        "ident": "L2",
+        "centreline": [
+          {
+            "lat": 28.575291,
+            "lon": 77.098825
+          },
+          {
+            "lat": 28.568418,
+            "lon": 77.095406
+          }
+        ]
+      },
+      {
+        "ident": "L3",
+        "centreline": [
+          {
+            "lat": 28.572121,
+            "lon": 77.107088
+          },
+          {
+            "lat": 28.565248,
+            "lon": 77.103669
+          }
+        ]
+      }
+    ],
+    "aprons": [
+      {
+        "ident": "Terminal 3",
+        "outline": [
+          {
+            "lat": 28.568881,
+            "lon": 77.084246
+          },
+          {
+            "lat": 28.561541,
+            "lon": 77.103375
+          },
+          {
+            "lat": 28.565512,
+            "lon": 77.10535
+          },
+          {
+            "lat": 28.572852,
+            "lon": 77.086221
+          }
+        ]
+      },
+      {
+        "ident": "Terminal 1",
+        "outline": [
+          {
+            "lat": 28.577961,
+            "lon": 77.111964
+          },
+          {
+            "lat": 28.576465,
+            "lon": 77.123222
+          },
+          {
+            "lat": 28.579761,
+            "lon": 77.12379
+          },
+          {
+            "lat": 28.581256,
+            "lon": 77.112532
+          }
+        ]
+      },
+      {
+        "ident": "Cargo",
+        "outline": [
+          {
+            "lat": 28.545967,
+            "lon": 77.129578
+          },
+          {
+            "lat": 28.545634,
+            "lon": 77.137919
+          },
+          {
+            "lat": 28.548132,
+            "lon": 77.138048
+          },
+          {
+            "lat": 28.548464,
+            "lon": 77.129707
+          }
+        ]
+      }
+    ],
+    "stands": [
+      {
+        "ident": "10",
+        "position": {
+          "lat": 28.572308,
+          "lon": 77.087401
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "11",
+        "position": {
+          "lat": 28.571815,
+          "lon": 77.088685
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "12",
+        "position": {
+          "lat": 28.571323,
+          "lon": 77.089969
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "13",
+        "position": {
+          "lat": 28.57083,
+          "lon": 77.091253
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "14",
+        "position": {
+          "lat": 28.570337,
+          "lon": 77.092537
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "15",
+        "position": {
+          "lat": 28.569845,
+          "lon": 77.093822
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "16",
+        "position": {
+          "lat": 28.569352,
+          "lon": 77.095106
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "17",
+        "position": {
+          "lat": 28.568859,
+          "lon": 77.09639
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "18",
+        "position": {
+          "lat": 28.568366,
+          "lon": 77.097674
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "19",
+        "position": {
+          "lat": 28.567874,
+          "lon": 77.098958
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "20",
+        "position": {
+          "lat": 28.567381,
+          "lon": 77.100243
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "21",
+        "position": {
+          "lat": 28.566888,
+          "lon": 77.101527
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "22",
+        "position": {
+          "lat": 28.566396,
+          "lon": 77.102811
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "23",
+        "position": {
+          "lat": 28.565903,
+          "lon": 77.104095
+        },
+        "apron": "Terminal 3"
+      },
+      {
+        "ident": "A1",
+        "position": {
+          "lat": 28.581024,
+          "lon": 77.113643
+        },
+        "apron": "Terminal 1"
+      },
+      {
+        "ident": "A2",
+        "position": {
+          "lat": 28.580785,
+          "lon": 77.115445
+        },
+        "apron": "Terminal 1"
+      },
+      {
+        "ident": "A3",
+        "position": {
+          "lat": 28.580546,
+          "lon": 77.117246
+        },
+        "apron": "Terminal 1"
+      },
+      {
+        "ident": "A4",
+        "position": {
+          "lat": 28.580307,
+          "lon": 77.119047
+        },
+        "apron": "Terminal 1"
+      },
+      {
+        "ident": "A5",
+        "position": {
+          "lat": 28.580067,
+          "lon": 77.120849
+        },
+        "apron": "Terminal 1"
+      },
+      {
+        "ident": "A6",
+        "position": {
+          "lat": 28.579828,
+          "lon": 77.12265
+        },
+        "apron": "Terminal 1"
+      },
+      {
+        "ident": "C1",
+        "position": {
+          "lat": 28.54599,
+          "lon": 77.131099
+        },
+        "apron": "Cargo"
+      },
+      {
+        "ident": "C2",
+        "position": {
+          "lat": 28.545884,
+          "lon": 77.133753
+        },
+        "apron": "Cargo"
+      },
+      {
+        "ident": "C3",
+        "position": {
+          "lat": 28.545778,
+          "lon": 77.136407
+        },
+        "apron": "Cargo"
+      }
+    ]
   }
 }

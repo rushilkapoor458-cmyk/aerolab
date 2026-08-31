@@ -5,34 +5,268 @@
   "seed": 20260901,
   "startTimeUtc": "10:00",
   "durationMin": 60,
-  "runways": { "arrival": "29R", "departure": "29R" },
+  "runways": {
+    "arrival": "29R",
+    "departure": "29R"
+  },
   "traffic": {
     "arrivalsPerHour": 12,
     "departuresPerHour": 8,
     "fleet": [
-      { "type": "A320", "weight": 30 },
-      { "type": "B738", "weight": 24 },
-      { "type": "Q400", "weight": 8 },
-      { "type": "ATR72", "weight": 6 },
-      { "type": "B77W", "weight": 5 },
-      { "type": "A359", "weight": 4 },
-      { "type": "C172", "weight": 1 }
+      {
+        "type": "A320",
+        "weight": 30
+      },
+      {
+        "type": "B738",
+        "weight": 24
+      },
+      {
+        "type": "Q400",
+        "weight": 8
+      },
+      {
+        "type": "ATR72",
+        "weight": 6
+      },
+      {
+        "type": "B77W",
+        "weight": 5
+      },
+      {
+        "type": "A359",
+        "weight": 4
+      },
+      {
+        "type": "C172",
+        "weight": 1
+      }
     ],
     "airlines": [
-      { "prefix": "AIC", "name": "Air India", "weight": 8 },
-      { "prefix": "IGO", "name": "IndiGo", "weight": 12 },
-      { "prefix": "VTI", "name": "Vistara", "weight": 5 },
-      { "prefix": "SEJ", "name": "SpiceJet", "weight": 4 },
-      { "prefix": "AXB", "name": "Air India Express", "weight": 3 },
-      { "prefix": "UAE", "name": "Emirates", "weight": 2 },
-      { "prefix": "QTR", "name": "Qatari", "weight": 2 }
+      {
+        "prefix": "AIC",
+        "name": "Air India",
+        "weight": 8
+      },
+      {
+        "prefix": "IGO",
+        "name": "IndiGo",
+        "weight": 12
+      },
+      {
+        "prefix": "VTI",
+        "name": "Vistara",
+        "weight": 5
+      },
+      {
+        "prefix": "SEJ",
+        "name": "SpiceJet",
+        "weight": 4
+      },
+      {
+        "prefix": "AXB",
+        "name": "Air India Express",
+        "weight": 3
+      },
+      {
+        "prefix": "UAE",
+        "name": "Emirates",
+        "weight": 2
+      },
+      {
+        "prefix": "QTR",
+        "name": "Qatari",
+        "weight": 2
+      }
     ],
-    "entryFixes": ["GUDUR", "SITAX", "RAKMO", "NOMAN", "BUXOR"],
-    "entryAltitudeFt": { "min": 9000, "max": 14000 },
+    "entryFixes": [
+      "GUDUR",
+      "SITAX",
+      "RAKMO",
+      "NOMAN",
+      "BUXOR"
+    ],
+    "entryAltitudeFt": {
+      "min": 9000,
+      "max": 14000
+    },
     "entrySpeedKt": 280,
-    "fuelFactor": { "min": 0.8, "max": 1.4 },
-    "departureSids": ["GUDUR1D", "RAKMO2E", "NOMAN1F", "BUXOR1G"]
+    "fuelFactor": {
+      "min": 0.8,
+      "max": 1.4
+    },
+    "departureSids": [
+      "GUDUR1D",
+      "RAKMO2E",
+      "NOMAN1F",
+      "BUXOR1G"
+    ]
   },
+  "initialTraffic": [
+    {
+      "callsign": "AIC101",
+      "type": "A320",
+      "atFix": "GUDUR",
+      "beyondNm": -6,
+      "altitudeFt": 9000,
+      "clearedAltitudeFt": 9000,
+      "iasKt": 280,
+      "clearedSpeedKt": 280,
+      "squawk": "4501",
+      "route": [
+        "TUMSA",
+        "SAHIB"
+      ],
+      "procedure": "GUDUR1A"
+    },
+    {
+      "callsign": "IGO214",
+      "type": "B738",
+      "atFix": "GUDUR",
+      "beyondNm": 4,
+      "altitudeFt": 11000,
+      "clearedAltitudeFt": 11000,
+      "iasKt": 290,
+      "clearedSpeedKt": 290,
+      "squawk": "4502",
+      "route": [
+        "TUMSA",
+        "SAHIB"
+      ],
+      "procedure": "GUDUR1A"
+    },
+    {
+      "callsign": "UAE512",
+      "type": "B77W",
+      "atFix": "GUDUR",
+      "beyondNm": 6,
+      "altitudeFt": 13000,
+      "clearedAltitudeFt": 12000,
+      "iasKt": 300,
+      "clearedSpeedKt": 300,
+      "squawk": "4503",
+      "route": [
+        "TUMSA",
+        "SAHIB"
+      ],
+      "procedure": "GUDUR1A",
+      "massKg": 270000
+    },
+    {
+      "callsign": "VTI651",
+      "type": "A320",
+      "atFix": "SITAX",
+      "beyondNm": -4,
+      "altitudeFt": 8000,
+      "clearedAltitudeFt": 8000,
+      "iasKt": 270,
+      "clearedSpeedKt": 270,
+      "squawk": "4511",
+      "route": [
+        "SOKAT",
+        "SAHIB"
+      ],
+      "procedure": "SITAX1B"
+    },
+    {
+      "callsign": "SEJ742",
+      "type": "Q400",
+      "atFix": "SITAX",
+      "beyondNm": 7,
+      "altitudeFt": 10000,
+      "clearedAltitudeFt": 10000,
+      "iasKt": 240,
+      "clearedSpeedKt": 240,
+      "squawk": "4512",
+      "route": [
+        "SOKAT",
+        "SAHIB"
+      ],
+      "procedure": "SITAX1B"
+    },
+    {
+      "callsign": "QTR578",
+      "type": "A359",
+      "atFix": "RAKMO",
+      "beyondNm": -3,
+      "altitudeFt": 12000,
+      "clearedAltitudeFt": 10000,
+      "iasKt": 290,
+      "clearedSpeedKt": 290,
+      "squawk": "4521",
+      "route": [
+        "KIRAN",
+        "DAULA"
+      ],
+      "procedure": "RAKMO1C",
+      "massKg": 215000
+    },
+    {
+      "callsign": "AXB338",
+      "type": "B738",
+      "atFix": "RAKMO",
+      "beyondNm": 9,
+      "altitudeFt": 14000,
+      "clearedAltitudeFt": 13000,
+      "iasKt": 300,
+      "clearedSpeedKt": 300,
+      "squawk": "4522",
+      "route": [
+        "KIRAN",
+        "DAULA"
+      ],
+      "procedure": "RAKMO1C"
+    },
+    {
+      "callsign": "IGO489",
+      "type": "A320",
+      "atFix": "NOMAN",
+      "beyondNm": -5,
+      "altitudeFt": 9000,
+      "clearedAltitudeFt": 9000,
+      "iasKt": 280,
+      "clearedSpeedKt": 280,
+      "squawk": "4531",
+      "route": [
+        "ROHTA",
+        "DAULA"
+      ],
+      "procedure": "NOMAN1H"
+    },
+    {
+      "callsign": "AIC864",
+      "type": "A320",
+      "atFix": "BUXOR",
+      "beyondNm": -2,
+      "altitudeFt": 10000,
+      "clearedAltitudeFt": 10000,
+      "iasKt": 280,
+      "clearedSpeedKt": 280,
+      "squawk": "4541",
+      "route": [
+        "ALGAN",
+        "DAULA"
+      ],
+      "procedure": "BUXOR1J"
+    },
+    {
+      "callsign": "SEJ301",
+      "type": "Q400",
+      "atFix": "BUXOR",
+      "beyondNm": 6,
+      "altitudeFt": 11000,
+      "clearedAltitudeFt": 11000,
+      "iasKt": 230,
+      "clearedSpeedKt": 230,
+      "squawk": "4542",
+      "route": [
+        "ALGAN",
+        "DAULA"
+      ],
+      "procedure": "BUXOR1J",
+      "fuelKg": 520
+    }
+  ],
   "weather": {
     "windDirectionDeg": 290,
     "windSpeedKt": 12,

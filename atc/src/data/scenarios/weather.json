@@ -5,31 +5,90 @@
   "seed": 20260903,
   "startTimeUtc": "14:10",
   "durationMin": 60,
-  "runways": { "arrival": "29R", "departure": "29R" },
+  "runways": {
+    "arrival": "29R",
+    "departure": "29R"
+  },
   "traffic": {
     "arrivalsPerHour": 16,
     "departuresPerHour": 8,
     "fleet": [
-      { "type": "A320", "weight": 28 },
-      { "type": "B738", "weight": 24 },
-      { "type": "B77W", "weight": 8 },
-      { "type": "A359", "weight": 6 },
-      { "type": "Q400", "weight": 8 },
-      { "type": "ATR72", "weight": 6 }
+      {
+        "type": "A320",
+        "weight": 28
+      },
+      {
+        "type": "B738",
+        "weight": 24
+      },
+      {
+        "type": "B77W",
+        "weight": 8
+      },
+      {
+        "type": "A359",
+        "weight": 6
+      },
+      {
+        "type": "Q400",
+        "weight": 8
+      },
+      {
+        "type": "ATR72",
+        "weight": 6
+      }
     ],
     "airlines": [
-      { "prefix": "AIC", "name": "Air India", "weight": 8 },
-      { "prefix": "IGO", "name": "IndiGo", "weight": 12 },
-      { "prefix": "VTI", "name": "Vistara", "weight": 5 },
-      { "prefix": "SEJ", "name": "SpiceJet", "weight": 5 },
-      { "prefix": "UAE", "name": "Emirates", "weight": 2 }
+      {
+        "prefix": "AIC",
+        "name": "Air India",
+        "weight": 8
+      },
+      {
+        "prefix": "IGO",
+        "name": "IndiGo",
+        "weight": 12
+      },
+      {
+        "prefix": "VTI",
+        "name": "Vistara",
+        "weight": 5
+      },
+      {
+        "prefix": "SEJ",
+        "name": "SpiceJet",
+        "weight": 5
+      },
+      {
+        "prefix": "UAE",
+        "name": "Emirates",
+        "weight": 2
+      }
     ],
-    "entryFixes": ["GUDUR", "SITAX", "RAKMO", "NOMAN", "BUXOR"],
-    "entryAltitudeFt": { "min": 9000, "max": 14000 },
+    "entryFixes": [
+      "GUDUR",
+      "SITAX",
+      "RAKMO",
+      "NOMAN",
+      "BUXOR"
+    ],
+    "entryAltitudeFt": {
+      "min": 9000,
+      "max": 14000
+    },
     "entrySpeedKt": 280,
-    "fuelFactor": { "min": 0.45, "max": 0.9 },
-    "departureSids": ["GUDUR1D", "RAKMO2E", "NOMAN1F", "BUXOR1G"]
+    "fuelFactor": {
+      "min": 0.45,
+      "max": 0.9
+    },
+    "departureSids": [
+      "GUDUR1D",
+      "RAKMO2E",
+      "NOMAN1F",
+      "BUXOR1G"
+    ]
   },
+  "initialTraffic": [],
   "weather": {
     "windDirectionDeg": 285,
     "windSpeedKt": 10,
@@ -88,7 +147,7 @@
     {
       "atMin": 22,
       "kind": "message",
-      "text": "Runway change to 11L. Anything already established on 29R now has a tailwind — break it off and re-sequence."
+      "text": "Runway change to 11L. Anything already established on 29R now has a tailwind \u2014 break it off and re-sequence."
     },
     {
       "atMin": 45,

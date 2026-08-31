@@ -81,7 +81,7 @@ starts a fresh session at `?scenario=<id>`.
 | Scenario | What it is |
 | --- | --- |
 | **Tutorial** | Two scripted arrivals, no departures, light wind. Prompts in the comms panel tell you what to type. |
-| **Standard day** | 20 movements an hour, runway 29R for both arrivals and departures. A normal shift. |
+| **Standard day** | Opens with ten aircraft already inbound across all five arrival gates, then 20 movements an hour on runway 29R both ways. A normal shift. |
 | **Evening rush** | 45 movements an hour with heavies mixed in, arrivals 29 and departures 28. The wake matrix will bite. |
 | **Runway change** | The wind backs through the session, the ATIS rolls, and at 22 minutes the runway changes to 11. Traffic arrives short of fuel. |
 | **Emergencies** | A normal flow, then an engine failure on a departure, and later a radio failure on an arrival that keeps flying its last clearance. |
@@ -161,6 +161,43 @@ transmission can be accepted while the rest is refused. Anything the parser cann
 read comes back as a message naming the offending word and showing a working example
 — nothing ever fails silently.
 
+### Speaking to the aircraft
+
+Hold **`` ` ``** (or hold the **MIC** button beside the command line), say the
+clearance, and let go. Releasing is what transmits, exactly as a real press-to-talk
+does — and it is why this is more accurate than an open microphone, since the
+recogniser is told where your transmission ends instead of guessing from a pause.
+
+What it heard lands in the command bar before it goes, so a misrecognition is
+visible next to what it did rather than only afterwards.
+
+Say it the way you would say it on the radio. Airline names, individual digits and
+the ICAO pronunciations all work:
+
+```
+"Air India one zero one, descend and maintain five thousand"   -> AIC101 descend and maintain 5000
+"IndiGo four one two, turn left heading zero nine zero"        -> IGO412 turn left heading 090
+"Emirates five one, climb and maintain flight level one five zero"
+                                                               -> UAE51 climb and maintain FL150
+"Air India one zero one, cleared ILS runway two nine right approach"
+                                                               -> AIC101 cleared ILS runway 29R approach
+"SpiceJet niner tree, reduce speed to one fife zero"           -> SEJ93 reduce speed to 150
+```
+
+The airlines it knows by name are Air India, Air India Express, IndiGo, Vistara,
+SpiceJet, Emirates and Qatari — the ones the scenarios generate.
+
+**RDBK** turns on spoken pilot readbacks, so the crews answer out loud. Numbers are
+read the way they are spoken rather than the way they are written: `29R` comes back
+as "two niner right", a heading as separate digits, and an altitude in whole
+thousands as a number.
+
+Two things worth knowing before you rely on it. Speech recognition needs **Chrome,
+Edge or Safari** — Firefox has none, and the MIC button is disabled there with the
+reason in its tooltip. And in Chrome the audio is **sent to Google's servers** to be
+transcribed; that is how the browser API works, not a choice this simulator makes.
+The typed command line does everything voice does and works everywhere.
+
 ### Keyboard and mouse
 
 | Key | Effect |
@@ -168,6 +205,7 @@ read comes back as a message naming the offending word and showing a working exa
 | `Tab` | Complete the callsign. Press again to cycle through the aircraft that match. |
 | `↑` / `↓` | Walk back and forth through what you have already sent. |
 | `Enter` | Transmit. A line that will not parse stays in the box with the reason underneath. |
+| `` ` `` | Hold to talk; release to transmit. See [Speaking to the aircraft](#speaking-to-the-aircraft). |
 | `Space` | Pause and resume, when the command line is empty. |
 | `?` | The in-game help overlay, when the command line is empty. |
 | `Escape` | Clear the command line, or close the help overlay. |
@@ -403,8 +441,10 @@ absent rather than broken.
   simulation applies one set of radar minima everywhere, so running arrivals to one
   runway and departures off its neighbour can raise a conflict alert that real
   independent parallel approach procedures would not.
-- **No ground movement.** Taxi is abstracted to a queue at the holding point; there
-  is no apron, no taxiway, and no runway crossing.
+- **No ground movement.** Taxi is abstracted to a queue at the holding point. The
+  aerodrome chart draws the taxiways, aprons and stands, and plots aircraft on or
+  just above the field at their real positions — but nothing taxis along them, and
+  there is no runway crossing to control.
 - **Holding entries** are always direct entries; parallel and teardrop are not
   modelled.
 - **The tower is not modelled.** You clear aircraft for the approach and for
@@ -418,6 +458,23 @@ absent rather than broken.
 
 There are two data files, and **everything invented for the simulation in either of
 them carries `"approximated": true`**.
+
+### Aerodrome ground chart — `src/data/airspace.json`, `groundChart`
+
+Flagged `"approximated": true`. The **runways are real** — thresholds, courses,
+lengths and ILS frequencies come from published VIDP data, and the chart is drawn
+from those same numbers as the radar. Everything else in this block is invented:
+
+| What | Status |
+| --- | --- |
+| Runway positions, courses, lengths | Real |
+| Taxiways `A`–`E` and links `L1`–`L3` | Invented, offset from the real runway centrelines |
+| Aprons `Terminal 3`, `Terminal 1`, `Cargo` | Invented, squared to the runways and placed clear of them |
+| The 23 stands | Invented, spaced along the apron faces |
+
+It is a plausible schematic at true scale, not the published aerodrome chart. Stand
+numbers, taxiway letters and terminal positions do not match the real airport, and
+should not be used for anything but this simulation.
 
 ### Wake turbulence — `src/data/wake.json`
 
@@ -566,7 +623,7 @@ atc/
 ├── vitest.config.ts             unit tests
 └── src/
     ├── main.ts                  entry point: load airspace, build world, start loop
-    ├── style.css                scope-dark theme for the surrounding panels
+    ├── style.css                console theme for the surrounding panels
     ├── data/
     │   ├── airspace.json        the whole of VIDP — the only airport-specific file
     │   ├── aircraft.json        performance profiles for the seven types
@@ -590,6 +647,7 @@ atc/
     │   ├── theme.ts             scope colours
     │   ├── camera.ts            world to screen, pan and zoom
     │   ├── datablock.ts         data block text and automatic offsetting
+    │   ├── groundChart.ts       the VIDP aerodrome chart beside the radar
     │   └── scope.ts             the scope itself
     └── ui/                      DOM panels
         ├── app.ts               animation loop, mouse, keyboard, wiring
@@ -597,6 +655,8 @@ atc/
         ├── comms.ts             scrolling communications panel
         ├── statusBar.ts         clock, ATIS, runways, wind, simulation rate
         ├── debugPanel.ts        live weather editing
+        ├── voice.ts             push-to-talk, and spoken pilot readbacks
+        ├── voiceTranscript.ts   spoken phraseology to command text (pure)
         └── help.ts              the ? overlay
 ```
 

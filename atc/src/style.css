@@ -7,21 +7,21 @@
  */
 
 :root {
-  --bg: #0b0d10;
-  --panel: #12151a;
-  --panel-raised: #171b21;
-  --edge: #262c35;
-  --edge-soft: #1d222a;
+  --bg: #0a1020;
+  --panel: #111930;
+  --panel-raised: #16203c;
+  --edge: #2a3660;
+  --edge-soft: #1e2848;
 
-  --text: #c7d0da;
-  --text-strong: #eef2f7;
-  --text-dim: #8b95a3;
-  --text-faint: #5a6473;
+  --text: #c3ccea;
+  --text-strong: #eaf0ff;
+  --text-dim: #8792bb;
+  --text-faint: #616f9c;
 
   --accent: #ffc44d;
   --caution: #ffb020;
   --danger: #ff5f56;
-  --info: #57c8d8;
+  --info: #5b8cff;
 
   --mono: "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --row: 26px;
@@ -144,7 +144,7 @@ button.flat:hover {
 }
 
 button.rate.active {
-  color: #0b0d10;
+  color: #0a1020;
   background: var(--text);
   border-color: var(--text);
 }
@@ -216,12 +216,12 @@ button.flat.active {
   gap: 6px;
   align-items: baseline;
   padding: 3px 0;
-  border-bottom: 1px solid rgba(38, 44, 53, 0.6);
+  border-bottom: 1px solid rgba(42, 54, 96, 0.6);
   cursor: pointer;
   line-height: 1.4;
 }
 
-.alert-row:hover { background: rgba(38, 44, 53, 0.55); }
+.alert-row:hover { background: rgba(42, 54, 96, 0.55); }
 .alert-kind { font-size: 9px; letter-spacing: 0.12em; }
 .alert-since { color: var(--text-faint); text-align: right; }
 .alert-row.caution .alert-kind, .alert-row.caution .alert-text { color: var(--caution); }
@@ -249,12 +249,12 @@ button.flat.active {
   align-items: baseline;
   padding: 3px 2px;
   border-left: 2px solid transparent;
-  border-bottom: 1px solid rgba(38, 44, 53, 0.6);
+  border-bottom: 1px solid rgba(42, 54, 96, 0.6);
   cursor: pointer;
   user-select: none;
 }
 
-.strip:hover { background: rgba(38, 44, 53, 0.55); }
+.strip:hover { background: rgba(42, 54, 96, 0.55); }
 .strip.selected { background: rgba(255, 196, 77, 0.12); border-left-color: var(--accent); }
 .strip.dragging { opacity: 0.4; }
 .strip.drop-target { border-top: 1px solid var(--accent); }
@@ -271,6 +271,25 @@ button.flat.active {
 .strip.holding .strip-state { color: var(--caution); }
 .strip.out-of-order .strip-index { color: var(--caution); }
 .strip-empty { color: var(--text-faint); padding: 4px 0; }
+
+/* -------------------------------------------------------- ground chart */
+
+.panel-ground {
+  display: flex;
+  flex-direction: column;
+  /* Tall enough for the runway pattern to be legible, small enough to leave
+     the comms log the room it needs on a laptop screen. */
+  height: 240px;
+  flex: none;
+}
+
+#ground-chart {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: block;
+  border: 1px solid var(--edge-soft);
+}
 
 /* ---------------------------------------------------------------- comms */
 
@@ -327,6 +346,65 @@ button.flat.active {
   text-transform: none;
   letter-spacing: 0;
 }
+
+/* ------------------------------------------------------------ voice (PTT) */
+
+#mic-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--edge);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  height: 24px;
+  padding: 0 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 90ms linear, border-color 90ms linear;
+}
+
+#mic-button:hover:not(:disabled) { color: var(--text-strong); border-color: var(--text-dim); }
+
+.mic-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+/* Held down: the scope's only red that is not an alert, because a live
+   microphone is exactly as worth noticing. */
+#mic-button.listening {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+#mic-button.listening .mic-dot {
+  background: var(--danger);
+  animation: mic-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+#mic-button:disabled,
+#mic-button.unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#voice-status {
+  padding: 4px 12px 6px 34px;
+  font-size: 11px;
+  color: var(--info);
+}
+
+#voice-status[hidden] { display: none; }
 
 #command-error {
   padding: 5px 12px 8px 34px;
@@ -406,7 +484,7 @@ button.flat.active {
 #scenario-overlay {
   position: absolute;
   inset: 46px 0 0 0;
-  background: rgba(11, 13, 16, 0.97);
+  background: rgba(10, 16, 32, 0.97);
   overflow-y: auto;
   padding: 24px 32px 48px;
   z-index: 30;
@@ -530,7 +608,7 @@ table.log th {
 table.log td {
   padding: 4px 16px 4px 0;
   color: var(--text);
-  border-bottom: 1px solid rgba(38, 44, 53, 0.6);
+  border-bottom: 1px solid rgba(42, 54, 96, 0.6);
   white-space: nowrap;
 }
 

@@ -104,6 +104,11 @@
             <div id="departure-strips" class="strip-list"></div>
           </section>
 
+          <section class="panel panel-ground">
+            <h2>VIDP aerodrome</h2>
+            <canvas id="ground-chart"></canvas>
+          </section>
+
           <section class="panel panel-grow">
             <h2>Communications</h2>
             <div id="comms-log"></div>
@@ -121,8 +126,15 @@
           spellcheck="false"
           placeholder="AIC101 tl 270 d 50 s 210          Tab completes · ↑ recalls · ? for help"
         />
+        <button type="button" id="mic-button" title="Hold to talk">
+          <span class="mic-dot"></span>MIC
+        </button>
+        <button type="button" id="readback-toggle" class="flat" title="Speak pilot readbacks aloud">
+          RDBK
+        </button>
       </footer>
       <div id="command-error" hidden></div>
+      <div id="voice-status" hidden></div>
 
       <div id="debug-panel" hidden>
         <h2>Weather</h2>
