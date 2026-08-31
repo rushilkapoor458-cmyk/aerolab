@@ -91,6 +91,13 @@ export function requireElement(id: string): HTMLElement {
   return element;
 }
 
+/** A button that must exist in index.html, or the wiring is wrong. */
+export function requireButton(id: string): HTMLButtonElement {
+  const el = document.getElementById(id);
+  if (!(el instanceof HTMLButtonElement)) throw new Error(`index.html is missing button #${id}`);
+  return el;
+}
+
 export function requireInput(id: string): HTMLInputElement {
   const element = requireElement(id);
   if (!(element instanceof HTMLInputElement)) throw new Error(`#${id} is not an input`);

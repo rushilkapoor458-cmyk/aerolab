@@ -7,6 +7,7 @@
 import { Point } from '../sim/geo.js';
 import { Aircraft } from '../sim/types.js';
 import { Simulation } from '../sim/world.js';
+import { GroundChart } from '../render/groundChart.js';
 import { RadarScope, Ruler } from '../render/scope.js';
 import { ScreenPoint } from '../render/camera.js';
 import { CommandBar } from './commandBar.js';
@@ -17,7 +18,8 @@ import { AlertsPanel } from './alerts.js';
 import { ScoreOverlay } from './score.js';
 import { ScenarioPicker } from './scenarioPicker.js';
 import { StripBay } from './strips.js';
-import { StatusBar, requireElement, requireInput } from './statusBar.js';
+import { StatusBar, requireButton, requireElement, requireInput } from './statusBar.js';
+import { Readback, VoiceControl } from './voice.js';
 
 /** Simulated seconds may never advance by more than this in one frame. */
 const MAX_FRAME_STEP_SEC = 1.0;
@@ -29,6 +31,7 @@ type DragMode = 'none' | 'pan' | 'ruler';
 export class App {
   private readonly canvas: HTMLCanvasElement;
   private readonly scope: RadarScope;
+  private readonly groundChart: GroundChart;
   private readonly statusBar: StatusBar;
   private readonly comms: CommsPanel;
   private readonly strips: StripBay;
@@ -37,6 +40,11 @@ export class App {
   private readonly score: ScoreOverlay;
   private readonly commandBar: CommandBar;
   private readonly help: HelpOverlay;
+  private readonly voice: VoiceControl;
+  private readonly readback: Readback;
+  private readonly voiceStatus: HTMLElement;
+  /** Comms entries already spoken, so a readback is never said twice. */
+  private lastSpokenCommsId = 0;
 
   private rate = 1;
   private lastFrameMs = 0;
@@ -56,6 +64,12 @@ export class App {
     this.canvas = canvas;
 
     this.scope = new RadarScope(canvas, sim);
+
+    const groundCanvas = document.getElementById('ground-chart');
+    if (!(groundCanvas instanceof HTMLCanvasElement)) {
+      throw new Error('index.html is missing #ground-chart');
+    }
+    this.groundChart = new GroundChart(groundCanvas, sim.airspace);
     this.statusBar = new StatusBar(sim, (rate) => this.setRate(rate));
     this.comms = new CommsPanel(requireElement('comms-log'));
     const selectById = (id: string): void => {
@@ -100,9 +114,41 @@ export class App {
       this.scenarios.toggle();
     });
 
+    this.voiceStatus = requireElement('voice-status');
+    this.readback = new Readback();
+    this.voice = new VoiceControl(requireButton('mic-button'), {
+      onTranscript: (line) => this.commandBar.setLine(line),
+      onSubmit: (line) => this.sim.transmit(line),
+      onStatus: (message) => this.showVoiceStatus(message),
+    });
+
+    // Say so once, at startup, rather than leaving a dead button to be
+    // discovered by holding it and getting nothing.
+    if (!this.voice.available) {
+      this.showVoiceStatus(
+        'Voice needs Chrome, Edge or Safari. The typed command line works everywhere.',
+      );
+    }
+
+    const readbackButton = requireButton('readback-toggle');
+    if (!this.readback.available) {
+      readbackButton.disabled = true;
+      readbackButton.title = 'This browser cannot speak.';
+    }
+    readbackButton.addEventListener('click', () => {
+      this.readback.setEnabled(!this.readback.isEnabled);
+      readbackButton.classList.toggle('active', this.readback.isEnabled);
+      // Start from the present; do not read out the whole backlog.
+      this.lastSpokenCommsId = this.sim.comms.at(-1)?.id ?? 0;
+      this.commandBar.focus();
+    });
+
     this.bindPointer();
     this.bindKeyboard();
-    window.addEventListener('resize', () => this.scope.resize());
+    window.addEventListener('resize', () => {
+      this.scope.resize();
+      this.groundChart.resize();
+    });
   }
 
   start(): void {
@@ -135,6 +181,7 @@ export class App {
       this.comms.update(this.sim.comms);
       this.strips.update(this.selectedId);
       this.alerts.update(this.sim.safety.alerts);
+      this.speakNewReadbacks();
     }
 
     this.scope.render({
@@ -142,6 +189,29 @@ export class App {
       ruler: this.currentRuler(),
       alerts: this.sim.safety.alerts,
     });
+    this.groundChart.render(this.sim.aircraft, this.selectedId);
+  }
+
+  /**
+   * Read the pilots' replies aloud.
+   *
+   * Only what the crews say — the controller's own transmissions are already
+   * known to whoever sent them, and hearing your own clearance read back to
+   * you by the machine is just noise.
+   */
+  private speakNewReadbacks(): void {
+    if (!this.readback.isEnabled) return;
+    for (const entry of this.sim.comms) {
+      if (entry.id <= this.lastSpokenCommsId) continue;
+      this.lastSpokenCommsId = entry.id;
+      if (entry.source === 'pilot') this.readback.say(entry.text);
+    }
+  }
+
+  /** Show, or clear, the line under the command bar that voice writes to. */
+  private showVoiceStatus(message: string): void {
+    this.voiceStatus.textContent = message;
+    this.voiceStatus.hidden = message === '';
   }
 
   private currentRuler(): Ruler | null {

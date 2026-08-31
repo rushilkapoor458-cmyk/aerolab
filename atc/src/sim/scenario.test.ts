@@ -126,6 +126,40 @@ describe('validation', () => {
     expect(() => validateScenario(broken, AIRSPACE, PERFORMANCE)).toThrow(/no STAR starts there/);
   });
 
+  it('rejects initial traffic placed outside the sector', () => {
+    const scenario = base();
+    const placement = {
+      callsign: 'AIC999', type: 'A320', atFix: 'GUDUR', beyondNm: 40,
+      altitudeFt: 9000, clearedAltitudeFt: 9000, iasKt: 280, clearedSpeedKt: 280,
+      squawk: '4599', route: [],
+    };
+    const broken: Scenario = { ...scenario, initialTraffic: [placement] };
+    expect(() => validateScenario(broken, AIRSPACE, PERFORMANCE))
+      .toThrow(/AIC999 outside the sector/);
+  });
+
+  it('accepts initial traffic placed inside the sector', () => {
+    const scenario = base();
+    const placement = {
+      callsign: 'AIC998', type: 'A320', atFix: 'GUDUR', beyondNm: -6,
+      altitudeFt: 9000, clearedAltitudeFt: 9000, iasKt: 280, clearedSpeedKt: 280,
+      squawk: '4598', route: ['TUMSA'],
+    };
+    const ok: Scenario = { ...scenario, initialTraffic: [placement] };
+    expect(() => validateScenario(ok, AIRSPACE, PERFORMANCE)).not.toThrow();
+  });
+
+  it('rejects initial traffic routed via an unknown fix', () => {
+    const scenario = base();
+    const placement = {
+      callsign: 'AIC997', type: 'A320', atFix: 'GUDUR', beyondNm: -6,
+      altitudeFt: 9000, clearedAltitudeFt: 9000, iasKt: 280, clearedSpeedKt: 280,
+      squawk: '4597', route: ['NOWHR'],
+    };
+    const broken: Scenario = { ...scenario, initialTraffic: [placement] };
+    expect(() => validateScenario(broken, AIRSPACE, PERFORMANCE)).toThrow(/unknown fix NOWHR/);
+  });
+
   it('rejects an unknown SID', () => {
     const scenario = base();
     const broken = {

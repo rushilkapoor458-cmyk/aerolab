@@ -40,6 +40,18 @@ export class CommandBar {
     this.clearError();
   }
 
+  /**
+   * Show a line the controller did not type — a recognised transmission.
+   *
+   * It goes in the box rather than straight out so that what was heard is on
+   * screen next to what it did, which is the only way to tell a misrecognition
+   * from a misjudgement.
+   */
+  setLine(line: string): void {
+    this.input.value = line;
+    this.clearError();
+  }
+
   focus(): void {
     this.input.focus();
   }

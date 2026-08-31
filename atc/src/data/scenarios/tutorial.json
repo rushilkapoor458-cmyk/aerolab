@@ -5,18 +5,41 @@
   "seed": 1001,
   "startTimeUtc": "09:00",
   "durationMin": 45,
-  "runways": { "arrival": "29R", "departure": "29R" },
+  "runways": {
+    "arrival": "29R",
+    "departure": "29R"
+  },
   "traffic": {
     "arrivalsPerHour": 0,
     "departuresPerHour": 0,
-    "fleet": [{ "type": "A320", "weight": 1 }],
-    "airlines": [{ "prefix": "AIC", "name": "Air India", "weight": 1 }],
-    "entryFixes": ["GUDUR"],
-    "entryAltitudeFt": { "min": 9000, "max": 9000 },
+    "fleet": [
+      {
+        "type": "A320",
+        "weight": 1
+      }
+    ],
+    "airlines": [
+      {
+        "prefix": "AIC",
+        "name": "Air India",
+        "weight": 1
+      }
+    ],
+    "entryFixes": [
+      "GUDUR"
+    ],
+    "entryAltitudeFt": {
+      "min": 9000,
+      "max": 9000
+    },
     "entrySpeedKt": 250,
-    "fuelFactor": { "min": 1, "max": 1 },
+    "fuelFactor": {
+      "min": 1,
+      "max": 1
+    },
     "departureSids": []
   },
+  "initialTraffic": [],
   "weather": {
     "windDirectionDeg": 290,
     "windSpeedKt": 8,

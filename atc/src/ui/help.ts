@@ -44,6 +44,7 @@ const KEYS: readonly Row[] = [
   { keys: 'Tab', description: 'Complete the callsign. Press again to cycle through the aircraft that match.' },
   { keys: '↑ / ↓', description: 'Walk back and forth through what you have already sent.' },
   { keys: 'Enter', description: 'Transmit. A line that will not parse stays in the box with the reason underneath.' },
+  { keys: '`', description: 'Hold to talk. Release to transmit what was heard.' },
   { keys: 'Space', description: 'Pause and resume, when the command line is empty.' },
   { keys: '?', description: 'This overlay, when the command line is empty. Escape or ? closes it.' },
   { keys: 'Escape', description: 'Clear the command line.' },
