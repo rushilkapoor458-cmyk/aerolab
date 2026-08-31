@@ -16,6 +16,12 @@
 import { Aircraft } from '../sim/types.js';
 import { Airspace } from '../sim/airspace.js';
 import { Point } from '../sim/geo.js';
+import {
+  BLOCK_PADDING_PX,
+  DataBlockRequest,
+  layoutDataBlocks,
+  leaderEndPoint,
+} from './datablock.js';
 import { THEME } from './theme.js';
 
 /** Half-width of the charted area, in nautical miles either side of the ARP. */
@@ -254,28 +260,50 @@ export class GroundChart {
    * The filter is height and position: anything above 3,000 ft or outside the
    * charted square is somewhere else, and drawing it here would be a lie
    * about where it is.
+   *
+   * Two aircraft on the field are often within a few pixels of each other —
+   * one rolling out, one at the holding point — and printing each callsign at
+   * a fixed offset put one on top of the other and made both unreadable. The
+   * callsigns therefore go through the same placement the radar's data blocks
+   * use: candidate positions around the target, the first that clashes with
+   * nothing wins, and a leader line ties the label back to what it names.
    */
   private drawAircraft(aircraft: readonly Aircraft[], selectedId: string | null): void {
     const ctx = this.ctx;
+    const rect = this.canvas.getBoundingClientRect();
     const elevation = this.airspace.airport.elevationFt;
 
-    for (const ac of aircraft) {
-      if (ac.altitudeFt - elevation > CHART_CEILING_FT) continue;
-      if (Math.abs(ac.position.x) > HALF_EXTENT_NM || Math.abs(ac.position.y) > HALF_EXTENT_NM) {
-        continue;
-      }
+    const onField = aircraft.filter(
+      (ac) =>
+        ac.altitudeFt - elevation <= CHART_CEILING_FT &&
+        Math.abs(ac.position.x) <= HALF_EXTENT_NM &&
+        Math.abs(ac.position.y) <= HALF_EXTENT_NM,
+    );
+    if (onField.length === 0) return;
 
+    ctx.font = THEME.fontSmall;
+    const requests: DataBlockRequest[] = onField.map((ac) => ({
+      id: ac.id,
+      anchor: this.toScreen(ac.position),
+      lines: [ac.callsign],
+      selected: ac.id === selectedId,
+      severity: 'normal',
+    }));
+    const placed = layoutDataBlocks(requests, (text) => ctx.measureText(text).width, {
+      width: rect.width,
+      height: rect.height,
+    });
+
+    // Chevrons first, so no label is drawn under a later aircraft's symbol.
+    for (const ac of onField) {
       const s = this.toScreen(ac.position);
-      const selected = ac.id === selectedId;
-      const colour = selected ? THEME.targetSelected : THEME.target;
+      ctx.fillStyle = ac.id === selectedId ? THEME.targetSelected : THEME.target;
 
       // A chevron pointing where it is going, which on the ground is the
       // only thing that tells one direction of travel from the other.
-      const heading = (ac.headingDeg * Math.PI) / 180;
       ctx.save();
       ctx.translate(s.x, s.y);
-      ctx.rotate(heading);
-      ctx.fillStyle = colour;
+      ctx.rotate((ac.headingDeg * Math.PI) / 180);
       ctx.beginPath();
       ctx.moveTo(0, -5);
       ctx.lineTo(3.5, 4);
@@ -284,12 +312,35 @@ export class GroundChart {
       ctx.closePath();
       ctx.fill();
       ctx.restore();
+    }
+
+    for (const block of placed) {
+      const colour = block.selected ? THEME.targetSelected : THEME.target;
+      const label = block.lines[0] ?? '';
+
+      // The leader, drawn only when the label has been pushed far enough away
+      // to need one. leaderEndPoint stops it at the box edge rather than
+      // running it through the text.
+      const end = leaderEndPoint(block.anchor, block.box);
+      if (end !== null) {
+        ctx.strokeStyle = THEME.leader;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(block.anchor.x, block.anchor.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
+
+      // Ground behind the text: the chart underneath is busy, and a callsign
+      // over a runway edge is otherwise hard to read.
+      const width = ctx.measureText(label).width;
+      ctx.fillStyle = THEME.background;
+      ctx.fillRect(block.box.x, block.box.y, width + BLOCK_PADDING_PX * 2, block.box.h);
 
       ctx.fillStyle = colour;
-      ctx.font = THEME.fontSmall;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(ac.callsign, s.x + 7, s.y);
+      ctx.fillText(label, block.box.x + BLOCK_PADDING_PX, block.box.y + block.box.h / 2);
     }
   }
 
