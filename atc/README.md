@@ -442,9 +442,11 @@ absent rather than broken.
   runway and departures off its neighbour can raise a conflict alert that real
   independent parallel approach procedures would not.
 - **No ground movement.** Taxi is abstracted to a queue at the holding point. The
-  aerodrome chart draws the taxiways, aprons and stands, and plots aircraft on or
-  just above the field at their real positions — but nothing taxis along them, and
-  there is no runway crossing to control.
+  aerodrome chart draws the runway pavement, taxiways, aprons and stands, picks out
+  the runway in use, and plots aircraft on or just above the field at their real
+  positions — solid where they are on the surface, hollow where they are still
+  flying. But nothing taxis along those taxiways, and there is no runway crossing
+  to control.
 - **Holding entries** are always direct entries; parallel and teardrop are not
   modelled.
 - **The tower is not modelled.** You clear aircraft for the approach and for

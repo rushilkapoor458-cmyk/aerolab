@@ -189,7 +189,7 @@ export class App {
       ruler: this.currentRuler(),
       alerts: this.sim.safety.alerts,
     });
-    this.groundChart.render(this.sim.aircraft, this.selectedId);
+    this.groundChart.render(this.sim.aircraft, this.selectedId, this.sim.runways);
   }
 
   /**
